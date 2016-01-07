@@ -19,17 +19,19 @@
 ;; OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 ;; WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-
-
-(in-package   :rte)
-
-(defun expand-my-typedef (type args unary-function &key (function-name (gensym (format nil "~A" type))))
-  (declare (type symbol function-name))
-  (let* ((type (cons type args))
-	 (sat  (or (gethash type *type-functions*)
-		   (setf (gethash type *type-functions*)
-			 (progn
-			   (setf (symbol-function function-name) unary-function)
-			   function-name)))))
-    `(and sequence
-	  (satisfies ,sat))))
+(asdf:defsystem :rte
+  :depends-on (:ndfa
+	       :yacc ;; needed by regexp.lisp
+	       :lisp-types
+	       )
+  :components
+  ((:module "rte"
+    :components
+    ((:file "rte")
+     (:file "expand-typedef")
+     (:file "list-of" :depends-on ("expand-typedef"))
+     (:file "dependents")
+     (:file "re-pattern" :depends-on ("expand-typedef" "dependents"))
+     (:file "regexp" :depends-on ("re-pattern")) ; requires :yacc
+     (:file "destructuring-case" :depends-on ("re-pattern"))
+     ))))

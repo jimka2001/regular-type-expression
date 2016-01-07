@@ -1,5 +1,5 @@
 
-(in-package   :fr.epita.lrde.rte)
+(in-package   :rte)
 
 (defun get-data ()
   (let ((plist '(a 100 b 200 c 300 d 400))) ;8

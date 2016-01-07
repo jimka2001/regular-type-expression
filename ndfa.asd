@@ -20,16 +20,9 @@
 ;; WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
-
-(in-package   :rte)
-
-(defun expand-my-typedef (type args unary-function &key (function-name (gensym (format nil "~A" type))))
-  (declare (type symbol function-name))
-  (let* ((type (cons type args))
-	 (sat  (or (gethash type *type-functions*)
-		   (setf (gethash type *type-functions*)
-			 (progn
-			   (setf (symbol-function function-name) unary-function)
-			   function-name)))))
-    `(and sequence
-	  (satisfies ,sat))))
+(asdf:defsystem :ndfa
+  :depends-on ()
+  :components
+  ((:module "ndfa"
+    :components
+    ((:file "ndfa")))))

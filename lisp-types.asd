@@ -19,17 +19,11 @@
 ;; OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 ;; WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-
-
-(in-package   :rte)
-
-(defun expand-my-typedef (type args unary-function &key (function-name (gensym (format nil "~A" type))))
-  (declare (type symbol function-name))
-  (let* ((type (cons type args))
-	 (sat  (or (gethash type *type-functions*)
-		   (setf (gethash type *type-functions*)
-			 (progn
-			   (setf (symbol-function function-name) unary-function)
-			   function-name)))))
-    `(and sequence
-	  (satisfies ,sat))))
+(asdf:defsystem :lisp-types
+  :depends-on ()
+  :components
+  ((:module "lisp-types"
+    :components
+    ((:file "lisp-types")
+     (:file "typecase" :depends-on ("lisp-types"))
+     ))))

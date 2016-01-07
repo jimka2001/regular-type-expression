@@ -1,5 +1,5 @@
 
-(in-package :fr.epita.lrde.rte)
+(in-package :rte)
 
 (let ((sm (make-state-machine '(:0-* (:0-1 (:or string 
 					     (satisfies oddp)))

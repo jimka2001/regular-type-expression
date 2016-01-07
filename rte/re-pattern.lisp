@@ -1,23 +1,26 @@
+;; Copyright (c) 2016 EPITA Research and Development Laboratory
+;;
+;; Permission is hereby granted, free of charge, to any person obtaining
+;; a copy of this software and associated documentation
+;; files (the "Software"), to deal in the Software without restriction,
+;; including without limitation the rights to use, copy, modify, merge,
+;; publish, distribute, sublicense, and/or sell copies of the Software,
+;; and to permit persons to whom the Software is furnished to do so,
+;; subject to the following conditions:
+;;
+;; The above copyright notice and this permission notice shall be
+;; included in all copies or substantial portions of the Software.
+;;
+;; THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+;; EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+;; MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+;; NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+;; LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+;; OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+;; WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-;; Copyright (C) 2012 EPITA Research and Development Laboratory
 
-;; This file is part of Climb.
-
-;; Climb is free software; you can redistribute it and/or modify
-;; it under the terms of the GNU General Public License version 3,
-;; as published by the Free Software Foundation.
-
-;; Climb is distributed in the hope that it will be useful,
-;; but WITHOUT ANY WARRANTY; without even the implied warranty of
-;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-;; GNU General Public License for more details.
-
-;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, write to the Free Software
-;; Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
-
-
-(in-package   :fr.epita.lrde.rte)
+(in-package   :rte)
 
 (defun map-permutations (visit data)
   "call the given VISITOR function once for each permutation of the given list DATA"
@@ -310,18 +313,19 @@ a fixed point is found."
 				  (t
 				   '(:0-* t))))))))))
 
+(defun fixed-point (function arg &key (test #'equal))
+  "Find the fixed point of a FUNCTION, starting with the given ARG."
+  (declare (type (function (t) t) function))
+  (let ((result (funcall function arg)))
+	
+    (loop :while (not (funcall test result arg))
+	  :do (progn (setf arg result)
+		     (setf result (funcall function arg))))
+    result))
+
 (defun canonicalize-pattern (re)
   "Given a regular-type-expression, return a canonical form."
   (fixed-point #'canonicalize-pattern-once re :test #'equal))
-
-(defun disjoint-types-p (T1 T2)
-  "Two types are considered disjoint, if their interseciton is empty, i.e., is a subtype of nil."
-  (subtypep `(and ,T1 ,T2) nil))
-
-(defun equivalent-types-p (T1 T2)
-  "Two types are considered equivalent if each is a subtype of the other."
-  (and (subtypep T1 T2)
-       (subtypep T2 T1)))
 
 (defun nullable (re)
   (traverse-pattern re

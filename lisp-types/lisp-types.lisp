@@ -1,25 +1,62 @@
-;; Copyright (C) 2012 EPITA Research and Development Laboratory
+;; Copyright (c) 2016 EPITA Research and Development Laboratory
+;;
+;; Permission is hereby granted, free of charge, to any person obtaining
+;; a copy of this software and associated documentation
+;; files (the "Software"), to deal in the Software without restriction,
+;; including without limitation the rights to use, copy, modify, merge,
+;; publish, distribute, sublicense, and/or sell copies of the Software,
+;; and to permit persons to whom the Software is furnished to do so,
+;; subject to the following conditions:
+;;
+;; The above copyright notice and this permission notice shall be
+;; included in all copies or substantial portions of the Software.
+;;
+;; THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+;; EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+;; MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+;; NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+;; LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+;; OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+;; WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-;; This file is part of Climb.
+(cl:defpackage :lisp-types
+  (:use :cl)
+  (:export
+   "DISJOINT-IZE"
+   "VALID-TYPE-P"
+   "REDUCE-LISP-TYPE"
+   "REDUCED-TYPECASE"
+   "OPTIMIZED-TYPECASE"
+   "DISJOINT-TYPES-P"
+   "EQUIVALENT-TYPES-P"
+   ))
 
-;; Climb is free software; you can redistribute it and/or modify
-;; it under the terms of the GNU General Public License version 3,
-;; as published by the Free Software Foundation.
-
-;; Climb is distributed in the hope that it will be useful,
-;; but WITHOUT ANY WARRANTY; without even the implied warranty of
-;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-;; GNU General Public License for more details.
-
-;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, write to the Free Software
-;; Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
-
-
-(in-package   :fr.epita.lrde.rte)
+(in-package   :lisp-types)
 
 (defun valid-type-p (type-designator)
+  ;; TODO need to make this work for other lisps
+  ;;  current only works for sbcl
   (SB-EXT:VALID-TYPE-SPECIFIER-P type-designator))
+
+(defun disjoint-types-p (T1 T2)
+  "Two types are considered disjoint, if their interseciton is empty, i.e., is a subtype of nil."
+  (subtypep `(and ,T1 ,T2) nil))
+
+(defun types-equivalent-p (T1 T2)
+)
+
+(defun equivalent-types-p (T1 T2)
+  "Two types are considered equivalent if each is a subtype of the other."
+  (and (subtypep T1 T2)
+       (subtypep T2 T1))
+  ;; TODO -- the following is the correct implementation
+  ;; TODO -- enable this code and verify the tests
+  ;; (multiple-value-bind (T1<=T2 okT1T2) (subtypep T1 T2)
+  ;; (multiple-value-bind (T2<=T1 okT2T2) (subtypep T2 T1)
+  ;; (values (and T1<=T2 T2<=T1) (and okT1T2 okT2T2))))
+)
+
+
 
 (defun set-equalp (set-a set-b &key (test #'equal))
   (declare (notinline set-exclusive-or))
@@ -47,10 +84,14 @@ symbol _ somewhere (recursively)."
 	   ,@body)
 	`(destructuring-bind ,destructuring-lambda-list ,object
 	   ,@body))))
-	
 
-
-
+(defun partition-by-predicate (predicate data)
+  (let (true-elements false-elements)
+    (dolist (element data)
+      (if (funcall predicate element)
+	  (push element true-elements)
+	  (push element false-elements)))
+    (values true-elements false-elements)))
 
 (defun reduce-lisp-type-once (type)
   "Given a lisp type designator, make one pass at reducing it, removing redundant information such as
