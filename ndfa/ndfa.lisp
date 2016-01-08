@@ -231,6 +231,8 @@ None, some, or all of these states might be final states of the state machine."
   (declare (type sequence input-sequence))
   (perform-some-transitions ndfa (get-initial-states ndfa) input-sequence))
 
+(defgeneric add-transition (state &key next-label transition-label))
+
 (defmethod add-transition ((state state) &key next-label transition-label)
   "Create and return an instance of TRANSITION from STATE to the state designated by NEXT-LABEL.
 Note, that the state indicated by NEXT-LABEL might not yet exist."
