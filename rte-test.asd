@@ -21,6 +21,7 @@
 
 (asdf:defsystem :rte-test
   :depends-on (:rte
+	       :2d-array
 	       (:version :lisp-unit "0.9.0"))
   :components
   ((:module "rte"

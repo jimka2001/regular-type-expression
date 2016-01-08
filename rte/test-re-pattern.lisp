@@ -213,28 +213,22 @@
 			'((:cat t t) t))))
 
 (define-test type/remove-redundant-types
-  (labels ((remove-redundant-types (patterns operator)
-	     (rte::remove-redundant-types patterns operator)))
-    (assert-true (equal '((integer 0 1))
-			(remove-redundant-types '(integer (integer 0 1) (integer 0 3) number)
-						:and)))
-     (assert-true (equal '(number)
-			(remove-redundant-types '(integer (integer 0 1) (integer 0 3) number)
-						:or)))
-    (assert-true (equal '(integer float)
-			(remove-redundant-types '(integer (integer 0) (integer 0 5) float (float 0.0) (float 0.0 100.0))
-						:or)))))
+  (assert-true (equal '((integer 0 1))
+		      (rte::remove-redundant-types '(integer (integer 0 1) (integer 0 3) number)
+						   :and)))
+  (assert-true (equal '(number)
+		      (rte::remove-redundant-types '(integer (integer 0 1) (integer 0 3) number)
+						   :or)))
+  (assert-true (equal '(integer float)
+		      (rte::remove-redundant-types '(integer (integer 0) (integer 0 5) float (float 0.0) (float 0.0 100.0))
+						   :or))))
 
 (define-test type/alphabetize
-  (labels ((alphabetize (re)
-	     (rte::alphabetize re)))
-    (assert-true (equal '(float number string) (alphabetize '(number float string))))
-    (assert-true (equal (alphabetize '(number (number 10 12) (number 2 5) (number 6) float))
-			'(float number (number 2 5) (number 6) (number 10 12))))))
+  (assert-true (equal '(float number string) (rte::alphabetize '(number float string))))
+  (assert-true (equal (rte::alphabetize '(number (number 10 12) (number 2 5) (number 6) float))
+		      '(float number (number 2 5) (number 6) (number 10 12)))))
 
 (define-test type/canonicalize-pattern
-  (labels ((canonicalize-pattern (re)
-	     (rte::canonicalize-pattern re)))
 
     (assert-true (equal '(:cat symbol number) (canonicalize-pattern '(:cat (type symbol) (type number)))))
     (assert-true (equal :empty-word (canonicalize-pattern '(:cat :empty-word :empty-word))))
@@ -287,26 +281,22 @@
     (assert-true (equal '(:and t :empty-word)  (canonicalize-pattern '(:AND t (:CAT (:CAT) (:CAT))))))
     (assert-true (equal :empty-word (canonicalize-pattern '(:CAT (:CAT) (:CAT)))))
     (assert-true (equal :empty-word (canonicalize-pattern '(:AND (:0-* T) :empty-word))))
-    ))
+    )
+
 
 
 (define-test type/traverse-pattern
-  (labels ((traverse-pattern (&rest args)
-	     (apply #'rte::traverse-pattern args)))
-    (assert-true (equal :empty-word (traverse-pattern :empty-word :client #'identity)))
-    (assert-true (equal :empty-set (traverse-pattern :empty-set :client #'identity)))
-    (assert-true (equal 'float (traverse-pattern 'float :client #'identity)))
+  (assert-true (equal :empty-word (rte::traverse-pattern :empty-word :client #'identity)))
+  (assert-true (equal :empty-set (rte::traverse-pattern :empty-set :client #'identity)))
+  (assert-true (equal 'float (rte::traverse-pattern 'float :client #'identity)))
 
-    (assert-true (equal '(:or float number) (traverse-pattern '(:or float number) :client #'identity)))
-    (assert-true (equal '(:and float number) (traverse-pattern '(:and float number) :client #'identity)))
-    (assert-true (equal '(:cat float number) (traverse-pattern '(:cat float number) :client #'identity)))
+  (assert-true (equal '(:or float number) (rte::traverse-pattern '(:or float number) :client #'identity)))
+  (assert-true (equal '(:and float number) (rte::traverse-pattern '(:and float number) :client #'identity)))
+  (assert-true (equal '(:cat float number) (rte::traverse-pattern '(:cat float number) :client #'identity)))
 
-    (assert-true (equal '(:0-* float number) (traverse-pattern '(:0-* float number) :client #'identity)))
+  (assert-true (equal '(:0-* float number) (rte::traverse-pattern '(:0-* float number) :client #'identity)))
 
-    (assert-true (equal '(:0-* float number) (traverse-pattern '(:0-* float number) :f-type #'identity)))
-
-    
-    ))
+  (assert-true (equal '(:0-* float number) (rte::traverse-pattern '(:0-* float number) :f-type #'identity))))
 
 (define-test type/first-types
   (assert-false (set-exclusive-or '(float)
@@ -319,70 +309,65 @@
   (assert-true (rte::equivalent-types-p '(member 1 2 3) '(or (eql 1) (eql 2) (eql 3)))))
 
 (define-test type/nullable
-  (labels ((nullable (x)
-	     (rte::nullable x)))
-    (assert-false (nullable :empty-set))
-    (assert-true  (nullable :empty-word))
-    (assert-false (nullable 'float))
-    (assert-false (nullable '(integer 1 3)))
-    (assert-true  (nullable '(:cat (:0-1 number) (:0-1 string) (:0-* float) :empty-word)))
-    (assert-true  (nullable '(:0-* number)))
-    (assert-false (nullable '(:1-* number)))
-    (assert-true  (nullable '(:0-1 number)))
-    (assert-true  (nullable '(:and (:0-1 number)
-			      (:0-* number))))
-    (assert-false (nullable '(:and (:0-1 number)
-			      (:1-* number))))
-    (assert-true  (nullable '(:or (:0-1 number)
-			          (:1-* number))))
-    (assert-true  (nullable '(:or (:0-1 string)
-			          (:0-* number))))
-    (assert-false (nullable '(:or string
-			          (:1-* number))))
-))
+  (assert-false (rte::nullable :empty-set))
+  (assert-true  (rte::nullable :empty-word))
+  (assert-false (rte::nullable 'float))
+  (assert-false (rte::nullable '(integer 1 3)))
+  (assert-true  (rte::nullable '(:cat (:0-1 number) (:0-1 string) (:0-* float) :empty-word)))
+  (assert-true  (rte::nullable '(:0-* number)))
+  (assert-false (rte::nullable '(:1-* number)))
+  (assert-true  (rte::nullable '(:0-1 number)))
+  (assert-true  (rte::nullable '(:and (:0-1 number)
+				 (:0-* number))))
+  (assert-false (rte::nullable '(:and (:0-1 number)
+				 (:1-* number))))
+  (assert-true  (rte::nullable '(:or (:0-1 number)
+				 (:1-* number))))
+  (assert-true  (rte::nullable '(:or (:0-1 string)
+				 (:0-* number))))
+  (assert-false (rte::nullable '(:or string
+				 (:1-* number)))))
   
 
 (define-test type/derivative
-  (labels ((derivative (a b)
-	     (rte::derivative a b)))
 
-    ;; trivial cases
-    (assert-true (derivative 'float 'float))
-    (assert-true (equal :empty-word (derivative 'float 'float)))
-    (assert-true (equal :empty-set  (derivative :empty-word 'float)))
-    (assert-true (equal :empty-set  (derivative 'float 'string)))
-    (assert-true (equal :empty-set  (derivative :empty-set 'float)))
+  ;; trivial cases
+  (assert-true (rte::derivative 'float 'float))
+  (assert-true (equal :empty-word (rte::derivative 'float 'float)))
+  (assert-true (equal :empty-set  (rte::derivative :empty-word 'float)))
+  (assert-true (equal :empty-set  (rte::derivative 'float 'string)))
+  (assert-true (equal :empty-set  (rte::derivative :empty-set 'float)))
 
-    ;; or/and
+  ;; or/and
 
-    (assert-true (equal :empty-word (derivative '(:or float float) 'float)))
-    (assert-true (equal :empty-word (derivative '(:and float float) 'float)))
-    (assert-true (equal :empty-word (derivative '(:or  float string) 'float)))
-    (assert-true (equal :empty-word (derivative '(:or  float string) 'string)))
+  (assert-true (equal :empty-word (rte::derivative '(:or float float) 'float)))
+  (assert-true (equal :empty-word (rte::derivative '(:and float float) 'float)))
+  (assert-true (equal :empty-word (rte::derivative '(:or  float string) 'float)))
+  (assert-true (equal :empty-word (rte::derivative '(:or  float string) 'string)))
 
 
-    (assert-true (equal :empty-word
-			(derivative '(:cat float) 'float)))
-    (assert-true (equal 'string
-			(derivative '(:cat float string) 'float)))
-    (assert-true (equal '(:0-* string)
-			(derivative '(:cat float (:0-* string)) 'float)))
-    (assert-true (equal '(:0-* (:or float string))
-			(derivative '(:cat float (:0-* (:or string float))) 'float)))
+  (assert-true (equal :empty-word
+		      (rte::derivative '(:cat float) 'float)))
+  (assert-true (equal 'string
+		      (rte::derivative '(:cat float string) 'float)))
+  (assert-true (equal '(:0-* string)
+		      (rte::derivative '(:cat float (:0-* string)) 'float)))
+  (assert-true (equal '(:0-* (:or float string))
+		      (rte::derivative '(:cat float (:0-* (:or string float))) 'float)))
     
-    (assert-true (equal '(:0-* float)
-			(derivative '(:0-* float) 'float)))
+  (assert-true (equal '(:0-* float)
+		      (rte::derivative '(:0-* float) 'float)))
 
-    (assert-true (equal '(:0-* float)
-			(derivative '(:1-* float) 'float)))
+  (assert-true (equal '(:0-* float)
+		      (rte::derivative '(:1-* float) 'float)))
 
-    (assert-true (equal (rte::canonicalize-pattern '(:or (:cat (:0-* float) (:or float string))  :empty-word))
-			(derivative '(:cat (:0-* float) (:or string float)) 'float)))
-    (assert-true (equal (rte::canonicalize-pattern '(:or (:cat (:0-* float) (:0-* (:or float string)))
-						     (:0-* (:or float string))))
-			(derivative '(:cat (:0-* float) (:0-* (:or string float))) 'float)))
+  (assert-true (equal (rte::canonicalize-pattern '(:or (:cat (:0-* float) (:or float string))  :empty-word))
+		      (rte::derivative '(:cat (:0-* float) (:or string float)) 'float)))
+  (assert-true (equal (rte::canonicalize-pattern '(:or (:cat (:0-* float) (:0-* (:or float string)))
+						   (:0-* (:or float string))))
+		      (rte::derivative '(:cat (:0-* float) (:0-* (:or string float))) 'float)))
 
-    ))
+  )
 
 (define-test type/derivative-2
   (assert-true (equal (rte::canonicalize-pattern (rte::derivative '(:OR

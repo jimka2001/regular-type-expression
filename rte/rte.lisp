@@ -32,15 +32,15 @@
    "REDUCED-TYPECASE"
    "OPTIMIZED-TYPECASE"
    "CANONICALIZE-PATTERN"
+   "GATHER-TYPE-DECLARATIONS"
+   "DESTRUCTURING-LAMBDA-LIST-TO-RTE"
    ))
 
 (in-package :rte)
 
-
 (defvar *type-functions* (make-hash-table))
 (defvar *state-machines* (make-hash-table :test #'equal))
 (defvar *rte-types* (make-hash-table :test #'equal))
-
 
 (defmacro exists (var domain &rest body)
   `(member-if #'(lambda (,var) ,@body) ,domain))

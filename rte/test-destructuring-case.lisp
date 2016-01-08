@@ -23,7 +23,7 @@
 
 (define-test test/destructuring-case-1-a
   (assert-true
-   (equal 3 (rte::destructuring-case '(x y z)
+   (equal 3 (destructuring-case '(x y z)
 	      ((a)
 	       (declare (ignore a))
 	       1)
@@ -36,7 +36,7 @@
 (define-test test/destructuring-case-1-b
 
   (assert-true
-   (equal 2 (rte:destructuring-case '(x y)
+   (equal 2 (destructuring-case '(x y)
 	      ((a)
 	       (declare (ignore a))
 	       1)
@@ -49,7 +49,7 @@
 
 (define-test test/destructuring-case-1-c
   (assert-true
-   (equal 1 (rte:destructuring-case '(x)
+   (equal 1 (destructuring-case '(x)
 	      ((a)
 	       (declare (ignore a))
 	       1)
@@ -62,7 +62,7 @@
 
 (define-test test/destructuring-case-2-a
   (assert-true
-   (equal 3 (rte::destructuring-case '((x) y z)
+   (equal 3 (destructuring-case '((x) y z)
 	      ((a)
 	       (declare (ignore a))
 	       1)
@@ -76,7 +76,7 @@
 (define-test test/destructuring-case-2-b
   
   (assert-true
-   (equal 2 (rte:destructuring-case '(x (y))
+   (equal 2 (destructuring-case '(x (y))
 	      ((a)
 	       (declare (ignore a))
 	       1)
@@ -90,7 +90,7 @@
 
 (define-test test/destructuring-case-2-c
   (assert-true
-   (equal 3 (rte:destructuring-case '((x) y)
+   (equal 3 (destructuring-case '((x) y)
 	      ((a)
 	       (declare (ignore a))
 	       1)
@@ -108,7 +108,7 @@
     (dolist (x '((1)
 		 (2 (3))
 		 (1 ((2)) (3 4))))
-      (rte:destructuring-case x
+      (destructuring-case x
 	((a)
 	 (incf n)
 	 (assert-true (= a 1)))
@@ -130,7 +130,7 @@
 (define-test test/destructuring-case-4
   (let ((a '(1 2 :x 3 :y 4))
 	(n 0))
-    (rte:destructuring-case a
+    (destructuring-case a
       ((u v &key x y)
        (incf n)
        (assert-true (= u 1))
@@ -149,7 +149,7 @@
     (assert-true (= y2 5)))
   (let ((a '(1 2 :x 3 :y (4 5)))
 	(n 0))
-    (rte:destructuring-case a
+    (destructuring-case a
       ((u v &key x ((:y (y1 y2)) '(nil nil)))
        (incf n)
        (assert-true (= u 1))
@@ -164,7 +164,7 @@
 	(A '(1 2 :x 3 :y (4 5))))
     (TYPECASE A
       ((NOT LIST) NIL)
-      ((RTE:RTE
+      ((RTE
 	(:CAT T
 	      T
 	      (:OR
@@ -172,11 +172,11 @@
 		          :EMPTY-WORD)
 		     (:OR (:CAT (EQL :Y)
 				(:AND LIST
-				     (RTE:RTE (:CAT T T))))
+				     (RTE (:CAT T T))))
 		          :EMPTY-WORD))
 	       (:CAT (:OR (:CAT (EQL :Y)
 				(:AND LIST
-				     (RTE:RTE (:CAT T T))))
+				     (RTE (:CAT T T))))
 		          :EMPTY-WORD)
 		     (:OR (:CAT (EQL :X) T)
 		          :EMPTY-WORD)))))
@@ -195,7 +195,7 @@
 	(A '( :x 3 :y (4 5))))
     (TYPECASE A
       ((NOT LIST) NIL)
-      ((RTE:RTE
+      ((RTE
 	(:CAT 
 	      
 	 (:OR
@@ -203,11 +203,11 @@
 		 :EMPTY-WORD)
 		(:OR (:CAT (EQL :Y)
 			   (:AND LIST
-				(RTE:RTE (:CAT T T))))
+				(RTE (:CAT T T))))
 		 :EMPTY-WORD))
 	  (:CAT (:OR (:CAT (EQL :Y)
 			   (:AND LIST
-				(RTE:RTE (:CAT T T))))
+				(RTE (:CAT T T))))
 		 :EMPTY-WORD)
 		(:OR (:CAT (EQL :X) T)
 		 :EMPTY-WORD)))))
@@ -221,7 +221,7 @@
 
 
 (define-test test/destructuring-case-8b
-  (rte::destructuring-lambda-list-to-rte '(&whole llist a (b c) &rest keys &key x y z &allow-other-keys)
+  (destructuring-lambda-list-to-rte '(&whole llist a (b c) &rest keys &key x y z &allow-other-keys)
 					 :type-specifiers '((a fixnum)
 							    (b fixnum)
 							    (c fixnum)
@@ -231,8 +231,8 @@
 
 (define-test test/destructuring-case-8
   ;; with &allow-other-keys
-  (assert-true (rte::canonicalize-pattern (rte::destructuring-lambda-list-to-rte '(&key x y z &allow-other-keys)))
-	       (rte::canonicalize-pattern
+  (assert-true (canonicalize-pattern (destructuring-lambda-list-to-rte '(&key x y z &allow-other-keys)))
+	       (canonicalize-pattern
 		'(:or
 		  (:and (:0-* keyword t)
 		   (:cat (:or (:cat (eql :x) t (:0-* (not (member :y :z)) t)) :empty-word)
@@ -264,8 +264,8 @@
 		    (:or (:cat (eql :y) t (:0-* (not (member :x)) t)) :empty-word)
 		    (:or (:cat (eql :x) t (:0-* t t)) :empty-word))))))
 
-  (assert-equal (rte::canonicalize-pattern (rte::destructuring-lambda-list-to-rte '(&key x y z)))
-		(rte::canonicalize-pattern
+  (assert-equal (canonicalize-pattern (destructuring-lambda-list-to-rte '(&key x y z)))
+		(canonicalize-pattern
 		 '(:or
 		   (:and (:0-* keyword t)
 		    (:cat (:or (:cat (eql :x) t (:0-* (member :x) t)) :empty-word)
@@ -295,7 +295,7 @@
 
 (define-test test/destructuring-case-9
   (let ((n 0))
-    (rte:destructuring-case '(:x (1 2))
+    (destructuring-case '(:x (1 2))
       ((&key ((:x (a b)) '(nil nil)))
        (assert-true (equal a 1))
        (assert-true (equal b 2))
@@ -304,7 +304,7 @@
 
 (define-test test/destructuring-case-10
   (let ((n 0))
-    (rte:destructuring-case '(:x (1 2))
+    (destructuring-case '(:x (1 2))
       ((&key ((:x (a b c)) '(nil nil nil)))
        (declare (ignore a b c))
        nil)
@@ -317,7 +317,7 @@
 
 (define-test test/destructuring-case-11
   (let ((n 0))
-    (rte:destructuring-case '(:x (1 2) :y (10 20 30))
+    (destructuring-case '(:x (1 2) :y (10 20 30))
       ((&key ((:x (a b c)) '(nil nil nil))
 	     ((:y (d)) '(nil)))
        (declare (ignore a b c d))
@@ -334,7 +334,7 @@
 
 (define-test test/destructuring-case-12
   (let ((n 0))
-    (rte:destructuring-case '(:x (1 2) :y (10 20 30))
+    (destructuring-case '(:x (1 2) :y (10 20 30))
       ((&key ((:x (a b c)) '(nil nil nil))
 	     ((:y (d)) '(nil)))
        (declare (ignore a b c d))
@@ -352,7 +352,7 @@
 
 (define-test test/destructuring-case-13
   (let ((n 0))
-    (rte:destructuring-case '(:x (1 2) :y (10 20 30) :z 100)
+    (destructuring-case '(:x (1 2) :y (10 20 30) :z 100)
       ((&key ((:x (a b c)) '(nil nil nil))
 	     ((:y (d)) '(nil)))
        (declare (ignore a b c d))
@@ -376,7 +376,7 @@
 
 (define-test test/destructuring-case-13b
   (let ((n 0))
-    (rte:destructuring-case '(:x (1 2) :y (10 20 30) :y -1 :z 100 :x -2)
+    (destructuring-case '(:x (1 2) :y (10 20 30) :y -1 :z 100 :x -2)
       ((&key ((:x (a b c)) '(nil nil nil))
 	     ((:y (d)) '(nil)))
        (declare (ignore a b c d))
@@ -400,7 +400,7 @@
 
 (define-test test/destructuring-case-14
   (let ((n 0))
-    (rte:destructuring-case '(:x (1 2) :y (10 20 30) :z 100)
+    (destructuring-case '(:x (1 2) :y (10 20 30) :z 100)
       ((&key ((:x (a b c)) '(nil nil nil))
 	     ((:y (d)) '(nil))
 	     &allow-other-keys)
@@ -425,7 +425,7 @@
 
 (define-test test/destructuring-case-14b
   (let ((n 0))
-    (rte:destructuring-case '(:x (1 2) :y (10 20 30) :z 100 :a 12)
+    (destructuring-case '(:x (1 2) :y (10 20 30) :z 100 :a 12)
       ((&key ((:x (a b c)) '(nil nil nil))
 	     ((:y (d)) '(nil))
 	     &allow-other-keys)
@@ -451,7 +451,7 @@
 
 (define-test test/destructuring-case-15
   (let ((n 0))
-    (rte::destructuring-case '((1 2) 3)
+    (destructuring-case '((1 2) 3)
       ((a b c)
        (declare (type float a b) (type integer c))
        (list a b c))
@@ -471,7 +471,7 @@
 
 (define-test test/destructuring-case-15b
   (let ((n 0))
-    (rte::destructuring-case '((1 2) 3)
+    (destructuring-case '((1 2) 3)
       ((a b c)
        (declare (type float a b) (type integer c))
        (list a b c))
@@ -489,7 +489,7 @@
 				    (c string)
 				    (d bignum)
 				    (e float))
-				  (rte::gather-type-declarations '((declare (type fixnum a b))
+				  (gather-type-declarations '((declare (type fixnum a b))
 								   (declare (type string c))
 								   (declare (bignum d)
 								            (float e))
