@@ -654,33 +654,33 @@
 		      '((:CAT (:OR (:CAT (EQL :X) T) :EMPTY-WORD) (:OR (:CAT (EQL :Y) T) :EMPTY-WORD))
 			(:CAT (:OR (:CAT (EQL :Y) T) :EMPTY-WORD) (:OR (:CAT (EQL :X) T) :EMPTY-WORD))))))
 
-(define-test test/lambda-list-to-pattern
+(define-test test/destructuring-lambda-list-to-rte
   (assert-true (equal '(:cat t t t)
-		      (rte::canonicalize-pattern (rte::lambda-list-to-pattern '(a b c)))))
+		      (rte::canonicalize-pattern (rte::destructuring-lambda-list-to-rte '(a b c)))))
   (assert-true (equal '(:cat t t t)
-		      (rte::canonicalize-pattern (rte::lambda-list-to-pattern '(&whole w a b c)))))
+		      (rte::canonicalize-pattern (rte::destructuring-lambda-list-to-rte '(&whole w a b c)))))
   (assert-true (equal '(:cat t t t)
-		      (rte::canonicalize-pattern (rte::lambda-list-to-pattern '(a b c &aux x y)))))
+		      (rte::canonicalize-pattern (rte::destructuring-lambda-list-to-rte '(a b c &aux x y)))))
   
   (assert-true (equal (rte::canonicalize-pattern  '(:cat t t t (:and  (:0-* keyword t) 
 								(:cat (:0-1 (eql :x) t (:0-* (MEMBER :X) T))))))
-		      (rte::canonicalize-pattern (rte::lambda-list-to-pattern '(a b c &key x)))))
+		      (rte::canonicalize-pattern (rte::destructuring-lambda-list-to-rte '(a b c &key x)))))
   
   (assert-true (equal (rte::canonicalize-pattern '(:cat t t t (:and (:0-* keyword t) (:or (:CAT (:|0-1| (EQL :X) T (:0-* (MEMBER :X) T))
 											   (:|0-1| (EQL :Y) T (:0-* (MEMBER :Y :X) T)))
 										      (:CAT (:|0-1| (EQL :Y) T (:0-* (MEMBER :Y) T))
 										       (:|0-1| (EQL :X) T (:0-* (MEMBER :X :Y) T)))))))
-		      (rte::canonicalize-pattern (rte::lambda-list-to-pattern '(a b c &key x y)))))
+		      (rte::canonicalize-pattern (rte::destructuring-lambda-list-to-rte '(a b c &key x y)))))
   
   ;; assert an error because &optional cannot follow &key
-  (assert-error 'error (rte::lambda-list-to-pattern '(a b c &key x y &optional r)))
+  (assert-error 'error (rte::destructuring-lambda-list-to-rte '(a b c &key x y &optional r)))
   (assert-true (equal (rte::canonicalize-pattern '(:cat T T T (:|0-1| T)
 						   (:and (:0-* keyword t)
 						    (:OR (:CAT (:|0-1| (EQL :Y) T (:0-* (MEMBER :Y) T))
 							  (:|0-1| (EQL :X) T (:0-* (MEMBER :X :Y) T)))
 						     (:CAT (:|0-1| (EQL :X) T (:0-* (MEMBER :X) T))
 						      (:|0-1| (EQL :Y) T (:0-* (MEMBER :X :Y) T)))))))
-		      (rte::canonicalize-pattern (rte::lambda-list-to-pattern '(a b c &optional r &key x y)))))
+		      (rte::canonicalize-pattern (rte::destructuring-lambda-list-to-rte '(a b c &optional r &key x y)))))
 
   (assert-true (equal (rte::canonicalize-pattern '(:cat (:and list (RTE:RTE (:cat T T))) T (:|0-1| T)
 						   (:and (:0-* keyword t) 
@@ -688,7 +688,7 @@
 							  (:|0-1| (EQL :X) T (:0-* (MEMBER :X :Y) T)))
 						     (:CAT (:|0-1| (EQL :X) T (:0-* (MEMBER :X) T))
 						      (:|0-1| (EQL :Y) T (:0-* (MEMBER :X :Y) T)))))))
-		      (rte::canonicalize-pattern (rte::lambda-list-to-pattern '((a b) c &optional r &key x y)))))
+		      (rte::canonicalize-pattern (rte::destructuring-lambda-list-to-rte '((a b) c &optional r &key x y)))))
 
   ;; test &rest
   (assert-true (equal (rte::canonicalize-pattern '(:CAT (:AND LIST (RTE:RTE (:CAT T T))) T (:OR T :EMPTY-WORD)
@@ -699,7 +699,7 @@
 						     (:AND (:AND LIST (RTE:RTE (:CAT T T T T)))
 						      (:CAT (:OR (:CAT (EQL :Y) T (:0-* (MEMBER :Y) T)) :EMPTY-WORD)
 						       (:OR (:CAT (EQL :X) T (:0-* (MEMBER :X :Y) T)) :EMPTY-WORD)))))))
-		      (rte::canonicalize-pattern  (rte::lambda-list-to-pattern '((a b) c &optional q &rest (d e f g) &key x y)))))
+		      (rte::canonicalize-pattern  (rte::destructuring-lambda-list-to-rte '((a b) c &optional q &rest (d e f g) &key x y)))))
 
   ;; &aux
   (assert-true (equal (rte::canonicalize-pattern '(:CAT (:AND LIST (RTE:RTE (:CAT T T))) T (:OR T :EMPTY-WORD)
@@ -710,7 +710,7 @@
 						     (:AND (:AND LIST (RTE:RTE (:CAT T T T T)))
 						      (:CAT (:OR (:CAT (EQL :Y) T (:0-* (MEMBER :Y) T)) :EMPTY-WORD)
 						       (:OR (:CAT (EQL :X) T (:0-* (MEMBER :X :Y) T)) :EMPTY-WORD)))))))
-		      (rte::canonicalize-pattern  (rte::lambda-list-to-pattern '((a b) c &optional q &rest (d e f g) &key x y &aux u v)))))
+		      (rte::canonicalize-pattern  (rte::destructuring-lambda-list-to-rte '((a b) c &optional q &rest (d e f g) &key x y &aux u v)))))
   ;; add &allow-other-keys
   )
 

@@ -221,17 +221,17 @@
 
 
 (define-test test/destructuring-case-8b
-  (rte::lambda-list-to-pattern '(&whole llist a (b c) &rest keys &key x y z &allow-other-keys)
-			       :type-specifiers '((a fixnum)
-						  (b fixnum)
-						  (c fixnum)
-						  (x symbol)
-						  (y string)
-						  (z list))))
+  (rte::destructuring-lambda-list-to-rte '(&whole llist a (b c) &rest keys &key x y z &allow-other-keys)
+					 :type-specifiers '((a fixnum)
+							    (b fixnum)
+							    (c fixnum)
+							    (x symbol)
+							    (y string)
+							    (z list))))
 
 (define-test test/destructuring-case-8
   ;; with &allow-other-keys
-  (assert-true (rte::canonicalize-pattern (rte::lambda-list-to-pattern '(&key x y z &allow-other-keys)))
+  (assert-true (rte::canonicalize-pattern (rte::destructuring-lambda-list-to-rte '(&key x y z &allow-other-keys)))
 	       (rte::canonicalize-pattern
 		'(:or
 		  (:and (:0-* keyword t)
@@ -264,7 +264,7 @@
 		    (:or (:cat (eql :y) t (:0-* (not (member :x)) t)) :empty-word)
 		    (:or (:cat (eql :x) t (:0-* t t)) :empty-word))))))
 
-  (assert-equal (rte::canonicalize-pattern (rte::lambda-list-to-pattern '(&key x y z)))
+  (assert-equal (rte::canonicalize-pattern (rte::destructuring-lambda-list-to-rte '(&key x y z)))
 		(rte::canonicalize-pattern
 		 '(:or
 		   (:and (:0-* keyword t)

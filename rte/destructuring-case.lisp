@@ -72,7 +72,8 @@ with the given KEYVAR form"
 (defun gather-type-declarations (body)
   "BODY is the body of some destructuring-bind form.  This function, gather-type-declaration,
 examines zero, one, or more declarations in the leading position of the body to find
-type declarations.  An assoc list is returned of the form ((var1 typespec1) (var2 typespec2)...)"
+type declarations.  An assoc list (car/cadr) is returned of the form
+((var1 typespec1) (var2 typespec2)...)"
   (let (var-declarations)
     (loop :while (and body
 		      (car body)
@@ -91,20 +92,25 @@ type declarations.  An assoc list is returned of the form ((var1 typespec1) (var
 		  (pop body))))
     var-declarations))
 
+(defun destructuring-lambda-list-to-rte (lambda-list &key type-specifiers)
+  "Generate an RTE (regular type expression) given a destructuring-lambda-list.
+If TYPE-SPECIFIERS is given it should be an alist (car/cadr) mapping variables
+in the lambda list to cl type specifiers.  Such a list can be computed by callilng
+the function GATHER-TYPE-DECLARATIONS given a list whose leading elements are
+zero or more (declare ...) forms some of which contain type declarations.
 
+A destructuring lambda list has the following syntax:
 
-;; A destructuring lambda list has the following syntax:
-;;
-;; reqvars::= var* 
-;; optvars::= [&optional {var | (var [init-form [supplied-p-parameter]])}*] 
-;; restvar::= [{&rest | &body} var] 
-;; keyvars::= [&key {var | ({var | (keyword-name var)} [init-form [supplied-p-parameter]])}* 
-;;             [&allow-other-keys]] 
-;; auxvars::= [&aux {var | (var [init-form])}*] 
-;; wholevar::= [&whole var] 
-;; lambda-list::= (wholevar reqvars optvars restvar keyvars auxvars)
-;;                ;; not supporting this syntax -> (wholevar reqvars optvars . var) 
-(defun lambda-list-to-pattern (lambda-list &key type-specifiers)
+reqvars::= var* 
+optvars::= [&optional {var | (var [init-form [supplied-p-parameter]])}*] 
+restvar::= [{&rest | &body} var] 
+keyvars::= [&key {var | ({var | (keyword-name var)} [init-form [supplied-p-parameter]])}* 
+            [&allow-other-keys]] 
+auxvars::= [&aux {var | (var [init-form])}*] 
+wholevar::= [&whole var] 
+lambda-list::= (wholevar reqvars optvars restvar keyvars auxvars)
+
+Not supporting this syntax -> (wholevar reqvars optvars . var) "
   (declare (type list lambda-list type-specifiers))
   (let ((copy-lambda-list lambda-list)
 	(ll-keywords '(&whole &optional &rest &body &key &allow-other-keys &aux))
@@ -124,7 +130,9 @@ type declarations.  An assoc list is returned of the form ((var1 typespec1) (var
 		 (null
 		  'null)
 		 (list
-		  `(:and list (rte ,(canonicalize-pattern (lambda-list-to-pattern var :type-specifiers type-specifiers)))))
+		  `(:and list (rte ,(canonicalize-pattern
+				     (destructuring-lambda-list-to-rte var
+								       :type-specifiers type-specifiers)))))
 		 (t
 		  (error "invalid object ~A in var position in lambda list ~A" var copy-lambda-list))))
 	     (recursive-pattern-var-val (var-val)
@@ -336,7 +344,7 @@ type declarations.  An assoc list is returned of the form ((var1 typespec1) (var
   (let ((object (gensym)))
     (flet ((transform-clause (clause)
 	     (destructuring-bind (lambda-list &rest body) clause
-	       (let ((pattern (lambda-list-to-pattern lambda-list :type-specifiers (gather-type-declarations body))))
+	       (let ((pattern (destructuring-lambda-list-to-rte lambda-list :type-specifiers (gather-type-declarations body))))
 		 `((rte  ,(canonicalize-pattern pattern))
 		   (destructuring-bind ,lambda-list ,object
 		     ,@body))))))
