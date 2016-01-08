@@ -42,19 +42,11 @@
   "Two types are considered disjoint, if their interseciton is empty, i.e., is a subtype of nil."
   (subtypep `(and ,T1 ,T2) nil))
 
-(defun types-equivalent-p (T1 T2)
-)
-
 (defun equivalent-types-p (T1 T2)
   "Two types are considered equivalent if each is a subtype of the other."
-  (and (subtypep T1 T2)
-       (subtypep T2 T1))
-  ;; TODO -- the following is the correct implementation
-  ;; TODO -- enable this code and verify the tests
-  ;; (multiple-value-bind (T1<=T2 okT1T2) (subtypep T1 T2)
-  ;; (multiple-value-bind (T2<=T1 okT2T2) (subtypep T2 T1)
-  ;; (values (and T1<=T2 T2<=T1) (and okT1T2 okT2T2))))
-)
+  (multiple-value-bind (T1<=T2 okT1T2) (subtypep T1 T2)
+    (multiple-value-bind (T2<=T1 okT2T2) (subtypep T2 T1)
+      (values (and T1<=T2 T2<=T1) (and okT1T2 okT2T2)))))
 
 
 
