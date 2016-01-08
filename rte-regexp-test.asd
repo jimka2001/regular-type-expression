@@ -19,32 +19,10 @@
 ;; OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 ;; WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-
-(defpackage :regular-type-expression
-  (:use :cl :ndfa :lisp-types)
-  (:nicknames "RTE")
-  (:export
-   "LIST-OF"
-   "RTE"
-   "MATCH-SEQUENCE"
-   "RTE-RESET"
-   "DESTRUCTURING-CASE"
-   "REDUCED-TYPECASE"
-   "OPTIMIZED-TYPECASE"
-   "CANONICALIZE-PATTERN"
-   ))
-
-(in-package :rte)
-
-
-(defvar *type-functions* (make-hash-table))
-(defvar *state-machines* (make-hash-table :test #'equal))
-(defvar *rte-types* (make-hash-table :test #'equal))
-
-
-(defmacro exists (var domain &rest body)
-  `(member-if #'(lambda (,var) ,@body) ,domain))
-
-(defmacro setof (var domain &rest body)
-  `(remove-if-not #'(lambda (,var) ,@body)
-		  ,domain))
+(asdf:defsystem :rte-regexp-test
+  :depends-on (:rte-regexp
+	       (:version :lisp-unit "0.9.0"))
+  :components
+  ((:module "rte"
+    :components
+    ((:file "test-regexp")))))

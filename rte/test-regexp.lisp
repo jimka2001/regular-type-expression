@@ -19,52 +19,55 @@
 ;; OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 ;; WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-(in-package :rte.test)
+(defpackage :rte-regexp.test
+  (:use :cl :rte-regexp :rte :lisp-unit))
+
+(in-package :rte-regexp.test)
 
 (define-test type/regexp-parsing
   ;; implicitly asserts that they expressions parse at all
-  (rte:regexp-to-rte "a+b")
-  (rte:regexp-to-rte "ab+x")
-  (rte:regexp-to-rte "abcde")
-  (rte:regexp-to-rte "a+bc")
-  (rte:regexp-to-rte "a+bc*")
-  (rte:regexp-to-rte "ab+c*")
-  (rte:regexp-to-rte "a|b")
-  (rte:regexp-to-rte "a|bc")
-  (rte:regexp-to-rte "ab|c")
-  (rte:regexp-to-rte "a(b|c)")
-  (rte:regexp-to-rte "(a+bc)*")
-  (rte:regexp-to-rte "(a+bc)*")
-  (rte:regexp-to-rte "ab+b(c*)"))
+  (regexp-to-rte "a+b")
+  (regexp-to-rte "ab+x")
+  (regexp-to-rte "abcde")
+  (regexp-to-rte "a+bc")
+  (regexp-to-rte "a+bc*")
+  (regexp-to-rte "ab+c*")
+  (regexp-to-rte "a|b")
+  (regexp-to-rte "a|bc")
+  (regexp-to-rte "ab|c")
+  (regexp-to-rte "a(b|c)")
+  (regexp-to-rte "(a+bc)*")
+  (regexp-to-rte "(a+bc)*")
+  (regexp-to-rte "ab+b(c*)"))
 
 
 (define-test type/regexp-parsing
   ;; a+b
-  (assert-true (rte:match-sequence "ab"  (rte:regexp-to-rte "a+b")))
-  (assert-true (rte:match-sequence "aab"  (rte:regexp-to-rte "a+b")))
-  (assert-true (rte:match-sequence "aaab"  (rte:regexp-to-rte "a+b")))
-  (assert-false (rte:match-sequence "aaabb"  (rte:regexp-to-rte "a+b")))
-  (assert-false (rte:match-sequence "bb"  (rte:regexp-to-rte "a+b")))
-  (assert-false (rte:match-sequence "b"  (rte:regexp-to-rte "a+b")))
-  (assert-false (rte:match-sequence "abc"  (rte:regexp-to-rte "a+b")))
+  (assert-true (match-sequence "ab"  (regexp-to-rte "a+b")))
+  (assert-true (match-sequence "aab"  (regexp-to-rte "a+b")))
+  (assert-true (match-sequence "aaab"  (regexp-to-rte "a+b")))
+  (assert-false (match-sequence "aaabb"  (regexp-to-rte "a+b")))
+  (assert-false (match-sequence "bb"  (regexp-to-rte "a+b")))
+  (assert-false (match-sequence "b"  (regexp-to-rte "a+b")))
+  (assert-false (match-sequence "abc"  (regexp-to-rte "a+b")))
   
   ;; ab|c
-  (assert-true (rte:match-sequence "ab" (rte:regexp-to-rte "ab|c")))
-  (assert-true (rte:match-sequence "c" (rte:regexp-to-rte "ab|c")))
+  (assert-true (match-sequence "ab" (regexp-to-rte "ab|c")))
+  (assert-true (match-sequence "c" (regexp-to-rte "ab|c")))
 
-  (assert-false (rte:match-sequence "ac" (rte:regexp-to-rte "ab|c")))
-  (assert-false (rte:match-sequence "" (rte:regexp-to-rte "ab|c")))
+  (assert-false (match-sequence "ac" (regexp-to-rte "ab|c")))
+  (assert-false (match-sequence "" (regexp-to-rte "ab|c")))
 
   ;; & and []
-  (assert-true (rte:match-sequence "b" (rte:regexp-to-rte "[abc]&[bcd]")))
-  (assert-true (rte:match-sequence "bccb" (rte:regexp-to-rte "([abc]&[bcd])+")))
+  (assert-true (match-sequence "b" (regexp-to-rte "[abc]&[bcd]")))
+  (assert-true (match-sequence "bccb" (regexp-to-rte "([abc]&[bcd])+")))
 
   ;; [^]
-  (assert-true (rte:match-sequence "abcd" (rte:regexp-to-rte "[^xyz]+")))
-  (assert-false (rte:match-sequence "abxcd" (rte:regexp-to-rte "[^xyz]+")))
+  (assert-true (match-sequence "abcd" (regexp-to-rte "[^xyz]+")))
+  (assert-false (match-sequence "abxcd" (regexp-to-rte "[^xyz]+")))
 
   ;; .
-  (assert-true (rte:match-sequence "abxab"  (rte:regexp-to-rte "ab.ab")))
-  (assert-false (rte:match-sequence "ab"  (rte:regexp-to-rte "ab.")))
+  (assert-true (match-sequence "abxab"  (regexp-to-rte "ab.ab")))
+  (assert-false (match-sequence "ab"  (regexp-to-rte "ab.")))
   
   )

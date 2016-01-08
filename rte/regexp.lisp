@@ -19,7 +19,12 @@
 ;; OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 ;; WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-(in-package   :rte)
+(defpackage :rte-regexp
+  (:use :cl :rte)
+  (:export
+   "REGEXP-TO-RTE"))
+
+(in-package   :rte-regexp)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun syntax-not-supported (&rest args)
