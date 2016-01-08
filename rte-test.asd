@@ -30,5 +30,4 @@
      (:file "test-list-of")
      (:file "test-re-pattern")
      (:file "test-destructuring-case")
-     (:file "test-regexp")
      (:file "test-ordinary-lambda-list")))))
