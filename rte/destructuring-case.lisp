@@ -340,14 +340,18 @@ Not supporting this syntax -> (wholevar reqvars optvars . var) "
 		       (:and ,rest-pattern
 			     ,key-pattern)))))))
 
-(defmacro destructuring-case (object-form &rest clauses)
+(defun expand-destructuring-case (object-form clauses)
   (let ((object (gensym)))
     (flet ((transform-clause (clause)
 	     (destructuring-bind (lambda-list &rest body) clause
-	       (let ((pattern (destructuring-lambda-list-to-rte lambda-list :type-specifiers (gather-type-declarations body))))
+	       (let ((pattern (destructuring-lambda-list-to-rte lambda-list
+								:type-specifiers (gather-type-declarations body))))
 		 `((rte  ,(canonicalize-pattern pattern))
 		   (destructuring-bind ,lambda-list ,object
 		     ,@body))))))
       `(let ((,object ,object-form))
 	 (typecase ,object ((not list) nil) ,@(mapcar #'transform-clause clauses))))))
+
+(defmacro destructuring-case (object-form &rest clauses)
+  (expand-destructuring-case object-form clauses))
 
