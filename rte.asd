@@ -21,7 +21,6 @@
 
 (asdf:defsystem :rte
   :depends-on (:ndfa
-	       :yacc ;; needed by regexp.lisp
 	       :lisp-types
 	       )
   :components
@@ -32,6 +31,5 @@
      (:file "list-of" :depends-on ("expand-typedef"))
      (:file "dependents")
      (:file "re-pattern" :depends-on ("expand-typedef" "dependents"))
-     (:file "regexp" :depends-on ("re-pattern")) ; requires :yacc
      (:file "destructuring-case" :depends-on ("re-pattern"))
      ))))
