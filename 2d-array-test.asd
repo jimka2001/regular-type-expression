@@ -19,11 +19,11 @@
 ;; OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 ;; WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-
-(asdf:defsystem :ndfa
-  :depends-on ()
+(asdf:defsystem :2d-array-test
+  :depends-on (:2d-array
+	       (:version :lisp-unit "0.9.0"))
   :components
-  ((:module "ndfa"
+  ((:module "2d-array"
     :components
-    ((:file "ndfa")
-     (:file "ndfa-to-dot" :depends-on ("ndfa"))))))
+    ((:file "test-2d-array")
+     ))))

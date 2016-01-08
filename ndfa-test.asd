@@ -20,10 +20,10 @@
 ;; WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
-(asdf:defsystem :ndfa
-  :depends-on ()
+(asdf:defsystem :ndfa-test
+  :depends-on (:ndfa
+	       (:version :lisp-unit "0.9.0"))
   :components
   ((:module "ndfa"
-    :components
-    ((:file "ndfa")
-     (:file "ndfa-to-dot" :depends-on ("ndfa"))))))
+      :components
+      ((:file "test-ndfa")))))

@@ -20,10 +20,11 @@
 ;; WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
-(asdf:defsystem :ndfa
-  :depends-on ()
+(asdf:defsystem :lisp-types-test
+  :depends-on (:lisp-types
+	       (:version :lisp-unit "0.9.0"))
   :components
-  ((:module "ndfa"
+  ((:module "lisp-types"
     :components
-    ((:file "ndfa")
-     (:file "ndfa-to-dot" :depends-on ("ndfa"))))))
+    ((:file "test-lisp-types")
+     (:file "test-typecase")))))

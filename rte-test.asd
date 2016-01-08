@@ -19,11 +19,15 @@
 ;; OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 ;; WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-
-(asdf:defsystem :ndfa
-  :depends-on ()
+(asdf:defsystem :rte-test
+  :depends-on (:rte
+	       (:version :lisp-unit "0.9.0"))
   :components
-  ((:module "ndfa"
+  ((:module "rte"
     :components
-    ((:file "ndfa")
-     (:file "ndfa-to-dot" :depends-on ("ndfa"))))))
+    ((:file "test-rte")
+     (:file "test-list-of")
+     (:file "test-re-pattern")
+     (:file "test-destructuring-case")
+     (:file "test-regexp")
+     (:file "test-ordinary-lambda-list")))))

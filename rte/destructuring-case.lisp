@@ -337,13 +337,9 @@ type declarations.  An assoc list is returned of the form ((var1 typespec1) (var
     (flet ((transform-clause (clause)
 	     (destructuring-bind (lambda-list &rest body) clause
 	       (let ((pattern (lambda-list-to-pattern lambda-list :type-specifiers (gather-type-declarations body))))
-	       `((rte  ,(canonicalize-pattern pattern)
-		       ;;,pattern
-		       )
-		 (destructuring-bind ,lambda-list ,object
-		   ,@body))))))
+		 `((rte  ,(canonicalize-pattern pattern))
+		   (destructuring-bind ,lambda-list ,object
+		     ,@body))))))
       `(let ((,object ,object-form))
 	 (typecase ,object ((not list) nil) ,@(mapcar #'transform-clause clauses))))))
-
-
 

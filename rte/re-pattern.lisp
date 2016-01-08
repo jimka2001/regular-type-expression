@@ -701,6 +701,8 @@ first element is one of the following:
 :0-1 -- matches the type optionally (zero or one) list element
 :or  -- specifies a logical disjunction of rational expressions
 :and -- specifies a logical conjunction of rational expressions
+:cat -- in order concatenation of rational expressions
+:permute -- specifies any-order concatenation of rational expressions
 
         (typep '(nil x 1 y 2 z 3 (x) nil (y) nil)
                 '(rte (:0-1 null)
