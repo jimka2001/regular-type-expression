@@ -142,9 +142,11 @@ depend on the choice of F-... function given."
   (declare (type (member :and :or) operator))
   (if (and (eql :and operator)
 	   (exists p1 patterns
-		   (exists p2 (cdr patterns)
-			   ;; (subtype (and T1 T2) nil) means T1 and T2 are mutually exclusive such as string number
-			   (subtypep (list 'and p1 p2) nil))))
+		   (and (valid-type-p p1)
+			(exists p2 (cdr patterns)
+				(and (valid-type-p p2)
+				     ;; (subtype (and T1 T2) nil) means T1 and T2 are mutually exclusive such as string number
+				     (subtypep (list 'and p1 p2) nil))))))
       (list :empty-set)
       (remove-if (lambda (p1)
 		   (and (valid-type-p p1) ;; can only remove redundant types if they are valid lisp types
@@ -187,19 +189,19 @@ a fixed point is found."
 	       (t ; empty art list
 		:empty-word)))))
   (traverse-pattern re
-	       :f-type #'(lambda (pattern)
-			   (cond ((atom pattern)
-				  pattern)
-				 ((eql 'member (car pattern)) ; alphabetize the arguments of (member ...)
-				  (cons 'member (alphabetize (cdr pattern))))
-				 ((eql 'rte (car pattern))
-				  (cons 'rte (mapcar #'canonicalize-pattern (cdr pattern))))
-				 (t
-				  pattern)))
+		    :f-type #'(lambda (pattern)
+				(cond ((atom pattern)
+				       pattern)
+				      ((eql 'member (car pattern)) ; alphabetize the arguments of (member ...)
+				       (cons 'member (alphabetize (cdr pattern))))
+				      ((eql 'rte (car pattern))
+				       (cons 'rte (mapcar #'canonicalize-pattern (cdr pattern))))
+				      (t
+				       pattern)))
 	       :f-empty-set #'identity
 	       :f-empty-word #'identity
-	       :f-0-* #'(lambda (patterns)
-			  (like-multipy :0-* patterns :idempotent nil))
+		    :f-0-* #'(lambda (patterns)
+			       (like-multipy :0-* patterns :idempotent nil))
 	       :f-cat #'(lambda (patterns)
 			  ;; (:cat A B (:cat C D) E F) --> (:cat A B C D E F)
 			  (setf patterns
@@ -250,68 +252,68 @@ a fixed point is found."
 			    (car patterns))
 			   (t
 			    :empty-set)))
-	       :f-and  #'(lambda (patterns)
-			   (let ((sub-and (setof s patterns
-						 (and (listp s)
-						      (eql :and (car s))))))
-			     ;; (:and (:and A B ) C D) --> (:and A B C C)
-			     (dolist (s sub-and)
-			       (dolist (p (cdr s))
-				 (push p patterns)))
-			     (setf patterns (set-difference patterns sub-and :test #'equal)))
-			   
-			   ;; (:and A B (:0-* t))
-			   ;;  --> (:and A B)
-			   (setf patterns (remove '(:0-* t) patterns :test #'equal))
-
-			   ;; (:and (member 1 2 3) (member 2 3 4) ...)
-			   ;;  --> (:and (member 2 3) ...)   ;; in some order, unspecified
-			   (when (< 1 (count-if #'(lambda (obj)
-						    (and (listp obj)
-							 (member (car obj) '(eql member)))) patterns))
-			     (multiple-value-bind (matches other) (partition-by-predicate #'(lambda (obj)
-											      (and (listp obj)
-												   (member (car obj) '(eql member))))
-											  patterns)
-			       (declare (notinline intersection))
-			       (let ((common (cdr (car matches))))
-				 (dolist (match (cdr matches))
-				   (setf common (intersection common (cdr match))))
-				 (setq patterns (cons (cons 'member common)
-						      other)))))
-
-			   ;; (:and (:or A B) C D) --> (:or (:and A C D) (:and B C D))
-			   (let ((sub-or (find-if (lambda (s)
-						    (and (listp s)
-							 (eql :or (car s))))
-						  patterns)))
-			     (setf patterns (remove sub-or patterns :test #'equal))
-			     (cond
-			       (sub-or
-				(canonicalize-pattern (cons :or (loop :for p :in (cdr sub-or)
-								 :collect `(:and ,p ,@patterns)))))
-			       ((member :empty-set patterns)
-				:empty-set)
-			       (t
-				(setf patterns (uniquify patterns)
-				      patterns (mapcar #'canonicalize-pattern patterns)
-				      patterns (remove '(:0-* t) patterns :test #'equal)
-				      patterns (uniquify patterns)
-				      patterns (remove-redundant-types patterns :and))
-				(cond
-				  ((member :empty-set patterns)
-				   :empty-set)
-				  ((cdr patterns)
-				   ;; TODO, should not alphabetize patterns because it will not work in the case
-				   ;; the types have side effect or if they are order dependents such as
-				   ;; (:or (not list) (rte ...))
-				   ;; this will break some tests, which will need to be fixed. and it will be harder
-				   ;; to make assertions about complicated types.
-				   (cons :and (alphabetize patterns)))
-				  (patterns
-				   (car patterns))
-				  (t
-				   '(:0-* t))))))))))
+		    :f-and  #'(lambda (patterns)
+				(let ((sub-and (setof s patterns
+						      (and (listp s)
+							   (eql :and (car s))))))
+				  ;; (:and (:and A B ) C D) --> (:and A B C C)
+				  (dolist (s sub-and)
+				    (dolist (p (cdr s))
+				      (push p patterns)))
+				  (setf patterns (set-difference patterns sub-and :test #'equal)))
+				
+				;; (:and A B (:0-* t))
+				;;  --> (:and A B)
+				(setf patterns (remove '(:0-* t) patterns :test #'equal))
+				
+				;; (:and (member 1 2 3) (member 2 3 4) ...)
+				;;  --> (:and (member 2 3) ...)   ;; in some order, unspecified
+				(when (< 1 (count-if #'(lambda (obj)
+							 (and (listp obj)
+							      (member (car obj) '(eql member)))) patterns))
+				  (multiple-value-bind (matches other) (partition-by-predicate #'(lambda (obj)
+												   (and (listp obj)
+													(member (car obj) '(eql member))))
+											       patterns)
+				    (declare (notinline intersection))
+				    (let ((common (cdr (car matches))))
+				      (dolist (match (cdr matches))
+					(setf common (intersection common (cdr match))))
+				      (setq patterns (cons (cons 'member common)
+							   other)))))
+				;; (:and (:or A B) C D) --> (:or (:and A C D) (:and B C D))
+				(let ((sub-or (find-if (lambda (s)
+							 (and (listp s)
+							      (eql :or (car s))))
+						       patterns)))
+				  (setf patterns (remove sub-or patterns :test #'equal))
+				  
+				  (cond
+				    (sub-or
+				     (canonicalize-pattern (cons :or (loop :for p :in (cdr sub-or)
+									   :collect `(:and ,p ,@patterns)))))
+				    ((member :empty-set patterns)
+				     :empty-set)
+				    (t
+				     (setf patterns (uniquify patterns)
+					   patterns (mapcar #'canonicalize-pattern patterns)
+					   patterns (remove '(:0-* t) patterns :test #'equal)
+					   patterns (uniquify patterns)
+					   patterns (remove-redundant-types patterns :and))
+				     (cond
+				       ((member :empty-set patterns)
+					:empty-set)
+				       ((cdr patterns)
+					;; TODO, should not alphabetize patterns because it will not work in the case
+					;; the types have side effect or if they are order dependents such as
+					;; (:or (not list) (rte ...))
+					;; this will break some tests, which will need to be fixed. and it will be harder
+					;; to make assertions about complicated types.
+					(cons :and (alphabetize patterns)))
+				       (patterns
+					(car patterns))
+				       (t
+					'(:0-* t))))))))))
 
 (defun fixed-point (function arg &key (test #'equal))
   "Find the fixed point of a FUNCTION, starting with the given ARG."
