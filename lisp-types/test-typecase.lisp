@@ -23,7 +23,7 @@
 
 (in-package :lisp-types.test)
 
-(define-test rte/disjoint-typecase
+(define-test lisp-types/disjoint-typecase
   (assert-true (equal (macroexpand-1 '(lisp-types::disjoint-typecase fred
 				       (integer 42)
 				       (bignum 43)
@@ -47,7 +47,7 @@
 			((AND NUMBER (NOT INTEGER)) 43)
 			(NIL 44)))))
 
-(define-test rte/reduced-typecase
+(define-test lisp-types/reduced-typecase
   (assert-true (equal (macroexpand-1 '(rte::reduced-typecase fred
 				       (integer 42)
 				       (bignum 43)
@@ -71,7 +71,7 @@
 			(NUMBER 43)
 			(NIL 44)))))
 
-(define-test rte/reduced-typecase2
+(define-test lisp-types/reduced-typecase2
   (assert-true (equal (macroexpand-1 '(rte::reduced-typecase fred
 				       ((or A B)
 					41)
@@ -95,7 +95,7 @@
 					42)
 				       (B
 					43)))
-		      '(TYPECASE FRED ((OR (NOT A) B) 41) (T 42) (NIL 43))))
+		      '(TYPECASE FRED ((OR B (NOT A)) 41) (T 42) (NIL 43))))
   (assert-true (equal (macroexpand-1 '(rte::reduced-typecase fred
 				       ((or (not (and A B)) C)
 					41)
@@ -105,7 +105,7 @@
 					43)
 				       (C
 					44)))
-		      '(TYPECASE FRED ((OR (NOT A) (NOT B) C) 41) (T 42) (T 43) (NIL 44))))
+		      '(TYPECASE FRED ((OR C (NOT A) (NOT B)) 41) (T 42) (T 43) (NIL 44))))
   
 
   )
