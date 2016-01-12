@@ -159,4 +159,6 @@
 		      'fixnum))
   (assert-true (equal (reduce-lisp-type '(or fixnum string (member 1 2 "hello" a b)))
 		      '(or fixnum string (member a b))))
+  (assert-true (equal (lisp-types::reduce-lisp-type '(and keyword (not (member :x))))
+		      '(and keyword (not (eql :x)))))
   )

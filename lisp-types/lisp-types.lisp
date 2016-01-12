@@ -262,7 +262,7 @@ repeated or contradictory type designators."
 			(cons 'or
 			      (loop :for or-operand :in (cdr match)
 				    :collect (cons 'and (cons or-operand and-operands))))))
-		     ((some #' eql-or-member? operands)
+		     ((some #'eql-or-member? operands)
 		      ;; (and (member a b 2 3) symbol) --> (member a b)
 		      ;; (and (member a 2) symbol) --> (eql a)
 		      ;; (and (member a b) fixnum) --> nil
@@ -300,10 +300,15 @@ repeated or contradictory type designators."
 								   (typep e o))
 								 others))
 							elements))
-			  (if elements
+			  (cond
+			    ((cdr elements)
 			      (substitute-tail type (car not-matches) 
-					       `(not (member ,@elements)))
-			      `(and ,@others)))))
+					       `(not (member ,@elements))))
+			    (elements
+			      (substitute-tail type (car not-matches) 
+					       `(not (eql ,@elements))))
+			    (t
+			      `(and ,@others))))))
 		     (t
 		      (cons 'and operands))))
 		  ((or)					  ; REDUCE AND

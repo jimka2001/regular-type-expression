@@ -632,6 +632,11 @@ consists of values whose types match PATTERN."
 				   (and (subtypep t (transition-label transition))
 					(equal (state-label state) (next-label transition))))
 				 (transitions state))))))
+	   (sort-transitions ()
+	     (dolist (state (ndfa:states sm))
+	       (setf (ndfa:transitions state)
+		     (sort (ndfa:transitions state)
+			   #'cmp-objects :key #'ndfa:transition-label))))
 	   (parallel-transitions (&aux (hash (make-hash-table :test #'equal)))
 	     ;; if two (or more) transitions from A lead to B, we can
 	     ;; replace with one transition using lisp type (or label-AB1 label-AB2 ...)
@@ -651,6 +656,7 @@ consists of values whose types match PATTERN."
       (loop :while pending
 	    :do (create-state (pop pending)))
       (parallel-transitions)
+      (sort-transitions)
       (calc-sticky))
     sm))
       
