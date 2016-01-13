@@ -124,27 +124,26 @@ symbol _ somewhere (recursively)."
   (sort (copy-list patterns) #'cmp-objects))
 
 (defmacro rule-case (object &body clauses)
-  "CLAUSES is a serires of clauses syntactically like used in COND, i.e., each clause
-consists of a test followed by ONE (not zero) or more expressions.   Each such body
-should evaluate to something EQUAL to OBJECT to indicate that the next test should
-be evaluated.  If a clause body evaluates to an something not EQUAL to object, the
-RULE-CASE execution halts and RULE-CASE returns.  Effectively the n-th clause test
-is evaluated, if for each of the previous clauses the test returned false, or the
-body returned something EQUAL to OBJECT."
+"return the value of the first clause-value not EQUAL to OBJECT of the first clause
+whose test is true, otherwise return OBJECT."
   (let ((new (gensym "new"))
-	(old (gensym "old")))
+        (old (gensym "old")))
     (labels ((expand-clause (clause)
-	       (destructuring-bind (test &body body) clause
-		 `(when (and (equal ,new ,old)
-			     ,test)
-		   (setf ,new (progn ,@body)))))
-	     (expand-clauses ()
-	       (mapcar #'expand-clause clauses)))
+               (destructuring-bind (test &body body) clause
+                 (assert body () "invalid test/body used in RULE-CASE: ~A" clause)
+                 `(when (and (equal ,new ,old)
+                             ,test)
+                   (setf ,new (progn ,@body)))))
+             (expand-clauses ()
+               (mapcar #'expand-clause clauses)))
       `(let* ((,new ,object)
-	      (,old ,new))
-	 ,@(expand-clauses)
-	 ,new))))
-    
+              (,old ,new))
+         ,@(expand-clauses)
+         ,new))))
+
+(defmacro multiple-value-destructuring-bind (destructuring-lambda-list form &body body)
+  `(destructuring-bind ,destructuring-lambda-list (multiple-value-list ,form)
+     ,@body))
 
 (defun reduce-lisp-type-once (type)
   "Given a lisp type designator, make one pass at reducing it, removing redundant information such as
@@ -291,22 +290,21 @@ repeated or contradictory type designators."
 	      ;;   --> (and fixnum)
 	      ((and (some #'not-eql-or-member? operands)
 		    (cdr operands))
-	       (multiple-value-bind (not-matches others) (partition-by-predicate #'not-eql-or-member? operands)
-		 (assert (= 1 (length not-matches)) () "expected previous clause to eliminate multiple (not (member...))")
-		 (destructuring-bind ((_not (_member &rest elements))) not-matches
-		   (declare (ignore _not _member))
-		   (setf elements (remove-if-not (lambda (e)
-						   (every (lambda (o)
-							    (typep e o))
-							  others))
-						 elements))
+	       (multiple-value-destructuring-bind (((_not (_member &rest old-elements))) others)
+		   (partition-by-predicate #'not-eql-or-member? operands)
+		 (declare (ignore _not _member))
+		 (let ((new-elements (remove-if-not (lambda (e)
+						      (every (lambda (o)
+							       (typep e o))
+							     others))
+						    old-elements)))
 		   (cond
-		     ((cdr elements)
-		      (substitute-tail type (car not-matches) 
-				       `(not (member ,@elements))))
-		     (elements
-		      (substitute-tail type (car not-matches) 
-				       `(not (eql ,@elements))))
+		     ((cdr new-elements)
+		      (substitute-tail type `(not (member ,@old-elements))
+				       `(not (member ,@new-elements))))
+		     (new-elements
+		      (substitute-tail type `(not (member ,@old-elements))
+				       `(not (eql ,@new-elements))))
 		     (t
 		      `(and ,@others))))))
 	      (t
@@ -415,22 +413,33 @@ repeated or contradictory type designators."
 		    (cdr operands))
 	       ;; (or fixnum string (member 1 2 "hello" a b)))
 	       ;; --> (or fixnum string (member a b))
-	       (multiple-value-bind (matches others) (partition-by-predicate #'eql-or-member? operands)
-		 (destructuring-bind ((_member &rest elements)) matches
-		   (declare (ignore _member))
-		   (setf elements (remove-if (lambda (e)
-					       (some (lambda (o)
-						       (typep e o))
-						     others))
-					     elements))
-		   (cond ((cdr elements)
-			  (substitute-tail type (car matches)
-					   `(member ,@elements)))
-			 (elements
-			  (substitute-tail type (car matches)
-					   `(eql ,@elements)))
+	       (multiple-value-destructuring-bind (((_member &rest old-elements)) others)
+		   (partition-by-predicate #'eql-or-member? operands)
+		 (declare (ignore _member))
+		 (let ((new-elements (remove-if (lambda (e)
+						  (some (lambda (o)
+							  (typep e o))
+							others))
+						old-elements)))
+		   (cond ((cdr new-elements)
+			  (substitute-tail type `(member ,@old-elements)
+					   `(member ,@new-elements)))
+			 (new-elements
+			  (substitute-tail type `(member ,@old-elements)
+					   `(eql ,@new-elements)))
 			 (t
 			  `(or ,@others))))))
+	      ((and (some #'not-eql-or-member? operands)
+		    (cdr operands))
+	       ;; (or number (not (member 1 2 a b)))
+	       ;; --> (or number (not (member a b)))
+	       ;; --> (not (member a b))
+	       (let ((new-operands (mapcar (lambda (op)
+					     (if (not? op)
+						 (cadr op)
+						 `(not ,op)))
+					   operands)))
+		 (reduce-lisp-type `(not (and ,@new-operands)))))
 	      (t
 	       (cons 'or operands))))
 	   ((not)
