@@ -204,258 +204,258 @@ repeated or contradictory type designators."
 		   (remove-supers (remove super types :test #'eq)) ; tail call
 		   types))))
 
-	   (cond
-	     ((atom type)
-	      type)
-	     ((subtypep type nil)	; (and float string) --> nil
-	      nil)
-	     ((subtypep t type)	      ; (or number (not number)) --> t
-	      t)
-	     ;; TODO - extend to understand other type specifiers which reference type specifiers such as
-	     ;;   (function (float float) number)
-	     ;;   (vector number)
-	     ;;   (complex float)
-	     ;;   etc
-	     ((cons? type) ; (cons (and float number) (or string (not string))) --> (cons float t)
-	      `(cons ,@(mapcar #'reduce-lisp-type-once (cdr type))))
-	     ((member? type)
-	      (if (cddr type)
-		  `(member ,@(alphabetize (cdr type)))
-		  `(eql ,@(cdr type))))
-	     ((and (member? type)
-		   (not (cddr type))) ;; (member A) --> (eql A)
-	      `(eql ,(cadr type)))
-	     ((not (or (or? type)      ; (number 1 8) --> (number 1 8)
-		       (and? type)
-		       (not? type)))
-	      type)
-	     (t
-	      (setf type (cons (car type)
-			       (mapcar #'reduce-lisp-type-once (cdr type))))
-	      (setf type (cons (car type)
-			       (remove-duplicates (cdr type) :test #'equal)))
-	      (destructuring-bind (operator &rest operands) type
-		(ecase operator
-		  ((and)			     ; REDUCE AND
-		   (setf operands (remove-supers operands)) ; (and float number) --> (and float)
-		   (setf operands (alphabetize operands))
+    (cond
+      ((atom type)
+       type)
+      ((subtypep type nil)		; (and float string) --> nil
+       nil)
+      ((subtypep t type)	      ; (or number (not number)) --> t
+       t)
+      ;; TODO - extend to understand other type specifiers which reference type specifiers such as
+      ;;   (function (float float) number)
+      ;;   (vector number)
+      ;;   (complex float)
+      ;;   etc
+      ((cons? type) ; (cons (and float number) (or string (not string))) --> (cons float t)
+       `(cons ,@(mapcar #'reduce-lisp-type-once (cdr type))))
+      ((member? type)
+       (if (cddr type)
+	   `(member ,@(alphabetize (cdr type)))
+	   `(eql ,@(cdr type))))
+      ((and (member? type)
+	    (not (cddr type))) ;; (member A) --> (eql A)
+       `(eql ,(cadr type)))
+      ((not (or (or? type)	       ; (number 1 8) --> (number 1 8)
+		(and? type)
+		(not? type)))
+       type)
+      (t
+       (setf type (cons (car type)
+			(mapcar #'reduce-lisp-type-once (cdr type))))
+       (setf type (cons (car type)
+			(remove-duplicates (cdr type) :test #'equal)))
+       (destructuring-bind (operator &rest operands) type
+	 (ecase operator
+	   ((and)			; REDUCE AND
+	    (setf operands (remove-supers operands)) ; (and float number) --> (and float)
+	    (setf operands (alphabetize operands))
 
-		   (rule-case type
-		     ((null operands)	; (and) --> t
-		      t)
-		     ((null (cdr operands)) ; (and A) --> A
-		      (car operands))
-		     ((member nil operands) ; (and A nil B) --> nil
-		      nil)
-		     ((member t operands) ; (and A t B) --> (and A B)
-		      (cons 'and (remove t operands)))
-		     ((some #'and? operands) ; (and A (and U V) (and X Y) B C) --> (and A U V X Y B C)
-		      (cons `and
-			    (mapcan #'(lambda (operand)
-					(if (and? operand)
-					    (copy-list (cdr operand))
-					    (list operand)))
-				    operands)))
-		     ((some #'or? operands) ; (and (or A B) X Y) --> (or (and A X Y) (and B X Y))
-		      (let* ((match (find-if #'or? operands))
-			     (and-operands (remove match operands :test #'eq)))
-			(cons 'or
-			      (loop :for or-operand :in (cdr match)
-				    :collect (cons 'and (cons or-operand and-operands))))))
-		     ((some #'eql-or-member? operands)
-		      ;; (and (member a b 2 3) symbol) --> (member a b)
-		      ;; (and (member a 2) symbol) --> (eql a)
-		      ;; (and (member a b) fixnum) --> nil
-		      (let ((objects (remove-if-not (lambda (e)
-						      (typep e type)) (cdr (find-if #'eql-or-member? operands)))))
-			(cond ((null objects)
-			       nil)
-			      ((null (cdr objects))
-			       `(eql ,@objects))
-			      (t
-			       `(member  ,@objects)))))		     
-		     ((< 1 (count-if #'not-eql-or-member? operands))
-		      ;; (and A B (not (member 1 2 a)) (not (member 2 3 4 b)))
-		      ;;   --> (and A B (not (member 1 2 3 4 a b)))
-		      (multiple-value-bind (not-matches others) (partition-by-predicate #'not-eql-or-member? operands)
-			(let ((not-common (cdr (cadr (car not-matches)))))
-			  (declare (notinline union)
-				   (notinline set-difference))
-			  (dolist (not-match (cdr not-matches))
-			    (setq not-common (union not-common (cdr (cadr not-match)))))
-			  `(and (not (member ,@not-common))
-				,@others))))
-		     ;;      (and fixnum (not (member 1 2 a b)))
-		     ;;   --> (and (not (member 1 2)) fixnum)
-		     ;;      (and fixnum (not (member a b)))
-		     ;;   --> (and fixnum)
-		     ((and (some #'not-eql-or-member? operands)
-			   (cdr operands))
-		      (multiple-value-bind (not-matches others) (partition-by-predicate #'not-eql-or-member? operands)
-			(assert (= 1 (length not-matches)) () "expected previous clause to eliminate multiple (not (member...))")
-			(destructuring-bind ((_not (_member &rest elements))) not-matches
-			  (declare (ignore _not _member))
-			  (setf elements (remove-if-not (lambda (e)
-							  (every (lambda (o)
-								   (typep e o))
-								 others))
-							elements))
-			  (cond
-			    ((cdr elements)
-			      (substitute-tail type (car not-matches) 
-					       `(not (member ,@elements))))
-			    (elements
-			      (substitute-tail type (car not-matches) 
-					       `(not (eql ,@elements))))
-			    (t
-			      `(and ,@others))))))
+	    (rule-case type
+	      ((null operands)		; (and) --> t
+	       t)
+	      ((null (cdr operands))	; (and A) --> A
+	       (car operands))
+	      ((member nil operands)	; (and A nil B) --> nil
+	       nil)
+	      ((member t operands)	; (and A t B) --> (and A B)
+	       (cons 'and (remove t operands)))
+	      ((some #'and? operands) ; (and A (and U V) (and X Y) B C) --> (and A U V X Y B C)
+	       (cons `and
+		     (mapcan #'(lambda (operand)
+				 (if (and? operand)
+				     (copy-list (cdr operand))
+				     (list operand)))
+			     operands)))
+	      ((some #'or? operands) ; (and (or A B) X Y) --> (or (and A X Y) (and B X Y))
+	       (let* ((match (find-if #'or? operands))
+		      (and-operands (remove match operands :test #'eq)))
+		 (cons 'or
+		       (loop :for or-operand :in (cdr match)
+			     :collect (cons 'and (cons or-operand and-operands))))))
+	      ((some #'eql-or-member? operands)
+	       ;; (and (member a b 2 3) symbol) --> (member a b)
+	       ;; (and (member a 2) symbol) --> (eql a)
+	       ;; (and (member a b) fixnum) --> nil
+	       (let ((objects (remove-if-not (lambda (e)
+					       (typep e type)) (cdr (find-if #'eql-or-member? operands)))))
+		 (cond ((null objects)
+			nil)
+		       ((null (cdr objects))
+			`(eql ,@objects))
+		       (t
+			`(member  ,@objects)))))		     
+	      ((< 1 (count-if #'not-eql-or-member? operands))
+	       ;; (and A B (not (member 1 2 a)) (not (member 2 3 4 b)))
+	       ;;   --> (and A B (not (member 1 2 3 4 a b)))
+	       (multiple-value-bind (not-matches others) (partition-by-predicate #'not-eql-or-member? operands)
+		 (let ((not-common (cdr (cadr (car not-matches)))))
+		   (declare (notinline union)
+			    (notinline set-difference))
+		   (dolist (not-match (cdr not-matches))
+		     (setq not-common (union not-common (cdr (cadr not-match)))))
+		   `(and (not (member ,@not-common))
+			 ,@others))))
+	      ;;      (and fixnum (not (member 1 2 a b)))
+	      ;;   --> (and (not (member 1 2)) fixnum)
+	      ;;      (and fixnum (not (member a b)))
+	      ;;   --> (and fixnum)
+	      ((and (some #'not-eql-or-member? operands)
+		    (cdr operands))
+	       (multiple-value-bind (not-matches others) (partition-by-predicate #'not-eql-or-member? operands)
+		 (assert (= 1 (length not-matches)) () "expected previous clause to eliminate multiple (not (member...))")
+		 (destructuring-bind ((_not (_member &rest elements))) not-matches
+		   (declare (ignore _not _member))
+		   (setf elements (remove-if-not (lambda (e)
+						   (every (lambda (o)
+							    (typep e o))
+							  others))
+						 elements))
+		   (cond
+		     ((cdr elements)
+		      (substitute-tail type (car not-matches) 
+				       `(not (member ,@elements))))
+		     (elements
+		      (substitute-tail type (car not-matches) 
+				       `(not (eql ,@elements))))
 		     (t
-		      (cons 'and operands))))
-		  ((or)					  ; REDUCE AND
-		   (setf operands (remove-subs operands)) ; (or float number) --> (or number)
-		   (setf operands (alphabetize operands))
-		   ;; (or A (and A B C D) E)
-		   ;;   --> (or A E)
-		   ;; (or (and A B) (and A B C D) E F)
-		   ;;   --> (or E F)
-		   (dolist (operand operands)
-		     (setf operands (remove-if (lambda (op)
-						 (cond ((eq op operand)
-							nil)
-						       ((not (and? op))
-							nil)
-						       ((member operand (cdr op))
-							t)
-						       ((not (and? operand))
-							nil)
-						       (t
-							(set-subsetp (cdr operand) (cdr op)))))
-					       operands)))
-		   ;; A + A!B = A + B
-		   (setf operands (mapcar (lambda (op2)
-					    (block reduce
-					      (cond
-						((not (and? op2))
-						 op2)
-						((some (lambda (op1)
-							 (cond
-							   ((and (atom op1)
-								 (member `(not ,op1) (cdr op2) :test #'equal))
-							    ;; A + A!B -> A + B
-							    (return-from reduce
-							      (cons 'and (remove `(not ,op1) (cdr op2) :test #'equal))))
-							   ((and (not? op1)
-								 (member (cadr op1) (cdr op2) :test #'equal))
-							    ;; !A + AB --> !A + B
-							    (return-from reduce
-							      (cons 'and (remove (cadr op1) (cdr op2) :test #'equal))))
-							   (t
-							    nil)))
-						       operands)
-					; line not reachable
-						 )
+		      `(and ,@others))))))
+	      (t
+	       (cons 'and operands))))
+	   ((or)					  ; REDUCE AND
+	    (setf operands (remove-subs operands)) ; (or float number) --> (or number)
+	    (setf operands (alphabetize operands))
+	    ;; (or A (and A B C D) E)
+	    ;;   --> (or A E)
+	    ;; (or (and A B) (and A B C D) E F)
+	    ;;   --> (or E F)
+	    (dolist (operand operands)
+	      (setf operands (remove-if (lambda (op)
+					  (cond ((eq op operand)
+						 nil)
+						((not (and? op))
+						 nil)
+						((member operand (cdr op))
+						 t)
+						((not (and? operand))
+						 nil)
 						(t
-						 op2))))
-					  operands))
+						 (set-subsetp (cdr operand) (cdr op)))))
+					operands)))
+	    ;; A + A!B = A + B
+	    (setf operands (mapcar (lambda (op2)
+				     (block reduce
+				       (cond
+					 ((not (and? op2))
+					  op2)
+					 ((some (lambda (op1)
+						  (cond
+						    ((and (atom op1)
+							  (member `(not ,op1) (cdr op2) :test #'equal))
+						     ;; A + A!B -> A + B
+						     (return-from reduce
+						       (cons 'and (remove `(not ,op1) (cdr op2) :test #'equal))))
+						    ((and (not? op1)
+							  (member (cadr op1) (cdr op2) :test #'equal))
+						     ;; !A + AB --> !A + B
+						     (return-from reduce
+						       (cons 'and (remove (cadr op1) (cdr op2) :test #'equal))))
+						    (t
+						     nil)))
+						operands)
+					; line not reachable
+					  )
+					 (t
+					  op2))))
+				   operands))
 
-		   ;; consensus theorem
-		   ;; AB + A!C + BC = AB + A!C
-		   ;; ABU + A!CU + BCU = ABU + A!CU
-		   (labels ((find-potential-consensus-tail (and1 and2)
-			      ;; exists? x in and1 where x! is in and2?
-			      (let ((t1 (find-if (lambda (t1)
-						   (member `(not ,t1) (cdr and2) :test #'equal))
-						 (cdr and1))))
-				(when t1
-				  (union (remove t1 (cdr and1) :test #'equal)
-					 (remove `(not ,t1) (cdr and2) :test #'equal)
-					 :test #'equal))))
-			    (pair-consensus (t1 t2 &aux (tail (find-potential-consensus-tail t1 t2)))
-			      (find-if #'(lambda (t4) (set-equalp tail (cdr t4))) operands))
-			    (find-consensus-term (&aux consensus)
-			      (dolist (t1 operands)
-				(when (and? t1)
-				  (dolist (t2 operands)
-				    (cond
-				      ((null (and? t2)))
-				      ((equal t1 t2))
-				      (t
-				       (setf consensus (or (pair-consensus t1 t2)
-							   (pair-consensus t2 t1)))
-				       (when consensus
-					 (return-from find-consensus-term consensus)))))))))
-		     (let (consensus-term)
-		       (loop :while (setf consensus-term (find-consensus-term))
-			     :do (setf operands (remove consensus-term operands :test #'equal)))))
+	    ;; consensus theorem
+	    ;; AB + A!C + BC = AB + A!C
+	    ;; ABU + A!CU + BCU = ABU + A!CU
+	    (labels ((find-potential-consensus-tail (and1 and2)
+		       ;; exists? x in and1 where x! is in and2?
+		       (let ((t1 (find-if (lambda (t1)
+					    (member `(not ,t1) (cdr and2) :test #'equal))
+					  (cdr and1))))
+			 (when t1
+			   (union (remove t1 (cdr and1) :test #'equal)
+				  (remove `(not ,t1) (cdr and2) :test #'equal)
+				  :test #'equal))))
+		     (pair-consensus (t1 t2 &aux (tail (find-potential-consensus-tail t1 t2)))
+		       (find-if #'(lambda (t4) (set-equalp tail (cdr t4))) operands))
+		     (find-consensus-term (&aux consensus)
+		       (dolist (t1 operands)
+			 (when (and? t1)
+			   (dolist (t2 operands)
+			     (cond
+			       ((null (and? t2)))
+			       ((equal t1 t2))
+			       (t
+				(setf consensus (or (pair-consensus t1 t2)
+						    (pair-consensus t2 t1)))
+				(when consensus
+				  (return-from find-consensus-term consensus)))))))))
+	      (let (consensus-term)
+		(loop :while (setf consensus-term (find-consensus-term))
+		      :do (setf operands (remove consensus-term operands :test #'equal)))))
 
-		   (rule-case type
-		     ((null operands)	; (or) --> nil
-		      nil)
-		     ((null (cdr operands)) ; (or A) --> A
-		      (car operands))
-		     ((member t operands) ; (or A t B) --> t
-		      t)
-		     ((member nil operands) ; (or A nil B) --> (or A B)
-		      (cons 'or (remove nil operands)))
-		     ((some #'or? operands) ; (or A (or U V) (or X Y) B C) --> (or A U V X Y B C)
-		      (cons 'or
-			    (mapcan #'(lambda (operand)
-					(if (or? operand)
-					    (copy-list (cdr operand))
-					    (list operand)))
-				    operands)))
-		     ((< 1 (count-if #'eql-or-member? operands))
-		      ;; (or string (member 1 2 3) (eql 4) (member 2 5 6))
-		      ;;  --> (or string (member 1 2 3 4 5 6))
-		      (multiple-value-bind (matches other) (partition-by-predicate #'eql-or-member? operands)
-			(cons 'or (cons (cons 'member (mapcan (lambda (match)
-								(copy-list (cdr match))) matches))
-					other))))
-		     ((and (some #'eql-or-member? operands)
-			   (cdr operands))
-		      ;; (or fixnum string (member 1 2 "hello" a b)))
-		      ;; --> (or fixnum string (member a b))
-		      (multiple-value-bind (matches others) (partition-by-predicate #'eql-or-member? operands)
-			(destructuring-bind ((_member &rest elements)) matches
-			  (declare (ignore _member))
-			  (setf elements (remove-if (lambda (e)
-						      (some (lambda (o)
-							      (typep e o))
-							    others))
-						    elements))
-			  (cond ((cdr elements)
-				 (substitute-tail type (car matches)
-						  `(member ,@elements)))
-				(elements
-				 (substitute-tail type (car matches)
-						  `(eql ,@elements)))
-				(t
-				 `(or ,@others))))))
-		     (t
-		      (cons 'or operands))))
-		  ((not)
-		   (assert (null (cdr operands)) nil "invalid type ~A, not requires exactly one operand" type)
-		   (cond ((equal '(nil) operands) ; (not nil) --> t
-			  t)
-			 ((equal '(t) operands) ; (not t) --> nil
-			  nil)
-			 ((atom (car operands)) ; (not atom) --> (not atom) 
-			  type)
-			 ((not? (car operands)) ; (not (not A)) --> A
-			  (pattern-bind ((_ A)) operands
-					A))
-			 ((or? (car operands)) ; (not (or A B C)) --> (and (not A) (not B) (not C))
-			  (pattern-bind ((_ &rest args)) operands
-					(cons 'and
-					      (loop :for operand :in args
-						    :collect `(not ,operand)))))
-			 ((and? (car operands)) ; (not (and A B C)) --> (or (not A) (not B) (not C))
-			  (pattern-bind ((_ &rest args)) operands
-					(cons 'or
-					      (loop :for operand :in args
-						    :collect `(not ,operand)))))
+	    (rule-case type
+	      ((null operands)		; (or) --> nil
+	       nil)
+	      ((null (cdr operands))	; (or A) --> A
+	       (car operands))
+	      ((member t operands)	; (or A t B) --> t
+	       t)
+	      ((member nil operands)	; (or A nil B) --> (or A B)
+	       (cons 'or (remove nil operands)))
+	      ((some #'or? operands) ; (or A (or U V) (or X Y) B C) --> (or A U V X Y B C)
+	       (cons 'or
+		     (mapcan #'(lambda (operand)
+				 (if (or? operand)
+				     (copy-list (cdr operand))
+				     (list operand)))
+			     operands)))
+	      ((< 1 (count-if #'eql-or-member? operands))
+	       ;; (or string (member 1 2 3) (eql 4) (member 2 5 6))
+	       ;;  --> (or string (member 1 2 3 4 5 6))
+	       (multiple-value-bind (matches other) (partition-by-predicate #'eql-or-member? operands)
+		 (cons 'or (cons (cons 'member (mapcan (lambda (match)
+							 (copy-list (cdr match))) matches))
+				 other))))
+	      ((and (some #'eql-or-member? operands)
+		    (cdr operands))
+	       ;; (or fixnum string (member 1 2 "hello" a b)))
+	       ;; --> (or fixnum string (member a b))
+	       (multiple-value-bind (matches others) (partition-by-predicate #'eql-or-member? operands)
+		 (destructuring-bind ((_member &rest elements)) matches
+		   (declare (ignore _member))
+		   (setf elements (remove-if (lambda (e)
+					       (some (lambda (o)
+						       (typep e o))
+						     others))
+					     elements))
+		   (cond ((cdr elements)
+			  (substitute-tail type (car matches)
+					   `(member ,@elements)))
+			 (elements
+			  (substitute-tail type (car matches)
+					   `(eql ,@elements)))
 			 (t
-			  type)))))))))
+			  `(or ,@others))))))
+	      (t
+	       (cons 'or operands))))
+	   ((not)
+	    (assert (null (cdr operands)) nil "invalid type ~A, not requires exactly one operand" type)
+	    (cond ((equal '(nil) operands) ; (not nil) --> t
+		   t)
+		  ((equal '(t) operands) ; (not t) --> nil
+		   nil)
+		  ((atom (car operands)) ; (not atom) --> (not atom) 
+		   type)
+		  ((not? (car operands)) ; (not (not A)) --> A
+		   (pattern-bind ((_ A)) operands
+				 A))
+		  ((or? (car operands)) ; (not (or A B C)) --> (and (not A) (not B) (not C))
+		   (pattern-bind ((_ &rest args)) operands
+				 (cons 'and
+				       (loop :for operand :in args
+					     :collect `(not ,operand)))))
+		  ((and? (car operands)) ; (not (and A B C)) --> (or (not A) (not B) (not C))
+		   (pattern-bind ((_ &rest args)) operands
+				 (cons 'or
+				       (loop :for operand :in args
+					     :collect `(not ,operand)))))
+		  (t
+		   type)))))))))
 
 
 (defun fixed-point (function arg &key (test #'equal))
