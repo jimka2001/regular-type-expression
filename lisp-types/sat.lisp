@@ -79,6 +79,10 @@ There are three cases of constraints generated.
   (mapcon (lambda (tail &aux (t1 (car tail)) (t2-tn (cdr tail)))
 	    (mapcan (lambda (t2)
 		      (cond
+			((null (and (nth-value 1 (subtypep t1 t2))
+				    (nth-value 1 (subtypep t2 t1))))
+			 (warn "cannot determine relationship of ~A vs ~A, assuming disjoint" t1 t2)
+			 (list (list t1 t2)))
 			((subtypep t1 t2)
 			 (list `(,t1 (not ,t2))))
 			((subtypep t2 t1)
@@ -98,7 +102,9 @@ There are three cases of constraints generated.
 						(member term min-term :test #'equal))
 					      constraint))
 				     constraints)
-			 (push (reduce-lisp-type (cons 'and (copy-list min-term)))
-			       disjoint)))
+			 (let ((new-type (reduce-lisp-type (cons 'and (copy-list min-term)))))
+			   (when new-type
+			     (push  new-type
+				    disjoint)))))
 		     types)
      disjoint))
