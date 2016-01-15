@@ -102,8 +102,8 @@ There are three cases of constraints generated.
 						(member term min-term :test #'equal))
 					      constraint))
 				     constraints)
-			 (let ((new-type (reduce-lisp-type (cons 'and (copy-list min-term)))))
-			   (when new-type
+			 (let ((new-type (cons 'and (copy-list min-term))))
+			   (unless (subtypep new-type nil)
 			     (push  new-type
 				    disjoint)))))
 		     types)
