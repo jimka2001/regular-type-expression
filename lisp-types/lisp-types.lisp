@@ -34,9 +34,13 @@
 (in-package   :lisp-types)
 
 (defun valid-type-p (type-designator)
-  ;; TODO need to make this work for other lisps
-  ;;  current only works for sbcl
-  (SB-EXT:VALID-TYPE-SPECIFIER-P type-designator))
+  #+sbcl (SB-EXT:VALID-TYPE-SPECIFIER-P type-designator)
+  #+(or clisp  allegro) (ignore-errors (subtypep type-designator t))
+  #-(or sbcl clisp allegro) (error "VALID-TYEP-P not implemented for ~A" (lisp-implementation-type))
+)
+
+(assert (not (valid-type-p (gensym))))
+(assert (valid-type-p 'bignum))
 
 (defun disjoint-types-p (T1 T2)
   "Two types are considered disjoint, if their interseciton is empty, i.e., is a subtype of nil."
