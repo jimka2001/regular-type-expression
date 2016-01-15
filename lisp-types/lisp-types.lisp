@@ -29,6 +29,7 @@
    "OPTIMIZED-TYPECASE"
    "DISJOINT-TYPES-P"
    "EQUIVALENT-TYPES-P"
+   "SAT-DECOMPOSE-TYPES"
    ))
 
 (in-package   :lisp-types)
@@ -493,33 +494,33 @@ be even simpler in cases such as (OR A B), or (AND A B).  A few restrictions app
   (fixed-point #'reduce-lisp-type-once
 	       type :test #'equal))
 
-(defun disjoint-ize (type-designators)
-  (declare (type list type-designators))
-  "Given a list TYPE-DESIGNATORS of lisp type names, return a list of disjoint
-type-designators comprising the same union, with each of the resulting type-designators
-being a sub-type of one of the given type-designators."
-  (let (decomposition) ;; the list of disjoint type-designators
+(defun disjoint-ize (type-specifiers)
+  (declare (type list type-specifiers))
+  "Given a list TYPE-SPECIFIERS of lisp type names, return a list of disjoint
+type-specifiers comprising the same union, with each of the resulting type-specifiers
+being a sub-type of one of the given type-specifiers."
+  (let (decomposition) ;; the list of disjoint type-specifiers
     (labels ((remove-disjoint ()
-	       (dolist (T1 type-designators)
+	       (dolist (T1 type-specifiers)
 		 (when (every (lambda (T2)
 				(disjoint-types-p T1 T2)) ;; are T1 and T2 disjoint?
-			      (cdr type-designators))
+			      (cdr type-specifiers))
 		   (let ((new (reduce-lisp-type T1)))
 		     (when new ; don't remember the nil type
 		       (pushnew new decomposition :test #'equivalent-types-p)))
-		   (setf type-designators (remove T1 type-designators :test #'equal)))))
+		   (setf type-specifiers (remove T1 type-specifiers :test #'equal)))))
 	     (find-intersecting ()
 	       (mapl (lambda (T1-tail &aux (T1 (car T1-tail)) (tail (cdr T1-tail)))
 		       (dolist (T2 tail)
 			 (unless (disjoint-types-p T1 T2)
 			   (return-from find-intersecting (values t T1 T2)))))
-		     type-designators)
+		     type-specifiers)
 	       nil)
 	     (forget (type)
-	       (setf type-designators (remove type type-designators :test #'equal)))
+	       (setf type-specifiers (remove type type-specifiers :test #'equal)))
 	     (remember (type)
-	       (pushnew type type-designators :test #'equivalent-types-p)))
-      (loop :while type-designators
+	       (pushnew type type-specifiers :test #'equivalent-types-p)))
+      (loop :while type-specifiers
 	    :do
 	       (progn
 		 (remove-disjoint)
@@ -531,3 +532,4 @@ being a sub-type of one of the given type-designators."
 		     (remember `(and ,T1 (not ,T2)))
 		     (remember `(and (not ,T1) ,T2))))))
       decomposition)))
+

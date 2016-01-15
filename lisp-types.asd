@@ -25,5 +25,6 @@
   ((:module "lisp-types"
     :components
     ((:file "lisp-types")
+     (:file "sat" :depends-on ("lisp-types"))
      (:file "typecase" :depends-on ("lisp-types"))
      ))))
