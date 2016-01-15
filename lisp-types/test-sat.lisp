@@ -53,5 +53,46 @@
 				      (eql 12)
 				      (eql 13))
 				    (sat-decompose-types types)
-				    :test #'equal))))
+				    :test #'equal)))
+  
+  (let ((types '(bignum unsigned-byte fixnum)))
+    (assert-false (set-exclusive-or (sat-decompose-types types)
+				    (disjoint-ize types)
+				    :test #'equivalent-types-p)))
+  
+  (let ((types '(rational 
+		 bit
+		 real 
+		 bignum
+		 float
+		 unsigned-byte
+		 number
+		 )))
+    (assert-false (set-exclusive-or (sat-decompose-types types)
+				    (disjoint-ize types)
+				    :test #'equivalent-types-p)))
 
+  (let ((types '(rational bit integer long-float real floating-point-inexact
+		 double-float bignum signed-byte float unsigned-byte single-float number fixnum
+		 char-int complex)))
+    (assert-false (set-exclusive-or (sat-decompose-types types)
+		      (disjoint-ize types) :test #'equivalent-types-p))
+
+  (let ((types '(short-float ratio rational bit integer long-float real floating-point-inexact
+		 double-float bignum signed-byte float unsigned-byte single-float number fixnum
+		 char-int complex)))
+    (assert-false (set-exclusive-or (sat-decompose-types types)
+				    (disjoint-ize types)
+				    :test #'equivalent-types-p)))
+
+
+  (let ((types '(short-float ratio rational bit integer long-float real floating-point-inexact
+		 double-float bignum signed-byte float unsigned-byte single-float number fixnum
+		 char-int complex)))
+    (assert-false (set-exclusive-or (sat-decompose-types types)
+				    (disjoint-ize types)
+				    :test #'equivalent-types-p))))
+
+  
+
+)

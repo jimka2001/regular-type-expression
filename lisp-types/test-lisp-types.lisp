@@ -87,6 +87,13 @@
   
 		      
 (define-test type/consensus-theorem
+  (assert-true (equal (reduce-lisp-type '(or W (and A B) X
+					  Y (and (not A) C)
+					  Z (and B C)))
+		      '(or W X Y Z
+			(and A B)
+			(and C (not A)))))
+					
   (assert-true (equal (reduce-lisp-type '(or (and A B)
 					       (and (not A) C)
 					       (and B C)))
