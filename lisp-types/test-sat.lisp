@@ -53,7 +53,7 @@
 				      (eql 12)
 				      (eql 13))
 				    (sat-decompose-types types)
-				    :test #'equal)))
+				    :test #'equivalent-types-p)))
   
   (let ((types '(bignum unsigned-byte fixnum)))
     (assert-false (set-exclusive-or (sat-decompose-types types)
