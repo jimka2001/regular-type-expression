@@ -48,7 +48,7 @@
 			(NIL 44)))))
 
 (define-test lisp-types/reduced-typecase
-  (assert-true (equal (macroexpand-1 '(rte::reduced-typecase fred
+  (assert-true (equal (macroexpand-1 '(lisp-types::reduced-typecase fred
 				       (integer 42)
 				       (bignum 43)
 				       (number 44)
@@ -62,7 +62,7 @@
 			(STRING 45)
 			(FLOAT 46)
 			(NIL 47))))
-  (assert-true (equal (macroexpand-1 '(rte::reduced-typecase fred
+  (assert-true (equal (macroexpand-1 '(lisp-types::reduced-typecase fred
 				       (integer 42)
 				       ((and number (not integer)) 43)
 				       ((and number (not bignum)) 44)))
@@ -72,7 +72,7 @@
 			(NIL 44)))))
 
 (define-test lisp-types/reduced-typecase2
-  (assert-true (equal (macroexpand-1 '(rte::reduced-typecase fred
+  (assert-true (equal (macroexpand-1 '(lisp-types::reduced-typecase fred
 				       ((or A B)
 					41)
 				       (A
@@ -80,7 +80,7 @@
 				       (B
 					43)))
 		      '(TYPECASE FRED ((OR A B) 41) (NIL 42) (NIL 43))))
-  (assert-true (equal (macroexpand-1 '(rte::reduced-typecase fred
+  (assert-true (equal (macroexpand-1 '(lisp-types::reduced-typecase fred
 				       ((and A B)
 					41)
 				       (A
@@ -88,7 +88,7 @@
 				       (B
 					43)))
 		      '(TYPECASE FRED ((AND A B) 41) (A 42) (B 43))))
-  (assert-true (equal (macroexpand-1 '(rte::reduced-typecase fred
+  (assert-true (equal (macroexpand-1 '(lisp-types::reduced-typecase fred
 				       ((or (not A) B)
 					41)
 				       (A
@@ -96,7 +96,7 @@
 				       (B
 					43)))
 		      '(TYPECASE FRED ((OR B (NOT A)) 41) (T 42) (NIL 43))))
-  (assert-true (equal (macroexpand-1 '(rte::reduced-typecase fred
+  (assert-true (equal (macroexpand-1 '(lisp-types::reduced-typecase fred
 				       ((or (not (and A B)) C)
 					41)
 				       (A
@@ -112,7 +112,7 @@
 
 
 (define-test rte/optimized-typecase
-  (assert-true (equal (macroexpand-1 (macroexpand-1 '(rte::optimized-typecase fred
+  (assert-true (equal (macroexpand-1 (macroexpand-1 '(lisp-types::optimized-typecase fred
 						      (integer 42)
 						      (bignum 43)
 						      (number 44)
@@ -127,7 +127,7 @@
 			(NIL 46)
 			(NIL 43))))
 
-  (assert-true (equal (macroexpand-1 (macroexpand-1 '(rte::optimized-typecase fred
+  (assert-true (equal (macroexpand-1 (macroexpand-1 '(lisp-types::optimized-typecase fred
 						      (integer 42)
 						      ((and number (not integer)) 43)
 						      ((and number (not bignum)) 44))))
@@ -138,22 +138,22 @@
 
 
 (define-test rte/optimized-typecase2
-  (assert-true (equal (rte:optimized-typecase 1
+  (assert-true (equal (lisp-types:optimized-typecase 1
 					      (null 2)
 					      (t 3))
 		      3))
-  (assert-true (equal (rte:optimized-typecase nil
+  (assert-true (equal (lisp-types:optimized-typecase nil
 					      (null 2)
 					      (t 3))
 		      2))
-  (assert-true (equal (rte:optimized-typecase 1
+  (assert-true (equal (lisp-types:optimized-typecase 1
 					      (t 2))
 		      2))
 
-  (assert-true (equal (rte:optimized-typecase 1
+  (assert-true (equal (lisp-types:optimized-typecase 1
 					      (null 2))
 		      nil))
-  (assert-true (equal (rte:optimized-typecase nil
+  (assert-true (equal (lisp-types:optimized-typecase nil
 					      (null 2))
 		      2))
   )

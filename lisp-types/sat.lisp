@@ -69,7 +69,7 @@
 
 (defun generate-constraints (types)
   "Given a list of types, some of which might completely or partially contained
-in others, return list of 'constraints' to be used by SAT-DECOMPOSE-TYPES.
+in others, return list of 'constraints' to be used by DECOMPOSE-TYPES-SAT.
 Each of these constraints is the positive term, which must be eliminated from
 the SAT search.
 There are three cases of constraints generated.
@@ -92,7 +92,7 @@ There are three cases of constraints generated.
 		    t2-tn))
 	  types))
 
-(defun sat-decompose-types (types)
+(defun decompose-types-sat (types)
   "Return a list of decomposed types"
   (let (disjoint
 	(constraints (generate-constraints types)))

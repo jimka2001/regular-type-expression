@@ -600,7 +600,7 @@ consists of values whose types match PATTERN."
 		   (t
 		    (push re done)
 		    (let (transitions)
-		      (dolist (type (disjoint-ize (uniquify (first-types re))))
+		      (dolist (type (decompose-types (uniquify (first-types re))))
 			(let ((deriv (derivative re type)))
 			  (case deriv
 			    ((:empty-set)
@@ -736,5 +736,11 @@ first element is one of the following:
 		       (define-rte pattern)
 		       (apply name args)))))
 	   *rte-types*)
+  (maphash (lambda (rte-pattern lisp-type)
+	     (warn "Removing ~A/~A from *rte-types* hash table" rte-pattern lisp-type))
+	   *rte-types*)
+  (maphash (lambda (parameterized-type-specifier function-name)
+	     (warn "Removing ~A/~A from *type-functions* hash table" parameterized-type-specifier function-name))
+	   rte::*type-functions*)
   (setf *rte-types* (make-hash-table :test #'equal))
   (setf *type-functions* (make-hash-table)))

@@ -22,21 +22,22 @@
 (cl:defpackage :lisp-types
   (:use :cl)
   (:export
-   "DISJOINT-IZE"
+   "DECOMPOSE-TYPES"
+   "DECOMPOSE-TYPES-GRAPH"
+   "DECOMPOSE-TYPES-SAT"
    "VALID-TYPE-P"
    "REDUCE-LISP-TYPE"
    "REDUCED-TYPECASE"
    "OPTIMIZED-TYPECASE"
    "DISJOINT-TYPES-P"
    "EQUIVALENT-TYPES-P"
-   "SAT-DECOMPOSE-TYPES"
    ))
 
 (in-package   :lisp-types)
 
 (defun valid-type-p (type-designator)
   #+sbcl (and (SB-EXT:VALID-TYPE-SPECIFIER-P type-designator)
-	      (not (eq type-designator cl:*)))
+	      (not (eq type-designator 'cl:*)))
   #+(or clisp  allegro) (ignore-errors (subtypep type-designator t))
   #-(or sbcl clisp allegro) (error "VALID-TYEP-P not implemented for ~A" (lisp-implementation-type))
 )
@@ -497,7 +498,7 @@ be even simpler in cases such as (OR A B), or (AND A B).  A few restrictions app
   (fixed-point #'reduce-lisp-type-once
 	       type :test #'equal))
 
-(defun disjoint-ize (type-specifiers)
+(defun decompose-types (type-specifiers)
   (declare (type list type-specifiers))
   "Given a list TYPE-SPECIFIERS of lisp type names, return a list of disjoint
 type-specifiers comprising the same union, with each of the resulting type-specifiers

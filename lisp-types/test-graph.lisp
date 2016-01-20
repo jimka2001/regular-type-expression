@@ -19,14 +19,9 @@
 ;; OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 ;; WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+(in-package :lisp-types.test)
 
-(asdf:defsystem :lisp-types-test
-  :depends-on (:lisp-types
-	       (:version :lisp-unit "0.9.0"))
-  :components
-  ((:module "lisp-types"
-    :components
-    ((:file "test-lisp-types")
-     (:file "test-typecase" :depends-on ("test-lisp-types"))
-     (:file "test-sat" :depends-on ("test-lisp-types"))
-     (:file "test-graph" :depends-on ("test-lisp-types"))))))
+(define-test type/graph
+  (assert-false (set-exclusive-or (graph-disjoint-ize '(integer fixnum number bit unsigned-byte bignum))
+				  (disjoint-ize '(integer fixnum number bit unsigned-byte bignum))
+				  :test #'equal)))

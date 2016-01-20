@@ -21,6 +21,8 @@
 
 (in-package :lisp-types.test)
 
+
+
 (define-test type/sat
   (let* ((A '(1 2 3 4 5 6 7 8 9 10 12 13))
 	 (B '(2 3 5 6))
@@ -52,12 +54,12 @@
 				      (eql 11)
 				      (eql 12)
 				      (eql 13))
-				    (sat-decompose-types types)
+				    (decompose-types-sat types)
 				    :test #'equivalent-types-p)))
   
   (let ((types '(bignum unsigned-byte fixnum)))
-    (assert-false (set-exclusive-or (sat-decompose-types types)
-				    (disjoint-ize types)
+    (assert-false (set-exclusive-or (decompose-types-sat types)
+				    (decompose-types types)
 				    :test #'equivalent-types-p)))
   
   (let ((types '(rational 
@@ -68,31 +70,74 @@
 		 unsigned-byte
 		 number
 		 )))
-    (assert-false (set-exclusive-or (sat-decompose-types types)
-				    (disjoint-ize types)
+    (assert-false (set-exclusive-or (decompose-types-sat types)
+				    (decompose-types types)
 				    :test #'equivalent-types-p)))
 
   (let ((types '(rational bit integer long-float real floating-point-inexact
 		 double-float bignum signed-byte float unsigned-byte single-float number fixnum
 		 char-int complex)))
-    (assert-false (set-exclusive-or (sat-decompose-types types)
-		      (disjoint-ize types) :test #'equivalent-types-p))
+    (assert-false (set-exclusive-or (decompose-types-sat types)
+		      (decompose-types types) :test #'equivalent-types-p))
 
   (let ((types '(short-float ratio rational bit integer long-float real floating-point-inexact
 		 double-float bignum signed-byte float unsigned-byte single-float number fixnum
 		 char-int complex)))
-    (assert-false (set-exclusive-or (sat-decompose-types types)
-				    (disjoint-ize types)
+    (assert-false (set-exclusive-or (decompose-types-sat types)
+				    (decompose-types types)
 				    :test #'equivalent-types-p)))
 
 
   (let ((types '(short-float ratio rational bit integer long-float real floating-point-inexact
 		 double-float bignum signed-byte float unsigned-byte single-float number fixnum
 		 char-int complex)))
-    (assert-false (set-exclusive-or (sat-decompose-types types)
-				    (disjoint-ize types)
+    (assert-false (set-exclusive-or (decompose-types-sat types)
+				    (decompose-types types)
 				    :test #'equivalent-types-p))))
 
   
 
 )
+
+(define-test types/sat2
+  (let (all-types)
+    (do-external-symbols (sym :cl)
+      (when (valid-type-p sym)
+	(push sym all-types)))
+    (let ((all-numbers (remove-if-not (lambda (type)
+					(subtypep type 'number))
+				      all-types)))
+      (assert-false (set-exclusive-or (decompose-types all-numbers)
+				      (decompose-types-sat all-numbers)
+				      :test #'equivalent-types-p)))))
+
+
+(defun types/cmp-perf-sat ()
+  (let (all-types)
+    (do-external-symbols (sym :cl)
+      (when (valid-type-p sym)
+	(push sym all-types)))
+    (setf all-types (set-difference all-types '(compiled-function control-error division-by-zero error)))
+    (setf all-types (sort all-types #'string<))
+    (let ((n 1)
+	  (testing-types (list (pop all-types))))
+      (flet ((test1 (types &aux sorted)
+	       (format t "~A~%" (car types))
+	       (let ((t1 (get-internal-run-time))
+		     (t2 (progn (setf sorted (decompose-types types))
+				(get-internal-run-time)))
+		     (t3 (progn (decompose-types-sat types)
+				(get-internal-run-time))))
+
+		 (unless (= t3 t2)
+		   (format t "   ~D ~D ~F ~F ~F~%"
+			   n
+			   (length sorted)
+			   (/ (- t2 t1) internal-time-units-per-second)
+			   (/ (- t3 t2) internal-time-units-per-second)
+			   (/ (- t2 t1) (- t3 t2))))
+		 (incf n))))
+	(loop :while testing-types
+	      :do (progn (test1 testing-types)
+			 (push (pop all-types) testing-types)))))))
+		  
