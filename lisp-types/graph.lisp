@@ -236,14 +236,19 @@
 	  (while (and graph
 		      (not (eq 'unchanged status)))
 	    (setf status 'unchanged)
+	    (climb:print-vals 'before status graph)
 	    (disjoint!)
+	    (climb:print-vals 'after-disjoint status graph)
 	    (untouch-leaves!)
-	    (disjoin-subtypes!)))
+	    (climb:print-vals 'after-untouch status graph)
+	    (disjoin-subtypes!)
+	    (climb:print-vals 'after-disjoin-subtypes status graph)
+	    ))
 
 	(when graph
-	  (warn "graph [of ~d types] is not empty: ~A~%" (length graph) graph)
 	  (dolist (node graph)
-	    (warn "  node type: ~A~%" (reduce-lisp-type (type-specifier node))))))
+	    (unless (subtypep (type-specifier node) nil)
+	      (error "stranded type: ~A~%" (reduce-lisp-type (type-specifier node)))))))
 
       (remove nil disjoint-types))))
 
@@ -252,12 +257,15 @@
     (do-external-symbols (sym :cl)
       (when (valid-type-p sym)
 	(push sym all-types)))
-    ;;(setf all-types (set-difference all-types '(compiled-function control-error division-by-zero error)))
+    (setf all-types (set-difference all-types '(compiled-function ; see https://groups.google.com/forum/#!topic/comp.lang.lisp/S-O94JzjlFw
+						char-code ; same as char-int
+						)))
     (setf all-types (sort all-types #'string<))
     (let ((n 1)
 	  (testing-types (list (pop all-types))))
       (flet ((test1 (types &aux sorted)
 	       (format t "~A~%" (car types))
+	       (format t "  types=~A~%" types)
 	       (let ((t1 (get-internal-run-time))
 		     (t2 (progn (setf sorted (decompose-types-graph types))
 				(get-internal-run-time))))
