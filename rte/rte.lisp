@@ -40,7 +40,9 @@
 
 (defvar *type-functions* (make-hash-table))
 (defvar *state-machines* (make-hash-table :test #'equal))
-(defvar *rte-types* (make-hash-table :test #'equal))
+(defvar *rte-types* (make-hash-table :test #'equal)
+  "Hash table mapping rte-pattern to lisp-type:  
+E.g., ((1-* SYMBOL NUMBER)) --> (AND SEQUENCE (SATISFIES \" \"((:1-* SYMBOL NUMBER))))")
 
 (defmacro exists (var domain &rest body)
   `(member-if #'(lambda (,var) ,@body) ,domain))
