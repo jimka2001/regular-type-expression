@@ -162,7 +162,7 @@
 				)
 		       (disjoin-subtype! node))))
 		 ;; one thing which has super-types but no sub-types and no touches
-		 (disjoin-subtype! (subtype-node)
+		 (disjoin-subtype! (subtype-node &aux (subtype (car subtype-node)))
 		   (declare (type node subtype-node))
 		   (setf status 'changed)
 		   (dolist (super-type (super-types subtype-node))
@@ -170,14 +170,14 @@
 		     (let ((super-node (find-node super-type)))
 		       (declare (type node super-node))
 		       (setf (sub-types super-node)
-			     (removeq (car subtype-node) (sub-types super-node))
+			     (removeq subtype (sub-types super-node))
 			     
 			     (super-types subtype-node)
 			     (removeq super-type (super-types subtype-node)))
 
 		       (dolist (super-super-type (super-types super-node))
-			 (pushnew (car subtype-node) (sub-types (find-node super-super-type)))
-			 (pushnew super-super-type (super-types subtype-node)))
+			 (pushnew subtype (sub-types (find-node super-super-type)) :test #'eq)
+			 (pushnew super-super-type (super-types subtype-node)      :test #'eq))
 
 		       (let ((new-type (type-intersection (type-specifier super-node)
 							  `(not ,(type-specifier subtype-node)))))
@@ -186,7 +186,8 @@
 			    (setf (type-specifier super-node)
 				  new-type))
 			   (t ;; then the sub-type and super-type are equivalent
-			    ;; eliminate the super-type
+			    ;; eliminate the super-type node from graph
+			    (setf graph (removeq super-node graph))
 			    ;; update the sub-type's super-types
 			    (setf (super-types subtype-node)
 				  (unionq (removeq super-type (super-types subtype-node))
@@ -194,14 +195,14 @@
 			    ;; update the sub-type's sub-types
 			    (setf (sub-types subtype-node)
 				  (unionq (sub-types subtype-node)
-					  (removeq (car subtype-node) (sub-types super-node))))
+					  (removeq subtype (sub-types super-node))))
 			    ;; updates the subtype's touches
 			    (dolist (neighbor-of-super (touches super-node))
 			      (push neighbor-of-super (touches subtype-node))
 			      (let ((neighbor-node-of-super (find-node neighbor-of-super)))
 				(setf (touches neighbor-node-of-super)
 				      (remove neighbor-of-super (touches neighbor-node-of-super) ))
-				(pushnew (car subtype-node) (touches neighbor-node-of-super))))))))))
+				(pushnew subtype (touches neighbor-node-of-super))))))))))
 		 ;; everything which touches something but no sub-types
 		 (untouch-leaves! ()
 		   (dolist (node graph)
@@ -209,7 +210,7 @@
 				(not (sub-types node)))
 		       (untouch-leaf! node))))
 		 ;; one thing which touches something but no sub-types
-		 (untouch-leaf! (node)
+		 (untouch-leaf! (node &aux (node-type (car node)))
 		   (declare (type node node))
 		   (dolist (neighbor (touches node))
 		     (let ((neighbor-node (find-node neighbor)))
@@ -233,18 +234,24 @@
 				  (push (car new-node) (touches (find-node touch))))
 				;;  update sub-types of each super-type-node to reference this new type
 				(dolist (super-type (super-types new-node))
-				  (push (car new-node) (sub-types (find-node super-type))))))
+				  (push (car new-node) (sub-types (find-node super-type)))))
+			      
+			      (let* ((A (type-specifier node))
+				     (B (type-specifier neighbor-node))
+				     (new-A  (type-intersection A `(not ,B)))
+				     (new-B  (type-intersection `(not ,A) B)))
+				(setf (type-specifier node)          new-A
+				      (type-specifier neighbor-node) new-B
+				      (touches node)          (remove neighbor (touches node))
+				      (touches neighbor-node) (remove node-type (touches neighbor-node)))))
 			     (t
-			      (warn "not adding nil type ~A interection of ~A and ~A~%" new-type (type-specifier node) (type-specifier neighbor-node)))))
-			 
-			 (let* ((A (type-specifier node))
-				(B (type-specifier neighbor-node))
-				(new-A  (type-intersection A `(not ,B)))
-				(new-B  (type-intersection `(not ,A) B)))
-			   (setf (type-specifier node)          new-A
-				 (type-specifier neighbor-node) new-B
-				 (touches node)          (remove (car neighbor-node) (touches node))
-				 (touches neighbor-node) (remove (car node) (touches neighbor-node))))))))
+			      ;; if they are marked as touching but their intersection is void,
+			      ;;  then simply update the touches fields
+			      (setf (touches node)
+				    (removeq neighbor (touches node))
+
+				    (touches neighbor-node)
+				    (removeq node-type (touches neighbor-node))))))))))
 		 (disjoint! (&aux (disjoint-nodes (remove-if #'(lambda (node)
 								(or (touches node)
 								    (sub-types node)
