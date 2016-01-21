@@ -22,6 +22,19 @@
 (in-package :lisp-types.test)
 
 (define-test type/graph
+  (assert-false (set-exclusive-or (decompose-types-graph '(CONDITION CLASS CELL-ERROR BUILT-IN-CLASS))
+				  (decompose-types       '(CONDITION CLASS CELL-ERROR BUILT-IN-CLASS))
+				  :test #'equivalent-types-p))
+  (assert-false (set-exclusive-or (decompose-types-graph '(CONDITION CONCATENATED-STREAM COMPLEX CLASS CHARACTER CHAR-INT
+							   CELL-ERROR BUILT-IN-CLASS BROADCAST-STREAM BOOLEAN BIT-VECTOR BIT
+							   BIGNUM BASE-STRING BASE-CHAR ATOM ARRAY-TOTAL-SIZE ARRAY-RANK ARRAY
+							   ARITHMETIC-ERROR))
+				  (decompose-types       '(CONDITION CONCATENATED-STREAM COMPLEX CLASS CHARACTER CHAR-INT
+							   CELL-ERROR BUILT-IN-CLASS BROADCAST-STREAM BOOLEAN BIT-VECTOR BIT
+							   BIGNUM BASE-STRING BASE-CHAR ATOM ARRAY-TOTAL-SIZE ARRAY-RANK ARRAY
+							   ARITHMETIC-ERROR))
+				  :test #'equivalent-types-p))
+
   (assert-false (set-exclusive-or (decompose-types-graph '( BIT  ATOM         ARRAY-RANK))
 				  (decompose-types       '( BIT  ATOM         ARRAY-RANK))
 				  :test #'equivalent-types-p))
