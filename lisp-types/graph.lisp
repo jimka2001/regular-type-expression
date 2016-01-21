@@ -192,15 +192,21 @@
 			 (setf status 'changed)
 			 (let ((new-type (type-intersection (type-specifier node)
 							    (type-specifier neighbor-node))))
-			   (if new-type
-			     (push (list (list new-type)
-					 :super-types (unionq (super-types node)
-							      (super-types neighbor-node))
-					 :touches     (intersectionq (touches node)
-								     (touches neighbor-node))
-					 :original (copy-list new-type))
-				   graph)
-			     (warn "not adding nil type ~A interection of ~A and ~A~%" new-types (type-specifier node) (type-specifier neighbor-node))))
+			   (cond
+			     (new-type
+			      (let ((new-node (list (list new-type)
+						    :super-types (unionq (super-types node)
+									 (super-types neighbor-node))
+						    :touches     (intersectionq (touches node)
+										(touches neighbor-node))
+						    :original (copy-list new-type))))
+				(push new-node graph)
+				;; we must update every N this new-node touches, so that N touches new-node
+				(dolist (touch (touches new-node))
+				  (push (car new-node) (touches (assocq touch graph))))))
+			     (t
+			      (warn "not adding nil type ~A interection of ~A and ~A~%" new-types (type-specifier node) (type-specifier neighbor-node)))))
+			 
 			 (let* ((A (type-specifier node))
 				(B (type-specifier neighbor-node))
 				(new-A  (type-intersection A `(not ,B)))
