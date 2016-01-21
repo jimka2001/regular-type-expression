@@ -169,8 +169,11 @@
 		       (setf (sub-types super-node)
 			     (removeq (car subtype-node) (sub-types super-node))
 			     (super-types subtype-node)
-			     (unionq (super-types super-node)
-				     (removeq (car super-node) (super-types subtype-node))))
+			     (removeq super-type (super-types subtype-node)))
+
+		       (dolist (super-super-type (super-types super-node))
+			 (pushnew (car subtype-node) (sub-types (assocq super-super-type graph)))
+			 (pushnew super-super-type (super-types subtype-node)))
 		       (setf (type-specifier super-node)
 			     (type-intersection (type-specifier super-node)
 						`(not ,(type-specifier subtype-node)))))))
@@ -203,9 +206,12 @@
 				(push new-node graph)
 				;; we must update every N this new-node touches, so that N touches new-node
 				(dolist (touch (touches new-node))
-				  (push (car new-node) (touches (assocq touch graph))))))
+				  (push (car new-node) (touches (assocq touch graph))))
+				;;  update sub-types of each super-type-node to reference this new type
+				(dolist (super-type (super-types new-node))
+				  (push (car new-node) (sub-types (assocq super-type graph))))))
 			     (t
-			      (warn "not adding nil type ~A interection of ~A and ~A~%" new-types (type-specifier node) (type-specifier neighbor-node)))))
+			      (warn "not adding nil type ~A interection of ~A and ~A~%" new-type (type-specifier node) (type-specifier neighbor-node)))))
 			 
 			 (let* ((A (type-specifier node))
 				(B (type-specifier neighbor-node))
