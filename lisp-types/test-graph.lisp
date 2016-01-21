@@ -38,6 +38,9 @@
 				      :test #'equivalent-types-p)))))
 
 (define-test type/graph
+  (assert-false (set-exclusive-or (decompose-types-graph '((eql 1) (eql 2) (member 1 2)))
+				  (decompose-types       '((eql 1) (eql 2) (member 1 2)))
+				  :test #'equivalent-types-p))
   (assert-false (set-exclusive-or (decompose-types-graph '(CONDITION CLASS CELL-ERROR BUILT-IN-CLASS))
 				  (decompose-types       '(CONDITION CLASS CELL-ERROR BUILT-IN-CLASS))
 				  :test #'equivalent-types-p))

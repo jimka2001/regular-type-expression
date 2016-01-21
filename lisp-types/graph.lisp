@@ -65,8 +65,8 @@
 	       (set-difference a b :test #'eq))
 	     (intersectionq (a b)
 	       (intersection a b :test #'eq))
-	     (assocq (a b)
-	       (assoc a b :test #'eq))
+	     (find-node (a)
+	       (assoc a graph :test #'eq))
 	     (subtype? (t1 t2)
 	       (declare (type cons t1 t2))
 	       (subtypep (car t1) (car t2)))
@@ -100,11 +100,13 @@
 	       (declare (type t new-type)
 			(type node node))
 	       (setf (car (car node)) new-type))
+	     (empty? (type)
+	       (subtypep type nil))
 	     (type-intersection (t1 t2)
 	       (let ((t3 `(and ,t1 ,t2)))
-		 (when (subtypep t3 nil)
-		   (warn "nil type ~A~%" t3))
-		 t3))
+		 (if (empty? t3)
+		     nil
+		     t3)))
 	     (new-super-type (new node &aux (super-types (super-types node)))
 	       (declare (type cons new)
 			(type node node))
@@ -165,7 +167,7 @@
 		   (setf status 'changed)
 		   (dolist (super-type (super-types subtype-node))
 		     (declare (type cons super-type))
-		     (let ((super-node (assocq super-type graph)))
+		     (let ((super-node (find-node super-type)))
 		       (declare (type node super-node))
 		       (setf (sub-types super-node)
 			     (removeq (car subtype-node) (sub-types super-node))
@@ -174,12 +176,32 @@
 			     (removeq super-type (super-types subtype-node)))
 
 		       (dolist (super-super-type (super-types super-node))
-			 (pushnew (car subtype-node) (sub-types (assocq super-super-type graph)))
+			 (pushnew (car subtype-node) (sub-types (find-node super-super-type)))
 			 (pushnew super-super-type (super-types subtype-node)))
 
-		       (setf (type-specifier super-node)
-			     (type-intersection (type-specifier super-node)
-						`(not ,(type-specifier subtype-node)))))))
+		       (let ((new-type (type-intersection (type-specifier super-node)
+							  `(not ,(type-specifier subtype-node)))))
+			 (cond
+			   (new-type
+			    (setf (type-specifier super-node)
+				  new-type))
+			   (t ;; then the sub-type and super-type are equivalent
+			    ;; eliminate the super-type
+			    ;; update the sub-type's super-types
+			    (setf (super-types subtype-node)
+				  (unionq (removeq super-type (super-types subtype-node))
+					  (super-types super-node)))
+			    ;; update the sub-type's sub-types
+			    (setf (sub-types subtype-node)
+				  (unionq (sub-types subtype-node)
+					  (removeq (car subtype-node) (sub-types super-node))))
+			    ;; updates the subtype's touches
+			    (dolist (neighbor-of-super (touches super-node))
+			      (push neighbor-of-super (touches subtype-node))
+			      (let ((neighbor-node-of-super (find-node neighbor-of-super)))
+				(setf (touches neighbor-node-of-super)
+				      (remove neighbor-of-super (touches neighbor-node-of-super) ))
+				(pushnew (car subtype-node) (touches neighbor-node-of-super))))))))))
 		 ;; everything which touches something but no sub-types
 		 (untouch-leaves! ()
 		   (dolist (node graph)
@@ -190,7 +212,7 @@
 		 (untouch-leaf! (node)
 		   (declare (type node node))
 		   (dolist (neighbor (touches node))
-		     (let ((neighbor-node (assocq neighbor graph)))
+		     (let ((neighbor-node (find-node neighbor)))
 		       ;; make sure neighbor has no sub-types
 		       (when (and neighbor-node
 				  (not (sub-types neighbor-node)))
@@ -208,10 +230,10 @@
 				(push new-node graph)
 				;; we must update every N this new-node touches, so that N touches new-node
 				(dolist (touch (touches new-node))
-				  (push (car new-node) (touches (assocq touch graph))))
+				  (push (car new-node) (touches (find-node touch))))
 				;;  update sub-types of each super-type-node to reference this new type
 				(dolist (super-type (super-types new-node))
-				  (push (car new-node) (sub-types (assocq super-type graph))))))
+				  (push (car new-node) (sub-types (find-node super-type))))))
 			     (t
 			      (warn "not adding nil type ~A interection of ~A and ~A~%" new-type (type-specifier node) (type-specifier neighbor-node)))))
 			 
