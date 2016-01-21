@@ -229,6 +229,32 @@
 	    (disjoin-subtypes!)))
 
 	(when graph
-	  (warn "graph is not empty: ~A~%" graph)))
+	  (warn "graph [of ~d types] is not empty: ~A~%" (length graph) graph)
+	  (dolist (node graph)
+	    (warn "  node type: ~A~%" (reduce-lisp-type (type-specifier node))))))
 
       (remove nil disjoint-types))))
+
+(defun perf-decompose-types-graph ()
+  (let (all-types)
+    (do-external-symbols (sym :cl)
+      (when (valid-type-p sym)
+	(push sym all-types)))
+    ;;(setf all-types (set-difference all-types '(compiled-function control-error division-by-zero error)))
+    (setf all-types (sort all-types #'string<))
+    (let ((n 1)
+	  (testing-types (list (pop all-types))))
+      (flet ((test1 (types &aux sorted)
+	       (format t "~A~%" (car types))
+	       (let ((t1 (get-internal-run-time))
+		     (t2 (progn (setf sorted (decompose-types-graph types))
+				(get-internal-run-time))))
+		 (unless (= t1 t2)
+		   (format t "   ~D ~D ~F~%"
+			   n
+			   (length sorted)
+			   (/ (- t2 t1) internal-time-units-per-second)))
+		 (incf n))))
+	(loop :while testing-types
+	      :do (progn (test1 testing-types)
+			 (push (pop all-types) testing-types)))))))
