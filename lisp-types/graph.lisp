@@ -156,7 +156,8 @@
 		   (dolist (node graph)
 		     (when (and (super-types node)
 				(not (sub-types node))
-				(not (touches node)))
+				;;(not (touches node))
+				)
 		       (disjoin-subtype! node))))
 		 ;; one thing which has super-types but no sub-types and no touches
 		 (disjoin-subtype! (subtype-node)
@@ -168,18 +169,19 @@
 		       (declare (type node super-node))
 		       (setf (sub-types super-node)
 			     (removeq (car subtype-node) (sub-types super-node))
+			     
 			     (super-types subtype-node)
 			     (removeq super-type (super-types subtype-node)))
 
 		       (dolist (super-super-type (super-types super-node))
 			 (pushnew (car subtype-node) (sub-types (assocq super-super-type graph)))
 			 (pushnew super-super-type (super-types subtype-node)))
+
 		       (setf (type-specifier super-node)
 			     (type-intersection (type-specifier super-node)
 						`(not ,(type-specifier subtype-node)))))))
 		 ;; everything which touches something but no sub-types
 		 (untouch-leaves! ()
-		   (verify)
 		   (dolist (node graph)
 		     (when (and (touches node)
 				(not (sub-types node)))
@@ -236,14 +238,9 @@
 	  (while (and graph
 		      (not (eq 'unchanged status)))
 	    (setf status 'unchanged)
-	    (climb:print-vals 'before status graph)
 	    (disjoint!)
-	    (climb:print-vals 'after-disjoint status graph)
 	    (untouch-leaves!)
-	    (climb:print-vals 'after-untouch status graph)
-	    (disjoin-subtypes!)
-	    (climb:print-vals 'after-disjoin-subtypes status graph)
-	    ))
+	    (disjoin-subtypes!)))
 
 	(when graph
 	  (dolist (node graph)
