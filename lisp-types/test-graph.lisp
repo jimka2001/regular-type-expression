@@ -22,6 +22,31 @@
 (in-package :lisp-types.test)
 
 (define-test type/graph
+  (assert-false (set-exclusive-or (decompose-types-graph '( BIT  ATOM         ARRAY-RANK))
+				  (decompose-types       '( BIT  ATOM         ARRAY-RANK))
+				  :test #'equivalent-types-p))
+  (assert-false (set-exclusive-or (decompose-types-graph '( BIT  ATOM         ARRAY-RANK ARRAY))
+				  (decompose-types       '( BIT  ATOM         ARRAY-RANK ARRAY))
+				  :test #'equivalent-types-p))
+  (assert-false (set-exclusive-or (decompose-types-graph '(CHAR-CODE CELL-ERROR BUILT-IN-CLASS BROADCAST-STREAM BOOLEAN
+							   BIT-VECTOR BIT BIGNUM BASE-STRING BASE-CHAR ATOM
+							   ARRAY-TOTAL-SIZE ARRAY-RANK ARRAY ARITHMETIC-ERROR))
+				  (decompose-types       '(CHAR-CODE CELL-ERROR BUILT-IN-CLASS BROADCAST-STREAM BOOLEAN
+							   BIT-VECTOR BIT BIGNUM BASE-STRING BASE-CHAR ATOM
+							   ARRAY-TOTAL-SIZE ARRAY-RANK ARRAY ARITHMETIC-ERROR))
+				  :test #'equivalent-types-p ))
+  (assert-false (set-exclusive-or (decompose-types-graph '(cell-error arithmetic-error ))
+				  (decompose-types '(cell-error arithmetic-error ))
+				  :test #'equivalent-types-p ))
+  (assert-false (set-exclusive-or (decompose-types-graph '(cell-error BUILT-IN-CLASS ))
+				  (decompose-types '(cell-error BUILT-IN-CLASS ))
+				  :test #'equivalent-types-p ))
+  (assert-false (set-exclusive-or (decompose-types-graph '( arithmetic-error BUILT-IN-CLASS ))
+				  (decompose-types '( arithmetic-error BUILT-IN-CLASS ))
+				  :test #'equivalent-types-p ))
+  (assert-false (set-exclusive-or (decompose-types-graph '(cell-error arithmetic-error BUILT-IN-CLASS ))
+				  (decompose-types '(cell-error arithmetic-error BUILT-IN-CLASS ))
+				  :test #'equivalent-types-p ))
   (assert-false (set-exclusive-or (decompose-types-graph '(integer))
 				  (decompose-types '(integer))
 				  :test #'equivalent-types-p ))
