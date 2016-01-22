@@ -141,10 +141,6 @@
       (mapl (lambda (tail &aux (t1-node (car tail)) (t2-tn (cdr tail)) (t1 (car t1-node)))
 	      (mapcar (lambda (t2-node &aux (t2 (car t2-node)))
 			(cond
-			  ((null (and (nth-value 1 (subtype? t1 t2))
-				      (nth-value 1 (subtype? t2 t1))))
-			   (warn "cannot determine relationship of ~A vs ~A, assuming disjoint" t1 t2)
-			   nil)
 			  ((subtype? t1 t2)
 			   (when (subtype? t2 t1)
 			     (warn "equivalent types ~A and ~A" t1 t2))
@@ -154,6 +150,7 @@
 			  ((disjoint? t1 t2)
 			   nil)
 			  (t		; touches
+			   ; this includes the case that subtypep returns NIL;NIL in both directions
 			   (push t2 (touches t1-node))
 			   (push t1 (touches t2-node)))))
 		      t2-tn))
