@@ -21,6 +21,8 @@
 
 (in-package :lisp-types.test)
 
+(define-test types/find-duplicates
+  (assert-true (equal '(a b) (lisp-types::find-duplicates '(a b a b)))))
 
 (define-test types/graph2
   (let (all-types)
@@ -31,20 +33,137 @@
 							(subtypep type 'number))
 						      all-types)
 				       ;; redundante types
-				       '(single-float signed-byte double-float char-int))))
+				       '(nil single-float signed-byte double-float char-int))))
 
       (assert-false (set-exclusive-or (decompose-types all-numbers)
 				      (decompose-types-graph all-numbers)
 				      :test #'equivalent-types-p)))))
 
 (define-test type/graph
+  (assert-false (set-exclusive-or (DECOMPOSE-TYPES-GRAPH '( COMPLEX
+							   FLOAT-DIGITS
+							   UNSIGNED-BYTE
+							   FLOAT
+							   BIGNUM
+							   REAL
+							   ARRAY-RANK
+							   RATIONAL
+							   ))
+				  (decompose-types   '( COMPLEX
+						       FLOAT-DIGITS
+						       UNSIGNED-BYTE
+						       FLOAT
+						       BIGNUM
+						       REAL
+						       ARRAY-RANK
+						       RATIONAL
+						       ))
+				  :test #'equivalent-types-p))
+  (assert-false (set-exclusive-or (DECOMPOSE-TYPES-GRAPH '( COMPLEX
+							   FIXNUM
+							   FLOAT-DIGITS
+							   NUMBER
+							   CHAR-CODE
+							   UNSIGNED-BYTE
+							   FLOAT
+							   BIGNUM
+							   REAL
+
+							   ARRAY-RANK
+					      
+							   RATIONAL
+							   RATIO
+
+							   SHORT-FLOAT))
+				  (decompose-types '( COMPLEX
+						     FIXNUM
+						     FLOAT-DIGITS
+						     NUMBER
+						     CHAR-CODE
+						     UNSIGNED-BYTE
+						     FLOAT
+						     BIGNUM
+						     REAL
+
+						     ARRAY-RANK
+					      
+						     RATIONAL
+						     RATIO
+
+						     SHORT-FLOAT))
+				  :test #'equivalent-types-p))
+  (assert-false (set-exclusive-or (DECOMPOSE-TYPES-GRAPH '( COMPLEX
+							   FIXNUM
+							   FLOAT-DIGITS
+							   NUMBER
+							   CHAR-CODE
+							   UNSIGNED-BYTE
+							   FLOAT
+							   BIGNUM
+							   REAL
+							   LONG-FLOAT
+							   INTEGER
+							   ARRAY-RANK
+							   BIT
+							   RATIONAL
+							   SHORT-FLOAT))
+				  (decompose-types      '( COMPLEX
+							  FIXNUM
+							  FLOAT-DIGITS
+							  NUMBER
+							  CHAR-CODE
+							  UNSIGNED-BYTE
+							  FLOAT
+							  BIGNUM
+							  REAL
+							  LONG-FLOAT
+							  INTEGER
+							  ARRAY-RANK
+							  BIT
+							  RATIONAL
+							  SHORT-FLOAT))
+				  :test #'equivalent-types-p))
+  (assert-false (set-exclusive-or (DECOMPOSE-TYPES-GRAPH '( COMPLEX
+							   FIXNUM
+							   FLOAT-DIGITS
+							   NUMBER
+							   CHAR-CODE
+							   UNSIGNED-BYTE
+							   FLOAT
+							   BIGNUM
+							   REAL
+							   LONG-FLOAT
+							   INTEGER
+							   ARRAY-RANK
+							   BIT
+							   RATIONAL
+							   RATIO
+							   SHORT-FLOAT))
+				  (decompose-types      '( COMPLEX
+							  FIXNUM
+							  FLOAT-DIGITS
+							  NUMBER
+							  CHAR-CODE
+							  UNSIGNED-BYTE
+							  FLOAT
+							  BIGNUM
+							  REAL
+							  LONG-FLOAT
+							  INTEGER
+							  ARRAY-RANK
+							  BIT
+							  RATIONAL
+							  RATIO
+							  SHORT-FLOAT))
+				  :test #'equivalent-types-p))
+  
   (assert-false (set-exclusive-or (decompose-types-graph '((or (eql 10)
 							    (member 1 2)
 							    (member 3 4))
 							   (or (eql 11)
 							    (member 1 3)
 							    (member 2 4))
-							   (member 10 200)))
+							   (member 10 11)))
 				  (decompose-types       '((or (eql 10)
 							    (member 1 2)
 							    (member 3 4))

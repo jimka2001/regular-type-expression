@@ -34,6 +34,14 @@
 (deftype node ()
   '(cons cons cons))
 
+(defun find-duplicates (data)
+  (remove-duplicates
+   (mapcon (lambda (tail &aux (item (car tail)))
+	      (when (member item (cdr tail) :test #'eq)
+		(list item)))
+	    data)
+   :test #'eq))
+
 (defun decompose-types-graph (type-specifiers)
   (declare (type list type-specifiers))
   (let (disjoint-types
@@ -44,6 +52,8 @@
 				    :touches nil
 				    :original type-specifier))))
     (labels ((verify (&rest notes)
+	       (assert (null (find-duplicates (mapcar #'car graph))) (notes graph)
+		       "duplicates in graph nodes: ~A" (find-duplicates (mapcar #'car graph)))
 	       (dolist (node graph)
 		 (assert (typep node 'node)
 			 (notes node)
@@ -51,26 +61,40 @@
 		 (assert (car (car node))
 			 (notes graph node)
 			 "not expecting nil type")
+
+		 (assert (null (find-duplicates (sub-types node))) (notes node)
+			 "duplicates in sub-types: ~A" (find-duplicates (sub-types node)))
 		 (mapc (lambda (sub-type &aux (sub-type-node (find-node sub-type)))
 			 (assert (typep sub-type 'cons)
 				 (notes node (sub-types node)) "corrupted sub-types")
 			 (assert sub-type-node
-				 (notes node sub-type) "node references sub-type which does not exist"))
+				 (notes node sub-type graph) "node references sub-type which does not exist:~%~A~%~A" sub-type node)
+			 (assert (memq (car node) (super-types sub-type-node)) (notes node)
+				 "sub-type is missing this node as super-type"))
 		       (sub-types node))
+		 (assert (null (find-duplicates (super-types node))) (notes node)
+			 "duplicates in super-types: ~A" (find-duplicates (super-types node)))
 		 (mapc (lambda (super-type &aux (super-type-node (find-node super-type)))
 			 (assert (typep super-type 'cons)
 				 (notes node (super-types node)) "corrupted super-types")
 			 (assert super-type-node
-				 (notes node super-type) "node references super-type which does not exist"))
+				 (notes node super-type) "node references super-type which does not exist")
+			 (assert (memq (car node) (sub-types super-type-node)) (notes node)
+				 "super-type is missing this node as sub-type ~%~A~%~A" node super-type-node))
 		       (super-types node))
+		 (assert (null (find-duplicates (touches node))) (notes node)
+			 "duplicates in touches: ~A" (find-duplicates (touches node)))
 		 (mapc (lambda (touch &aux (touch-node (find-node touch)))
 			 (assert (typep touch 'cons)
 				 (notes node (touches node)) "corrupted touches")
 			 (when (disjoint? touch (car node))
 			   (warn "touches contains ~A which is disjoint from ~A"
 				 touch (car node)))
-			 (assert touch-node (notes node touch) "node references touch which does not exist"))
+			 (assert touch-node (notes node touch) "node references touch which does not exist")
+			 (assert (memq (car node) (touches touch-node)) (notes node) "touch node mismatch"))
 		       (touches node))))
+	     (memq (a b)
+	       (member a b :test #'eq))
 	     (unionq (a b)
 	       (union a b :test #'eq))
 	     (removeq (a b)
@@ -169,11 +193,9 @@
 		 (disjoin-subtypes! ()
 		   (dolist (node graph)
 		     (when (and (super-types node)
-				(not (sub-types node))
-				;;(not (touches node))
-				)
+				(not (sub-types node)))
 		       (disjoin-subtype! node))))
-		 ;; one thing which has super-types but no sub-types and no touches
+		 ;; one thing which has super-types but no sub-types
 		 (disjoin-subtype! (subtype-node &aux (subtype (car subtype-node)))
 		   (declare (type node subtype-node))
 		   (setf status 'changed)
@@ -186,11 +208,9 @@
 			     
 			     (super-types subtype-node)
 			     (removeq super-type (super-types subtype-node)))
-
 		       (dolist (super-super-type (super-types super-node))
 			 (pushnew subtype (sub-types (find-node super-super-type)) :test #'eq)
 			 (pushnew super-super-type (super-types subtype-node)      :test #'eq))
-
 		       (let ((new-type (type-intersection (type-specifier super-node)
 							  `(not ,(type-specifier subtype-node)))))
 			 (cond
@@ -198,23 +218,31 @@
 			    (setf (type-specifier super-node)
 				  new-type))
 			   (t ;; then the sub-type and super-type are equivalent
-			    ;; eliminate the super-type node from graph
-			    (setf graph (removeq super-node graph))
-			    ;; update the sub-type's super-types
-			    (setf (super-types subtype-node)
-				  (unionq (removeq super-type (super-types subtype-node))
-					  (super-types super-node)))
-			    ;; update the sub-type's sub-types
-			    (setf (sub-types subtype-node)
-				  (unionq (sub-types subtype-node)
-					  (removeq subtype (sub-types super-node))))
-			    ;; updates the subtype's touches
-			    (dolist (neighbor-of-super (touches super-node))
-			      (push neighbor-of-super (touches subtype-node))
-			      (let ((neighbor-node-of-super (find-node neighbor-of-super)))
-				(setf (touches neighbor-node-of-super)
-				      (remove neighbor-of-super (touches neighbor-node-of-super) ))
-				(pushnew subtype (touches neighbor-node-of-super))))))))))
+			    ;; eliminate the sub-type node from graph
+			    (setf graph (removeq subtype-node graph))
+
+			    (assert (null (sub-types subtype-node)))
+			    ;; update the sub-types of the super-type node
+			    (mapc (lambda (super-type &aux (super-node (find-node super-type)))
+				    (setf (sub-types super-node)
+					  (removeq subtype (sub-types super-node)))
+				    (setf (super-types subtype-node)
+					  (removeq super-type (super-types subtype-node)))
+
+				    (setf (touches super-node)
+					  (unionq (touches subtype-node)
+						  (touches super-node)))
+				    (setf (super-types super-node)
+					  (unionq (removeq super-type (super-types subtype-node))
+						  (super-types super-node)))
+				    (mapc (lambda (neighbor-type &aux (neighbor-node (find-node neighbor-type)))
+					    (setf (touches neighbor-node)
+						  (removeq subtype (touches neighbor-node)))
+					    (pushnew super-type (touches neighbor-node) :test #'eq))
+					  (touches subtype-node)))
+				  (super-types subtype-node))
+			    (setf (touches subtype-node) nil)
+			    (setf (super-types subtype-node) nil)))))))
 		 ;; everything which touches something but no sub-types
 		 (untouch-leaves! ()
 		   (dolist (node graph)
@@ -252,8 +280,8 @@
 				     (B (type-specifier neighbor-node))
 				     (new-A  (type-intersection A `(not ,B)))
 				     (new-B  (type-intersection `(not ,A) B)))
-				(mutate new-A A `(not ,B) node neighbor-node)
-				(mutate new-B `(not ,A) B neighbor-node node)))
+				(mutate new-A node neighbor-node)
+				(mutate new-B neighbor-node node)))
 			     (t
 			      ;; if they are marked as touching but their intersection is void,
 			      ;;  then simply update the touches fields
@@ -262,7 +290,7 @@
 
 				    (touches neighbor-node)
 				    (removeq node-type (touches neighbor-node))))))))))
-		 (mutate (new-type A B node neighbor-node &aux (node-type (car node)))
+		 (mutate (new-type node neighbor-node &aux (node-type (car node)))
 		   (declare (type node node neighbor-node))
 		   (cond (new-type
 			  (setf (type-specifier node) new-type
