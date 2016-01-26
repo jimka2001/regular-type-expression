@@ -212,7 +212,7 @@
 			 (pushnew subtype (sub-types (find-node super-super-type)) :test #'eq)
 			 (pushnew super-super-type (super-types subtype-node)      :test #'eq))
 		       (let ((new-type (type-intersection (type-specifier super-node)
-							  `(not ,(type-specifier subtype-node)))))
+							  (list 'not (type-specifier subtype-node)))))
 			 (cond
 			   (new-type
 			    (setf (type-specifier super-node)

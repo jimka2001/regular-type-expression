@@ -153,6 +153,7 @@ whose test is true, otherwise return OBJECT."
 (defun reduce-lisp-type-once (type)
   "Given a lisp type designator, make one pass at reducing it, removing redundant information such as
 repeated or contradictory type designators."
+  (declare (optimize (speed 3) (compilation-speed 0) )  )
   (labels ((substitute-tail (list search replace)
 	     (cons (car list)
 		   (mapcar (lambda (e)
@@ -161,22 +162,22 @@ repeated or contradictory type designators."
 				 e))
 			   (cdr list))))
 	   (or? (obj)
-	     (and (listp obj)
+	     (and (consp obj)
 		  (eq 'or (car obj))))
 	   (and? (obj)
-	     (and (listp obj)
+	     (and (consp obj)
 		  (eq 'and (car obj))))
 	   (not? (obj)
-	     (and (listp obj)
+	     (and (consp obj)
 		  (eq 'not (car obj))))
 	   (eql? (obj)
-	     (and (listp obj)
+	     (and (consp obj)
 		  (eq 'eql (car obj))))
 	   (member? (obj)
-	     (and (listp obj)
+	     (and (consp obj)
 		  (eq 'member (car obj))))
 	   (cons? (obj)
-	     (and (listp obj)
+	     (and (consp obj)
 		  (eq 'cons (car obj))))
 	   (eql-or-member? (obj)
 	     (or (eql? obj)
@@ -196,12 +197,14 @@ repeated or contradictory type designators."
 					 (return-from sub-super (values t t2 t1)))))))
 	     (values nil))
 	   (remove-subs (types)
+	     (declare (type list types))
 	     (multiple-value-bind (match? sub super) (sub-super types)
 	       (declare (ignore super))
 	       (if match?
 		   (remove-subs (remove sub types :test #'eq)) ; tail call
 		   types)))
 	   (remove-supers (types)
+	     (declare (type list types))
 	     (multiple-value-bind (match? sub super) (sub-super types)
 	       (declare (ignore sub))
 	       (if match?
@@ -221,14 +224,14 @@ repeated or contradictory type designators."
       ;;   (complex float)
       ;;   etc
       ((cons? type) ; (cons (and float number) (or string (not string))) --> (cons float t)
-       `(cons ,@(mapcar #'reduce-lisp-type-once (cdr type))))
+       (cons 'cons (mapcar #'reduce-lisp-type-once (cdr type))))
       ((member? type)
        (if (cddr type)
-	   `(member ,@(alphabetize (cdr type)))
-	   `(eql ,@(cdr type))))
+	   (cons 'member (alphabetize (cdr type)))
+	   (cons 'eql (cdr type))))
       ((and (member? type)
 	    (not (cddr type))) ;; (member A) --> (eql A)
-       `(eql ,(cadr type)))
+       (cons 'eql (cdr type)))
       ((not (or (or? type)	       ; (number 1 8) --> (number 1 8)
 		(and? type)
 		(not? type)))
@@ -239,6 +242,8 @@ repeated or contradictory type designators."
        (setf type (cons (car type)
 			(remove-duplicates (cdr type) :test #'equal)))
        (destructuring-bind (operator &rest operands) type
+	 (declare (type (member and or not) operator)
+		  (type list operands))
 	 (ecase operator
 	   ((and)			; REDUCE AND
 	    (setf operands (remove-supers operands)) ; (and float number) --> (and float)
@@ -275,9 +280,9 @@ repeated or contradictory type designators."
 		 (cond ((null objects)
 			nil)
 		       ((null (cdr objects))
-			`(eql ,@objects))
+			(cons 'eql objects))
 		       (t
-			`(member  ,@objects)))))		     
+			(cons 'member objects)))))		     
 	      ((< 1 (count-if #'not-eql-or-member? operands))
 	       ;; (and A B (not (member 1 2 a)) (not (member 2 3 4 b)))
 	       ;;   --> (and A B (not (member 1 2 3 4 a b)))
@@ -311,10 +316,10 @@ repeated or contradictory type designators."
 		      (substitute-tail type `(not (member ,@old-elements))
 				       `(not (eql ,@new-elements))))
 		     (t
-		      `(and ,@others))))))
+		      (cons 'and others))))))
 	      (t
 	       (cons 'and operands))))
-	   ((or)					  ; REDUCE AND
+	   ((or)					  ; REDUCE OR
 	    (setf operands (remove-subs operands)) ; (or float number) --> (or number)
 	    (setf operands (alphabetize operands))
 	    ;; (or A (and A B C D) E)
