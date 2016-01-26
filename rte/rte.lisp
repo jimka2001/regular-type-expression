@@ -38,8 +38,10 @@
 
 (in-package :rte)
 
-(defvar *type-functions* (make-hash-table))
-(defvar *state-machines* (make-hash-table :test #'equal))
+(defvar *type-functions* (make-hash-table)
+  "Hash tble mapping parameterized type name to function which can be used with (SATISFIES ...)")
+(defvar *state-machines* (make-hash-table :test #'equal)
+  "Hash table mapping rte pattern to state-machine object.")
 (defvar *rte-types* (make-hash-table :test #'equal)
   "Hash table mapping rte-pattern to lisp-type:  
 E.g., ((1-* SYMBOL NUMBER)) --> (AND SEQUENCE (SATISFIES \" \"((:1-* SYMBOL NUMBER))))")
