@@ -159,9 +159,13 @@
 	       (subtypep type nil))
 	     (type-intersection (t1 t2)
 	       (let ((t3 `(and ,t1 ,t2)))
-		 (if (empty? t3)
-		     nil
-		     t3)))
+		 (cond
+		   ((empty? t3)
+		    nil)
+		   (reduce
+		    (reduce-lisp-type t3))
+		   (t
+		    t3))))
 	     (new-super-type (new node &aux (super-types (super-types node)))
 	       (declare (type cons new)
 			(type node node))
@@ -203,15 +207,18 @@
       (setf graph (sort graph #'> :key (lambda (node)
 					 (length (getf (cdr node) :super-types)))))
 
-      (let ((status 'initial))
+      (let ((graph-size (length graph))
+	    (status 'initial))
 	(labels (
 		 ;; everything which has super-types but no sub-types and no touches
-		 (disjoin-subtypes! ()
+		 (disjoin-subtypes! (&aux (n (length graph)))
 		   "Find nodes which have super-types but no subtypes, break the super-type links,
                     being careful not to strand touching neighbors."
 		   (dolist (node graph)
 		     (when (and (super-types node)
 				(not (sub-types node)))
+		       (when verbose
+			 (format t "        disjoin-subtype! ~D~%" (decf n)))
 		       (disjoin-subtype! node))))
 		 ;; one thing which has super-types but no sub-types
 		 (disjoin-subtype! (subtype-node &aux (subtype (car subtype-node)))
@@ -270,11 +277,15 @@
 				(not (sub-types node)))
 		       (untouch-leaf! node))))
 		 ;; one thing which touches something but no sub-types
-		 (untouch-leaf! (node &aux (node-type (car node)))
+		 (untouch-leaf! (node &aux (node-type (car node)) (num-neighbors (length (touches node))))
 		   (declare (type node node))
+		   (when verbose
+		     (format t "        untouch-leaf! ~D~%" (length graph)))
 		   (dolist (neighbor (touches node))
 		     (let ((neighbor-node (find-node neighbor)))
 		       ;; make sure neighbor has no sub-types
+		       (when verbose
+			 (format t "        neighbor ~D~%" (decf num-neighbors)))
 		       (when (and neighbor-node
 				  (not (sub-types neighbor-node)))
 			 (setf status 'changed)
@@ -339,18 +350,29 @@
                     Collect the types associated with such nodes into DISJOINT-NODES, and remove
                     from GRAPH."
 		   (when disjoint-nodes
+		     (when verbose
+		       (format t "        ~D disjoint nodes~%" (length disjoint-nodes)))
 		     ;(setf status 'changed)
 		     (setf graph (set-differenceq graph disjoint-nodes))
 		     (dolist (disjoint-node disjoint-nodes)
-		       (pushnew (reduce-lisp-type (caar disjoint-node))
+		       (pushnew (caar disjoint-node)
 				disjoint-types
 				:test #'equal)))))
 	  (while (and graph
 		      (not (eq 'unchanged status)))
 	    (setf status 'unchanged)
-	    (disjoint!)
-	    (untouch-leaves!)
-	    (disjoin-subtypes!)))
+	    (when verbose
+	      (unless (= (length graph)
+			 graph-size)
+		(setf graph-size (length graph))
+		(when verbose
+		  (format t "graph-size = ~D~%" graph-size))))
+	    (when verbose
+	      (format t "      disjoint!~%")) (disjoint!)
+	    (when verbose
+	      (format t "      untouch-leaves!~%")) (untouch-leaves!)
+	    (when verbose
+	      (format t "      disjoin-subtypes!~%")) (disjoin-subtypes!)))
 
 	(when graph
 	  (dolist (node graph)
@@ -374,7 +396,7 @@
 	       (format t "~A~%" (car types))
 	       (format t "  types=~A~%" types)
 	       (let ((t1 (get-internal-run-time))
-		     (t2 (progn (setf sorted (decompose-types-graph types))
+		     (t2 (progn (setf sorted (decompose-types-graph types :verbose t :reduce t))
 				(get-internal-run-time))))
 		 (unless (= t1 t2)
 		   (format t "   ~D ~D ~F~%"
