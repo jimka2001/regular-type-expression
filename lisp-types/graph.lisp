@@ -191,6 +191,8 @@
 	(labels (
 		 ;; everything which has super-types but no sub-types and no touches
 		 (disjoin-subtypes! ()
+		   "Find nodes which have super-types but no subtypes, break the super-type links,
+                    being careful not to strand touching neighbors."
 		   (dolist (node graph)
 		     (when (and (super-types node)
 				(not (sub-types node)))
@@ -245,6 +247,8 @@
 			    (setf (super-types subtype-node) nil)))))))
 		 ;; everything which touches something but no sub-types
 		 (untouch-leaves! ()
+		   "Find nodes which have touching neighbors, but no subtypes.  
+                    Break the touching links."
 		   (dolist (node graph)
 		     (when (and (touches node)
 				(not (sub-types node)))
@@ -315,6 +319,9 @@
 								    (sub-types node)
 								    (super-types node)))
 							     graph)))
+		   "Find nodes which have no sub-types, no super-types, and no touching neighbors.
+                    Collect the types associated with such nodes into DISJOINT-NODES, and remove
+                    from GRAPH."
 		   (when disjoint-nodes
 		     ;(setf status 'changed)
 		     (setf graph (set-differenceq graph disjoint-nodes))
