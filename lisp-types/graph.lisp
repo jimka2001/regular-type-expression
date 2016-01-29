@@ -42,6 +42,72 @@
 	    data)
    :test #'eq))
 
+(defgeneric graph-to-dot (graph stream))
+
+(defmethod graph-to-dot (graph (filename string))
+  (graph-to-dot graph (pathname filename)))
+
+(defmethod graph-to-dot (graph (pathname pathname))
+  (with-open-file (stream pathname :direction :output :if-exists :supersede)
+    (graph-to-dot graph stream)))
+
+(defmethod graph-to-dot (graph (stream (eql nil)))
+  (with-output-to-string (str)
+    (graph-to-dot graph str)))
+
+(defmethod graph-to-dot (graph (stream (eql t)))
+  (graph-to-dot graph *standard-output*))
+
+(defmethod graph-to-dot (graph (stream stream))
+  (let ((num 0)
+	(graph (sort (copy-list graph) #'< :key (lambda (node)
+						  (getf (cdr node) :id))))
+	done)
+    (labels ((find-name (type-spec)
+	       (getf (cdr (assoc type-spec graph :test #'eq)) :id))
+	     (print-comments ()
+	       (dolist (node graph)
+		 (format stream "// ~D " (getf (cdr node) :id))
+		 (write (caar node) :stream stream :pretty nil)
+		 (format stream "~%")))
+	     (connect (a b)
+	       ;;(climb:print-vals a b)
+	       (let ((a (find-name a))
+		     (b (find-name b)))
+		 (cond
+		   ((member (list a b) done :test #'equal))
+		   (t
+		    (push (list a b) done)
+		    (push (list b a) done)
+		    (format stream "    ~D -> ~D~%" a b)))))
+	     (print-node-defs ()
+	       (dolist (node graph)
+		 (format stream "  ~D ; // " (getf (cdr node) :id))
+		 (write (reduce-lisp-type (caar node)) :stream stream :pretty nil)
+		 (terpri stream)))
+	     (print-touching ()
+	       (format stream "  subgraph Rel1 {~%")
+	       (format stream "    edge [dir=none, color=green]~%")
+	       (dolist (node graph)
+		 (dolist (touch (getf (cdr node) :touches))
+		   (connect (car node) touch)))
+	       (format stream "  }~%"))
+	     (print-sub-super ()
+	       (format stream "  subgraph Rel2 {~%")
+	       (format stream "    edge [color=blue]~%")
+	       (dolist (node graph)
+		 (dolist (super (getf (cdr node) :super-types))
+		   (connect (car node) super)))
+	       (format stream "  }~%")))
+      (print-comments)
+      (format stream "digraph G {~%")
+      (format stream "  rankdir=BT ;~%")
+      (print-node-defs)
+      (print-touching)
+      (print-sub-super)
+      (format stream "}~%"))))
+	  
+
 (defun verify-graph (graph &rest notes)
   "Used for debugging, this function traverses the given GRAPH and checks the structure and redundancies."
   (labels ((memq (a b)
@@ -104,13 +170,15 @@
 
 (defun decompose-types-graph (type-specifiers &key verbose reduce)
   (declare (type list type-specifiers))
-  (let (disjoint-types
-	(graph (loop :for type-specifier :in type-specifiers
-		     :collect (list (list type-specifier)
-				    :super-types nil
-				    :sub-types nil
-				    :touches nil
-				    :original type-specifier))))
+  (let* (disjoint-types
+	 (node-id 0)
+	 (graph (loop :for type-specifier :in type-specifiers
+		      :collect (list (list type-specifier)
+				     :super-types nil
+				     :sub-types nil
+				     :touches nil
+				     :original type-specifier
+				     :id (incf node-id)))))
     (labels ((unionq (a b)
 	       (union a b :test #'eq))
 	     (removeq (a b)
@@ -207,9 +275,13 @@
       (setf graph (sort graph #'> :key (lambda (node)
 					 (length (getf (cdr node) :super-types)))))
 
+
       (let ((graph-size (length graph))
+	    (iteration 0)
 	    (status 'initial))
 	(labels (
+		 (dot ()
+		   (graph-to-dot graph (format nil "/tmp/jnewton/graph/graph-~2,'0D.dot" (incf iteration))))
 		 ;; everything which has super-types but no sub-types and no touches
 		 (disjoin-subtypes! (&aux (n (length graph)))
 		   "Find nodes which have super-types but no subtypes, break the super-type links,
@@ -298,7 +370,8 @@
 									 (super-types neighbor-node))
 						    :touches     (intersectionq (touches node)
 										(touches neighbor-node))
-						    :original (copy-list new-type))))
+						    :original (copy-list new-type)
+						    :id (incf node-id))))
 				(push new-node graph)
 				;; we must update every N this new-node touches, so that N touches new-node
 				(dolist (touch (touches new-node))
