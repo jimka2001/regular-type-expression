@@ -135,7 +135,13 @@
       (assert (car (car node))
 	      (notes graph node)
 	      "not expecting nil type")
-
+      (assert (not (member (car node) (touches node) :test #'eq)) (notes node)
+	      "node touches itself")
+      (assert (not (member (car node) (super-types node) :test #'eq)) (notes node)
+	      "node is super-type of itself")
+      (assert (not (member (car node) (sub-types node) :test #'eq)) (notes node)
+	      "node is sub-type of itself")
+	      
       (assert (null (find-duplicates (sub-types node))) (notes node)
 	      "duplicates in sub-types: ~A" (find-duplicates (sub-types node)))
       (mapc (lambda (sub-type &aux (sub-type-node (find-node sub-type)))
@@ -169,7 +175,8 @@
 	    (touches node)))))
 
 (defun decompose-types-graph (type-specifiers &key verbose reduce)
-  (declare (type list type-specifiers))
+  (declare (type list type-specifiers)
+	   (optimize (speed 3) (debug 0) (compilation-speed 0)))
   (let* (disjoint-types
 	 (node-id 0)
 	 (graph (loop :for type-specifier :in type-specifiers
@@ -179,7 +186,14 @@
 				     :touches nil
 				     :original type-specifier
 				     :id (incf node-id)))))
-    (labels ((unionq (a b)
+    (labels ((count-touches ()
+	       (/ (loop :for node :in graph
+			:count (length (touches  node)))
+		  2))
+	     (count-supers ()
+	       (loop :for node :in graph
+		     :count (length(super-types  node))))
+	     (unionq (a b)
 	       (union a b :test #'eq))
 	     (removeq (a b)
 	       (remove a b :test #'eq))
@@ -263,6 +277,11 @@
 			   nil)
 			  (t		; touches
 			   ; this includes the case that subtypep returns NIL;NIL in both directions
+			   (cond
+			     ((null (nth-value 1 (subtype? t1 t2)))
+			      (warn "cannot determine whether ~A is a subtype of ~A" t1 t2))
+			     ((null (nth-value 1 (subtype? t2 t1)))
+			      (warn "cannot determine whether ~A is a subtype of ~A" t2 t1)))
 			   (push t2 (touches t1-node))
 			   (push t1 (touches t2-node)))))
 		      t2-tn))
@@ -281,7 +300,10 @@
 	    (status 'initial))
 	(labels (
 		 (dot ()
-		   (graph-to-dot graph (format nil "/tmp/jnewton/graph/graph-~2,'0D.dot" (incf iteration))))
+		   (verify-graph graph)
+		   (graph-to-dot graph (format nil "/tmp/jnewton/graph/graph-~2,'0D.dot" (incf iteration)))
+		   (y-or-n-p "continue nodes=~D, touches=~D, supers=~D?" (length graph) (count-touches) (count-supers))
+		   )
 		 ;; everything which has super-types but no sub-types and no touches
 		 (disjoin-subtypes! (&aux (n (length graph)))
 		   "Find nodes which have super-types but no subtypes, break the super-type links,
@@ -291,7 +313,9 @@
 				(not (sub-types node)))
 		       (when verbose
 			 (format t "        disjoin-subtype! ~D~%" (decf n)))
-		       (disjoin-subtype! node))))
+		       (disjoin-subtype! node)
+		       ;;(dot)
+		       )))
 		 ;; one thing which has super-types but no sub-types
 		 (disjoin-subtype! (subtype-node &aux (subtype (car subtype-node)))
 		   (declare (type node subtype-node))
@@ -347,7 +371,9 @@
 		   (dolist (node graph)
 		     (when (and (touches node)
 				(not (sub-types node)))
-		       (untouch-leaf! node))))
+		       (untouch-leaf! node)
+		       ;;(dot)
+		       )))
 		 ;; one thing which touches something but no sub-types
 		 (untouch-leaf! (node &aux (node-type (car node)) (num-neighbors (length (touches node))))
 		   (declare (type node node))
@@ -430,9 +456,14 @@
 		     (dolist (disjoint-node disjoint-nodes)
 		       (pushnew (caar disjoint-node)
 				disjoint-types
-				:test #'equal)))))
+				:test #'equal))
+		     ;;(dot)
+		     )))
+
+
 	  (while (and graph
 		      (not (eq 'unchanged status)))
+
 	    (setf status 'unchanged)
 	    (when verbose
 	      (unless (= (length graph)
@@ -454,7 +485,14 @@
 
       (remove nil disjoint-types))))
 
-(defun perf-decompose-types-graph ()
+(defun get-all-types ()
+  (let (types)
+    (do-external-symbols (sym :cl)
+      (when (valid-type-p sym)
+	(push sym types)))
+    (setf types (set-difference types '(t nil class built-in-class )))))
+
+(defun perf-decompose-types-graph (&key (max 18))
   (let (all-types)
     (do-external-symbols (sym :cl)
       (when (valid-type-p sym)
@@ -463,20 +501,38 @@
 						char-code ; same as char-int
 						)))
     (setf all-types (sort all-types #'string<))
-    (let ((n 1)
-	  (testing-types (list (pop all-types))))
+    (let ( data)
       (flet ((test1 (types &aux sorted)
 	       (format t "~A~%" (car types))
-	       (format t "  types=~A~%" types)
-	       (let ((t1 (get-internal-run-time))
-		     (t2 (progn (setf sorted (decompose-types-graph types :verbose t :reduce t))
-				(get-internal-run-time))))
-		 (unless (= t1 t2)
-		   (format t "   ~D ~D ~F~%"
-			   n
-			   (length sorted)
-			   (/ (- t2 t1) internal-time-units-per-second)))
-		 (incf n))))
-	(loop :while testing-types
-	      :do (progn (test1 testing-types)
-			 (push (pop all-types) testing-types)))))))
+	       ;;(format t "  types=~A~%" types)
+	       (dolist (algo (list (list :algorithm 'decompose-types-graph
+					 :function (lambda (types)
+						     (decompose-types-graph types :verbose nil :reduce t)))
+				   (list :algorithm 'decompose-types-sat
+					 :function #'decompose-types-sat)
+				   (list :algorithm 'decompose-types
+					 :function #'decompose-types)))
+		 (let ((t1 (get-internal-run-time))
+		       (t2 (progn (setf sorted (funcall (getf algo :function) types))
+				  (get-internal-run-time))))
+		   (unless (= t1 t2)
+		     (push (list
+			    :algorithm (getf algo :algorithm)
+			    :time (/ (- t2 t1) internal-time-units-per-second)
+			    :input-length (length types)
+			    :output-length (length sorted))
+			   data)
+		     (format t "  ~A ~D ~D ~F~%"
+			     (getf algo :algorithm)
+			     (length types)
+			     (length sorted)
+			     (/ (- t2 t1) internal-time-units-per-second)))))))
+	(dotimes (r 10)
+	  (let ((rnd-all-types (shuffle-list (copy-list all-types)))
+		(testing-types nil))
+	    (while (and rnd-all-types
+			(>= max (length testing-types)))
+	      (push (pop rnd-all-types) testing-types)
+	      (test1 testing-types)))))
+      (values data
+	      (length data)))))

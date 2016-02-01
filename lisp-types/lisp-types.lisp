@@ -35,6 +35,40 @@
 
 (in-package   :lisp-types)
 
+
+(defmacro multiple-value-destructuring-bind (destructuring-lambda-list form &body body)
+  `(destructuring-bind ,destructuring-lambda-list (multiple-value-list ,form)
+     ,@body))
+
+(defmacro while (test &body body)
+  `(loop :while ,test
+	 :do (progn ,@body)))
+
+(defun shuffle-list (data)
+  (labels ((split (data)
+	     (let (l1 l2)
+	       (while data
+		 (if (zerop (random 2))
+			     (push (pop data) l1)
+			     (push (pop data) l2)))
+	       (values l1 l2)))
+	   (fold (l1 l2 &aux data)
+	     (loop :while (or l1 l2)
+		   :do (cond
+			 ((null l1)
+			  (push (pop l2) data))
+			 ((null l2)
+			  (push (pop l1) data))
+			 ((zerop (random 2))
+			  (push (pop l2) data))
+			 (t
+			  (push (pop l1) data))))
+	     data))
+    (dotimes (n 15)
+      (multiple-value-bind (l1 l2) (split data)
+	(setq data (fold l1 l2))))
+    data))
+    
 (defun valid-type-p (type-designator)
   #+sbcl (and (SB-EXT:VALID-TYPE-SPECIFIER-P type-designator)
 	      (not (eq type-designator 'cl:*)))
@@ -128,6 +162,21 @@ symbol _ somewhere (recursively)."
   (declare (type list patterns))
   (sort (copy-list patterns) #'cmp-objects))
 
+(defun alphabetize-type (type)
+  (declare (optimize (speed 3) (compilation-speed 0)))
+  (cond
+    ((atom type)
+     type)
+    ((member (car type) '(and or not))
+     (cons (car type) (alphabetize
+		       (mapcar #'alphabetize-type (cdr type)))))
+    ((eq 'cons (car type))
+     (cons 'cons (mapcar #'alphabetize-type (cdr type))))
+    ((eq 'member (car type))
+     (cons 'member (alphabetize (cdr type))))
+    (t
+     type)))
+
 (defmacro rule-case (object &body clauses)
 "return the value of the first clause-value not EQUAL to OBJECT of the first clause
 whose test is true, otherwise return OBJECT."
@@ -146,14 +195,106 @@ whose test is true, otherwise return OBJECT."
          ,@(expand-clauses)
          ,new))))
 
-(defmacro multiple-value-destructuring-bind (destructuring-lambda-list form &body body)
-  `(destructuring-bind ,destructuring-lambda-list (multiple-value-list ,form)
-     ,@body))
+;; A + A!B = A + B
+(defun reduce-redundancy (operands)
+  (declare (type list operands)
+	   (optimize (speed 3) (compilation-speed 0)))
+  (labels ((and? (obj)
+	     (and (consp obj)
+		  (eq 'and (car obj))))
+	   (not?  (obj)
+	     (and (consp obj)
+		  (eq 'not (car obj)))))
+    (mapcar (lambda (op2)
+	      (block reduce
+		(cond
+		  ((not (and? op2))
+		   op2)
+		  ((some (lambda (op1)
+			   (cond
+			     ((and (atom op1)
+				   (member `(not ,op1) (cdr op2) :test #'equal))
+			      ;; A + A!B -> A + B
+			      (return-from reduce
+				(cons 'and (remove `(not ,op1) (cdr op2) :test #'equal))))
+			     ((and (not? op1)
+				   (member (cadr op1) (cdr op2) :test #'equal))
+			      ;; !A + AB --> !A + B
+			      (return-from reduce
+				(cons 'and (remove (cadr op1) (cdr op2) :test #'equal))))
+			     (t
+			      nil)))
+			 operands)
+					; line not reachable
+		   )
+		  (t
+		   op2))))
+	    operands)))
+
+;; (or A (and A B C D) E)
+;;   --> (or A E)
+;; (or (and A B) (and A B C D) E F)
+;;   --> (or (and A B) E F)
+(defun reduce-absorption (operands)
+  (declare (type list operands)
+	   (optimize (speed 3) (compilation-speed 0)))
+  (dolist (operand operands)
+    (setf operands (remove-if (lambda (op)
+				(cond ((eq op operand)
+				       nil)
+				      ((not (and (consp op)
+						 (eq 'and (car op))))
+				       nil)
+				      ((member operand (cdr op))
+				       t)
+				      ((not (and (consp operand)
+						 (eq 'and (car operand))))
+				       nil)
+				      (t
+				       (set-subsetp (cdr operand) (cdr op)))))
+			      operands)))
+  operands)
+
+(defun sub-super (types)
+  (declare (optimize (speed 3) (compilation-speed 0)))
+  (loop :for tail :on types
+	:do (when (cdr types)
+	      (loop :for t1 :in (cdr tail)
+		    :with t2 = (car tail)
+		    :do
+		       (cond ((subtypep t1 t2)
+			      (return-from sub-super (values t t1 t2)))
+			     ((subtypep t2 t1)
+			      (return-from sub-super (values t t2 t1)))))))
+  (values nil))
+
+
+(defun remove-subs (types)
+  (declare (type list types)
+	   (inline sub-super)
+	   (optimize (speed 3) (compilation-speed 0)))
+  (multiple-value-bind (match? sub super) (sub-super types)
+    (declare (ignore super))
+    (if match?
+	(remove-subs (remove sub types :test #'eq)) ; tail call
+	types)))
+
+(defun remove-supers (types)
+  (declare (type list types)
+	   (inline sub-super)
+	   (optimize (speed 3) (compilation-speed 0)))
+  (declare (type list types))
+  (multiple-value-bind (match? sub super) (sub-super types)
+    (declare (ignore sub))
+    (if match?
+	(remove-supers (remove super types :test #'eq)) ; tail call
+	types)))
 
 (defun reduce-lisp-type-once (type)
   "Given a lisp type designator, make one pass at reducing it, removing redundant information such as
 repeated or contradictory type designators."
-  (declare (optimize (speed 3) (compilation-speed 0) )  )
+  (declare (optimize (speed 3) (compilation-speed 0))
+	   (inline sub-super reduce-absorption reduce-redundancy remove-supers remove-subs))
   (labels ((substitute-tail (list search replace)
 	     (cons (car list)
 		   (mapcar (lambda (e)
@@ -180,44 +321,23 @@ repeated or contradictory type designators."
 	     (and (consp obj)
 		  (eq 'cons (car obj))))
 	   (eql-or-member? (obj)
-	     (or (eql? obj)
-		 (member? obj)))
+	     (and (consp obj)
+		  (member (car obj) '(eql member) :test #'eq)))
 	   (not-eql-or-member? (obj) ; (not (eql ...)) or (not (member ...))
 	     (and (not? obj)
-		  (eql-or-member? (cadr obj))))
-	   (sub-super (types)
-	     (loop :for tail :on types
-		   :do (when (cdr types)
-			 (loop :for t1 :in (cdr tail)
-			       :with t2 = (car tail)
-			       :do
-				  (cond ((subtypep t1 t2)
-					 (return-from sub-super (values t t1 t2)))
-					((subtypep t2 t1)
-					 (return-from sub-super (values t t2 t1)))))))
-	     (values nil))
-	   (remove-subs (types)
-	     (declare (type list types))
-	     (multiple-value-bind (match? sub super) (sub-super types)
-	       (declare (ignore super))
-	       (if match?
-		   (remove-subs (remove sub types :test #'eq)) ; tail call
-		   types)))
-	   (remove-supers (types)
-	     (declare (type list types))
-	     (multiple-value-bind (match? sub super) (sub-super types)
-	       (declare (ignore sub))
-	       (if match?
-		   (remove-supers (remove super types :test #'eq)) ; tail call
-		   types))))
+		  (consp (cadr obj))
+		  (member (car (cadr obj)) '(eql member) :test #'eq))))
 
     (cond
       ((atom type)
        type)
-      ((subtypep type nil)		; (and float string) --> nil
-       nil)
-      ((subtypep t type)	      ; (or number (not number)) --> t
-       t)
+      ((member? type)
+       (if (cddr type)
+	   type
+	   (cons 'eql (cdr type))))
+      ((and (member? type)
+	    (not (cddr type))) ;; (member A) --> (eql A)
+       (cons 'eql (cdr type)))
       ;; TODO - extend to understand other type specifiers which reference type specifiers such as
       ;;   (function (float float) number)
       ;;   (vector number)
@@ -225,30 +345,32 @@ repeated or contradictory type designators."
       ;;   etc
       ((cons? type) ; (cons (and float number) (or string (not string))) --> (cons float t)
        (cons 'cons (mapcar #'reduce-lisp-type-once (cdr type))))
-      ((member? type)
-       (if (cddr type)
-	   (cons 'member (alphabetize (cdr type)))
-	   (cons 'eql (cdr type))))
-      ((and (member? type)
-	    (not (cddr type))) ;; (member A) --> (eql A)
-       (cons 'eql (cdr type)))
+
       ((not (or (or? type)	       ; (number 1 8) --> (number 1 8)
 		(and? type)
 		(not? type)))
        type)
-      (t
-       (setf type (cons (car type)
-			(mapcar #'reduce-lisp-type-once (cdr type))))
+      (t ;; (or ...) (and ...) (not ...)
        (setf type (cons (car type)
 			(remove-duplicates (cdr type) :test #'equal)))
+       (setf type (cons (car type)
+			(mapcar #'reduce-lisp-type-once (cdr type))))
        (destructuring-bind (operator &rest operands) type
 	 (declare (type (member and or not) operator)
 		  (type list operands))
 	 (ecase operator
 	   ((and)			; REDUCE AND
 	    (setf operands (remove-supers operands)) ; (and float number) --> (and float)
-	    (setf operands (alphabetize operands))
-
+	    (while (some #'and? operands)
+					; (and (and A B) X Y) --> (and A B X Y)
+	      (setf operands (mapcan #'(lambda (operand)
+					 (if (and? operand)
+					     (copy-list (cdr operand))
+					     (list operand)))
+				     operands)))
+	    (when (member t operands)
+					; (and A t B) --> (and A B)
+	      (setf operands (remove t operands)))
 	    (rule-case type
 	      ((null operands)		; (and) --> t
 	       t)
@@ -256,16 +378,7 @@ repeated or contradictory type designators."
 	       (car operands))
 	      ((member nil operands)	; (and A nil B) --> nil
 	       nil)
-	      ((member t operands)	; (and A t B) --> (and A B)
-	       (cons 'and (remove t operands)))
-	      ((some #'and? operands) ; (and A (and U V) (and X Y) B C) --> (and A U V X Y B C)
-	       (cons `and
-		     (mapcan #'(lambda (operand)
-				 (if (and? operand)
-				     (copy-list (cdr operand))
-				     (list operand)))
-			     operands)))
-	      ((some #'or? operands) ; (and (or A B) X Y) --> (or (and A X Y) (and B X Y))
+	      ((some #'or? operands) 
 	       (let* ((match (find-if #'or? operands))
 		      (and-operands (remove match operands :test #'eq)))
 		 (cons 'or
@@ -317,59 +430,21 @@ repeated or contradictory type designators."
 				       `(not (eql ,@new-elements))))
 		     (t
 		      (cons 'and others))))))
+	      ((subtypep (cons 'and operands) nil)		; (and float string) --> nil
+	       nil)
 	      (t
 	       (cons 'and operands))))
 	   ((or)					  ; REDUCE OR
 	    (setf operands (remove-subs operands)) ; (or float number) --> (or number)
-	    (setf operands (alphabetize operands))
-	    ;; (or A (and A B C D) E)
-	    ;;   --> (or A E)
-	    ;; (or (and A B) (and A B C D) E F)
-	    ;;   --> (or E F)
-	    (dolist (operand operands)
-	      (setf operands (remove-if (lambda (op)
-					  (cond ((eq op operand)
-						 nil)
-						((not (and? op))
-						 nil)
-						((member operand (cdr op))
-						 t)
-						((not (and? operand))
-						 nil)
-						(t
-						 (set-subsetp (cdr operand) (cdr op)))))
-					operands)))
-	    ;; A + A!B = A + B
-	    (setf operands (mapcar (lambda (op2)
-				     (block reduce
-				       (cond
-					 ((not (and? op2))
-					  op2)
-					 ((some (lambda (op1)
-						  (cond
-						    ((and (atom op1)
-							  (member `(not ,op1) (cdr op2) :test #'equal))
-						     ;; A + A!B -> A + B
-						     (return-from reduce
-						       (cons 'and (remove `(not ,op1) (cdr op2) :test #'equal))))
-						    ((and (not? op1)
-							  (member (cadr op1) (cdr op2) :test #'equal))
-						     ;; !A + AB --> !A + B
-						     (return-from reduce
-						       (cons 'and (remove (cadr op1) (cdr op2) :test #'equal))))
-						    (t
-						     nil)))
-						operands)
-					; line not reachable
-					  )
-					 (t
-					  op2))))
-				   operands))
+	    (setf operands (reduce-absorption operands))
+	    (when (some #'and? operands)
+	      (setf operands (reduce-redundancy operands)))
 
 	    ;; consensus theorem
 	    ;; AB + A!C + BC = AB + A!C
 	    ;; ABU + A!CU + BCU = ABU + A!CU
 	    (labels ((find-potential-consensus-tail (and1 and2)
+		       (declare (type (cons symbol list) and1 and2))
 		       ;; exists? x in and1 where x! is in and2?
 		       (let ((t1 (find-if (lambda (t1)
 					    (member `(not ,t1) (cdr and2) :test #'equal))
@@ -397,7 +472,12 @@ repeated or contradictory type designators."
 	      (let (consensus-term)
 		(loop :while (setf consensus-term (find-consensus-term))
 		      :do (setf operands (remove consensus-term operands :test #'equal)))))
-
+	    (while (some #'or? operands) ; (or A (or U V) (or X Y) B C) --> (or A U V X Y B C)
+	      (setf operands (mapcan #'(lambda (operand)
+					 (if (or? operand)
+					     (copy-list (cdr operand))
+					     (list operand)))
+				     operands)))
 	    (rule-case type
 	      ((null operands)		; (or) --> nil
 	       nil)
@@ -407,13 +487,6 @@ repeated or contradictory type designators."
 	       t)
 	      ((member nil operands)	; (or A nil B) --> (or A B)
 	       (cons 'or (remove nil operands)))
-	      ((some #'or? operands) ; (or A (or U V) (or X Y) B C) --> (or A U V X Y B C)
-	       (cons 'or
-		     (mapcan #'(lambda (operand)
-				 (if (or? operand)
-				     (copy-list (cdr operand))
-				     (list operand)))
-			     operands)))
 	      ((< 1 (count-if #'eql-or-member? operands))
 	       ;; (or string (member 1 2 3) (eql 4) (member 2 5 6))
 	       ;;  --> (or string (member 1 2 3 4 5 6))
@@ -451,7 +524,9 @@ repeated or contradictory type designators."
 						 (cadr op)
 						 `(not ,op)))
 					   operands)))
-		 (reduce-lisp-type `(not (and ,@new-operands)))))
+		 (reduce-lisp-type-once `(not (and ,@new-operands)))))
+	      ((subtypep t (cons 'or operands))	        ; (or number (not number)) --> t
+	       t)
 	      (t
 	       (cons 'or operands))))
 	   ((not)
@@ -463,8 +538,7 @@ repeated or contradictory type designators."
 		  ((atom (car operands)) ; (not atom) --> (not atom) 
 		   type)
 		  ((not? (car operands)) ; (not (not A)) --> A
-		   (pattern-bind ((_ A)) operands
-				 A))
+		   (cadr (car operands)))
 		  ((or? (car operands)) ; (not (or A B C)) --> (and (not A) (not B) (not C))
 		   (pattern-bind ((_ &rest args)) operands
 				 (cons 'and
@@ -498,8 +572,19 @@ be even simpler in cases such as (OR A B), or (AND A B).  A few restrictions app
 2) neither AND nor OR appear inside a NOT block
 3) OR never has fewer than 2 operands
 4) AND never has fewer than 2 operands"
-  (fixed-point #'reduce-lisp-type-once
-	       type :test #'equal))
+  (alphabetize-type
+   (fixed-point #'reduce-lisp-type-once
+		type :test #'equal)))
+
+
+(defun perf-reduce ()
+  (let ((EOF (list nil))
+	data)
+  (with-open-file (stream #p"/tmp/jnewton/types/expressions-12.data" :direction :input)
+    (while (not (eq EOF (setf data (read stream nil EOF))))
+      (reduce-lisp-type data)))))
+      
+
 
 (defun decompose-types (type-specifiers)
   (declare (type list type-specifiers))
