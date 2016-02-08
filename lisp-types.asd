@@ -25,6 +25,8 @@
   ((:module "lisp-types"
     :components
     ((:file "lisp-types")
+     (:file "reduce" :depends-on ("lisp-types"))
+     (:file "decompose" :depends-on ("reduce"))
      (:file "sat" :depends-on ("lisp-types"))
      (:file "typecase" :depends-on ("lisp-types"))
      (:file "graph" :depends-on ("lisp-types"))

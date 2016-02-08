@@ -22,10 +22,6 @@
 
 (in-package :lisp-types)
 
-(defmacro while (test &body body)
-  `(loop :while ,test
-	 :do (progn ,@body)))
-
 (defun visit-min-terms (client given-types &aux min-term)
   "Call the given client iteratively on all possible min-terms, except the all-zero term."
   (declare (type (function (cons) t) client)
