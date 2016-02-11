@@ -59,8 +59,7 @@
   (graph-to-dot graph *standard-output*))
 
 (defmethod graph-to-dot (graph (stream stream))
-  (let ((num 0)
-	(graph (sort (copy-list graph) #'< :key (lambda (node)
+  (let ((graph (sort (copy-list graph) #'< :key (lambda (node)
 						  (getf (cdr node) :id))))
 	done)
     (labels ((find-name (type-spec)
