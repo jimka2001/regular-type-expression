@@ -22,7 +22,10 @@
 (asdf:defsystem :rte-test
   :depends-on (:rte
 	       :2d-array
-	       (:version :lisp-unit "0.9.0"))
+	       (:version :lisp-unit "0.9.0")
+	       :2d-array-test
+	       :ndfa-test
+	       :lisp-types-test)
   :components
   ((:module "rte"
     :components
