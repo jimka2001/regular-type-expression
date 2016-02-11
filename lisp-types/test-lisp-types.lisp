@@ -226,3 +226,13 @@
 	  (assert-true (equal 1 (count-if (lambda (s)
 					    (typep e s))
 					  disjoint))))))))
+
+(define-test type/enter-conses ()
+  (let ((hash (make-hash-table :test #'equal)))
+    (assert-test (eq (lisp-types::enter-conses hash '(a (1 2 3) b))
+		     (lisp-types::enter-conses hash '(a (1 2 3) b))))
+    (assert-test (eq (cadr (lisp-types::enter-conses hash '(a (1 2 3) b)))
+		     (cadr (lisp-types::enter-conses hash '(c (1 2 3) d)))))
+    (assert-test (eq (cdr (lisp-types::enter-conses hash '(a 1 2 3 4)))
+		     (cdr (lisp-types::enter-conses hash '(b 1 2 3 4)))))))
+

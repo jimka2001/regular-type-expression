@@ -35,6 +35,35 @@
 
 (in-package   :lisp-types)
 
+(defun hash-to-list (hash &aux list)
+  "HASH is a hashtable with test=EQUAL which has been used with ENTER-CONSES.
+  HASH-TABLE-returns the list of lists which ENTER-CONSES has accumulated."
+  (maphash (lambda (key value)
+	     (declare (ignore value))
+	     (push key list)) hash)
+  list)
+
+(defun enter-conses (hash object)
+  "HASH is a hash-tabel which uses EQUAL as test.
+   OBJECT is any lisp object.
+   ENTER-CONSES returns an object which is EQUAL to the given OBJECT,
+   but subsequent times ENTER-CONSES is called with another such EQUAL
+   object, the value returned is EQ.
+   E.g., If (EQUAL A B), then (ENTER-CONSES hash A) and (ENTER-CONSES hash B)
+   returns values which are EQ to each other.
+   In addition, The elements of the given list (if OBJECT is indeed a list)
+   share the same EQ property.  I.e., if A is a list, and B is a list and A and B
+   contain elements which are EQUAL to each other, they the corresponding values
+   in the return value will be EQ."
+  (cond
+    ((atom object)
+     object)
+    ((gethash object hash))
+    (t
+     (setf object (cons (enter-conses hash (car object))
+			(enter-conses hash (cdr object))))
+     (setf (gethash object hash) object))))
+
 
 (defmacro multiple-value-destructuring-bind (destructuring-lambda-list form &body body)
   `(destructuring-bind ,destructuring-lambda-list (multiple-value-list ,form)
