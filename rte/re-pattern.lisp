@@ -453,25 +453,20 @@ a fixed point is found."
 				  (list state (incf n)))
 				states)))
 	 (list-end `(null seq))
-	 (list-next `(if ,list-end
-			 (return-from check nil)
-			 (pop seq)))
+	 (list-next `(pop seq))
+	 
 	 (simple-vector-end `(>= i len))
-	 (simple-vector-next `(if ,simple-vector-end
-				  (return-from check nil)
-				  (prog1 (svref seq i)
-				    (incf i))))
+	 (simple-vector-next `(prog1 (svref seq i)
+				(incf i)))
+
 	 (vector-end `(>= i len))
-	 (vector-next `(if ,vector-end
-			   (return-from check nil)
-			   (prog1 (aref seq i)
-			     (incf i))))
+	 (vector-next `(prog1 (aref seq i)
+			 (incf i)))
+
 	 (sequence-end `(or (sequence:emptyp seq)
 			    (>= i len)))
-	 (sequence-next `(if ,sequence-end
-			  (return-from check nil)
-			  (prog1 (sequence:elt seq i)
-			    (incf i)))))
+	 (sequence-next `(prog1 (sequence:elt seq i)
+			   (incf i))))
 	 
     (labels ((state-name (state)
 	       (cadr (assoc state state-assoc :test #'eq)))
@@ -481,14 +476,15 @@ a fixed point is found."
 	     (dump-case-transition (transition)
 	       `(,(cdr (transition-label transition))
 		 (go ,(state-name (ndfa:next-state transition)))))
-	     (dump-final (state end)
+	     (dump-end (state end)
 	       (cond ((null (state-final-p state))
-		      nil)
+		      `(when ,end
+			 (return-from check nil)))
 		     ((state-sticky-p state)
-		      `((return-from check t)))
+		      `(return-from check t))
 		     (t
-		      `((when  ,end
-			  (return-from check t))))))
+		      `(when ,end
+			 (return-from check t)))))
 	     (dump-case (state next)
 	       (cond
 		 ((every #'(lambda (trans)
@@ -496,19 +492,20 @@ a fixed point is found."
 				  (member (car (transition-label trans)) '(eql member))))
 			 (transitions state))
 		  `(case ,next
-		     ,@(mapcar #'dump-case-transition (transitions state))))
+		     ,@(mapcar #'dump-case-transition (transitions state))
+		     (t (return-from check nil))))
 		 (t
 		  `(optimized-typecase ,next
-		     ,@(mapcar #'dump-typecase-transition (transitions state))))))
+				       ,@(mapcar #'dump-typecase-transition (transitions state))
+				       (t (return-from check nil))))))
 	     (dump-state (state end next)
 	       (copy-list `(,(state-name state)
-			    ,@(dump-final state end)
-			    ,(dump-case state next)
-			    (return-from check nil))))
-	     (dump-tagbody (end next)
+			    ,(dump-end state end)
+			    ,(dump-case state next))))
+	     (dump-tagbody (end final-next)
 	       `(tagbody 
 		   (go ,(state-name (car (get-initial-states ndfa))))
-		   ,@(mapcan #'(lambda (state) (dump-state state end next)) states))))
+		   ,@(mapcan #'(lambda (state) (dump-state state end final-next)) states))))
 
       `(lambda (seq)
 	 ;; Don't declare seq a sequence! because if this function gets called with
