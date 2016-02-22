@@ -185,6 +185,7 @@
 				     :touches nil
 				     :original type-specifier
 				     :id (incf node-id)))))
+    (declare (type list graph))
     (labels ((count-touches ()
 	       (/ (loop :for node :in graph
 			:count (length (touches  node)))
@@ -193,6 +194,8 @@
 	       (loop :for node :in graph
 		     :count (length(super-types  node))))
 	     (unionq (a b)
+	       (declare (type list a b)
+			(notinline union))
 	       (union a b :test #'eq))
 	     (removeq (a b)
 	       (remove a b :test #'eq))
@@ -292,7 +295,6 @@
       
       (setf graph (sort graph #'> :key (lambda (node)
 					 (length (getf (cdr node) :super-types)))))
-
 
       (let ((graph-size (length graph))
 	    (iteration 0)

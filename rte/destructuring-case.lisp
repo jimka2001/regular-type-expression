@@ -350,8 +350,42 @@ Not supporting this syntax -> (wholevar reqvars optvars . var) "
 		   (destructuring-bind ,lambda-list ,object
 		     ,@body))))))
       `(let ((,object ,object-form))
-	 (typecase ,object ((not list) nil) ,@(mapcar #'transform-clause clauses))))))
+	 (typecase ,object
+	   ((not list) nil)
+	   ,@(mapcar #'transform-clause clauses))))))
 
 (defmacro destructuring-case (object-form &rest clauses)
   (expand-destructuring-case object-form clauses))
+
+
+(defun expand-destructuring-methods (object-form clauses call-next-method)
+  (declare (type symbol call-next-method))
+  (let ((object (gensym))
+	(objects (gensym)))
+    (flet ((transform-clause (clauses)
+	     (destructuring-bind (lambda-list &rest body) (car clauses)
+	       (let ((pattern (destructuring-lambda-list-to-rte lambda-list
+								:type-specifiers (gather-type-declarations body))))
+
+		 (if (cdr clauses)
+		     `((rte ,(canonicalize-pattern pattern))
+		       (flet ((,call-next-method (&rest ,objects)
+				(destructuring-methods (if ,objects
+							(car ,objects)
+							,object)
+				    (:call-next-method ,call-next-method)
+				  ,@(cdr clauses))))
+			 (declare (ignorable (function ,call-next-method)))
+			 (destructuring-bind ,lambda-list ,object
+			   ,@body)))
+		     `((rte ,(canonicalize-pattern pattern))
+		       (destructuring-bind ,lambda-list ,object
+			 ,@body)))))))
+	   `(let ((,object ,object-form))
+	      (typecase ,object
+		((not list) nil)
+		,@(maplist #'transform-clause clauses))))))
+
+(defmacro destructuring-methods (object-form (&key (call-next-method 'call-next-method)) &body clauses)
+  (expand-destructuring-methods object-form clauses call-next-method))
 
