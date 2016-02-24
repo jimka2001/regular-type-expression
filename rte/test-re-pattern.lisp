@@ -138,28 +138,20 @@
     ))
 
 
-
-(deftype test/type ()
-  `(rte:rte
-    (:0-* number number)))
-
 (defun type/declaration2 ()
-  ;; strange, this test often fails when called from inside the climb tests
-  ;; if you simply recompile the test slime C-c C-c, the test starts succeeding.
-  ;; TODO need to debug this
-  (deftype test/type ()
-    `(rte:rte
-      (:0-* number number)))
-  
-  (typep nil 'test/type)
   (typep nil '(rte:rte
-	       test/type))
+	       (:0-* number number)))
+  (typep nil '(rte:rte
+	       (rte:rte
+		(:0-* number number))))
   
   (typep nil '(rte:rte
-	       (:1-* test/type)))
+	       (:1-* (rte:rte
+		      (:0-* number number)))))
   (funcall (lambda (x)
    	     (declare (type (rte:rte
-   			     (:1-* test/type))
+   			     (:1-* (rte:rte
+				    (:0-* number number))))
    			    x))
    	     x)
    	   '((1 1) (2 3) (5 6.0)))

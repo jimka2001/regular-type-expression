@@ -21,123 +21,10 @@
 
 (in-package :rte.test)
 
-(define-test test/destructuring-case-1-a
-  (assert-true
-   (equal 3 (destructuring-case '(x y z)
-	      ((a)
-	       (declare (ignore a))
-	       1)
-	      ((a b)
-	       (declare (ignore a b))
-	       2)
-	      ((a b c)
-	       (declare (ignore a b c))
-	       3)))))
-(define-test test/destructuring-case-1-b
-
-  (assert-true
-   (equal 2 (destructuring-case '(x y)
-	      ((a)
-	       (declare (ignore a))
-	       1)
-	      ((a b)
-	       (declare (ignore a b))
-	       2)
-	      ((a b c)
-	       (declare (ignore a b c))
-	       3))))  )
-
-(define-test test/destructuring-case-1-c
-  (assert-true
-   (equal 1 (destructuring-case '(x)
-	      ((a)
-	       (declare (ignore a))
-	       1)
-	      ((a b)
-	       (declare (ignore a b))
-	       2)
-	      ((a b c)
-	       (declare (ignore a b c))
-	       3)))))
-
-(define-test test/destructuring-case-2-a
-  (assert-true
-   (equal 3 (destructuring-case '((x) y z)
-	      ((a)
-	       (declare (ignore a))
-	       1)
-	      ((a b)
-	       (declare (ignore a b))
-	       2)
-	      (((a) b c)
-	       (declare (ignore a b c))
-	       3)))))
-
-(define-test test/destructuring-case-2-b
-  
-  (assert-true
-   (equal 2 (destructuring-case '(x (y))
-	      ((a)
-	       (declare (ignore a))
-	       1)
-	      ((a (b))
-	       (declare (ignore a b))
-	       2)
-	      (((a) b)
-	       (declare (ignore a b))
-	       3))))  )
 
 
-(define-test test/destructuring-case-2-c
-  (assert-true
-   (equal 3 (destructuring-case '((x) y)
-	      ((a)
-	       (declare (ignore a))
-	       1)
-	      ((a (b))
-	       (declare (ignore a b))
-	       2)
-	      (((a) b)
-	       (declare (ignore a b))
-	       3))))
-)
-   
-   
-(define-test test/destructuring-case-3
-  (let ((n 0))
-    (dolist (x '((1)
-		 (2 (3))
-		 (1 ((2)) (3 4))))
-      (destructuring-case x
-	((a)
-	 (incf n)
-	 (assert-true (= a 1)))
-	((a (b))
-	 (incf n)
-	 (assert-true (= a 2))
-	 (assert-true (= b 3)))
-	((a ((b)) (c d))
-	 (incf n)
-	 (assert-true (= a 1))
-	 (assert-true (= b 2))
-	 (assert-true (= c 3))
-	 (assert-true (= d 4)))))
-
-    (assert-true (= n 3))))
 
 
-	  
-(define-test test/destructuring-case-4
-  (let ((a '(1 2 :x 3 :y 4))
-	(n 0))
-    (destructuring-case a
-      ((u v &key x y)
-       (incf n)
-       (assert-true (= u 1))
-       (assert-true (= v 2))
-       (assert-true (= x 3))
-       (assert-true (= y 4))))
-    (assert-true (= n 1))))
 
 
 (define-test test/destructuring-case-5
@@ -484,31 +371,31 @@
     (assert-true (= 0 n))))
 
 (define-test test/destructuring-case-16
-  (assert-true (equal '(2 x nil)
+  (assert-true (equal '(1 x 0)
 		      (destructuring-case '(x)
-			((name &key count)
+			((name &key (count 0))
 			 (declare (type fixnum count))
 			 (list 1 name count))
 			((name &key count)
 			 (list 2 name count)))))
 
-  (assert-true (equal '(2 x nil)
-		  (destructuring-case '(x)
-		    ((name &key count)
-		     (declare (type fixnum count))
-		     (list 1 name count))
-		    ((name &key count)
-		     (declare (type (or null fixnum) count))
-		     (list 2 name count)))))
+  (assert-true (equal '(2 x y)
+		      (destructuring-case '(x :count y)
+			((name &key (count 0))
+			 (declare (type fixnum count))
+			 (list 1 name count))
+			((name &key (count 'z))
+			 (declare (type symbol count))
+			 (list 2 name count)))))
 
-    (assert-true (equal '(2 x 42)
-		  (destructuring-case '(x)
-		    ((name &key count)
-		     (declare (type fixnum count))
-		     (list 1 name count))
-		    ((name &key (count 42))
-		     (declare (type fixnum count))
-		     (list 2 name count))))))
+  (assert-true (equal '(1 x 0)
+		      (destructuring-case '(x)
+			((name &key (count 0))
+			 (declare (type fixnum count))
+			 (list 1 name count))
+			((name &key (count 42))
+			 (declare (type fixnum count))
+			 (list 2 name count))))))
 		    
 
 (define-test test/gather-type-declarations

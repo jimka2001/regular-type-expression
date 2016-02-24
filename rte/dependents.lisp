@@ -42,7 +42,8 @@
 					     (sb-mop:add-dependent (find-class type-name) dependent))))))
     (dolist (state (ndfa:states sm))
       (register-class-names (ndfa:state-label state)
-			    (make-instance 'dependent :ndfa sm)))))
+			    (make-instance 'dependent :ndfa sm)))
+    sm))
 
 (defmethod sb-mop:update-dependent ((class standard-class) (dep dependent) &rest init-args)
   (declare (ignore init-args))

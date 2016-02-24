@@ -371,16 +371,20 @@ Not supporting this syntax -> (wholevar reqvars optvars . var) "
 		     `((rte ,(canonicalize-pattern pattern))
 		       (flet ((,call-next-method (&rest ,objects)
 				(destructuring-methods (if ,objects
-							(car ,objects)
-							,object)
+							   (car ,objects)
+							   ,object)
 				    (:call-next-method ,call-next-method)
 				  ,@(cdr clauses))))
 			 (declare (ignorable (function ,call-next-method)))
 			 (destructuring-bind ,lambda-list ,object
 			   ,@body)))
 		     `((rte ,(canonicalize-pattern pattern))
-		       (destructuring-bind ,lambda-list ,object
-			 ,@body)))))))
+		       (flet ((,call-next-method (&rest ,objects)
+				(declare (ignore ,objects))
+				(error "cannot call ~A from final clause" ',call-next-method)))
+			 (declare (ignorable (function ,call-next-method)))
+			 (destructuring-bind ,lambda-list ,object
+			   ,@body))))))))
 	   `(let ((,object ,object-form))
 	      (typecase ,object
 		((not list) nil)

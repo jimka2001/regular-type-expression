@@ -375,12 +375,10 @@ a fixed point is found."
 				  ;; (warn "~A and ~A are mutually exclusive~%" wrt-type single-type-pattern)
 				  :empty-set)
 				 ((null (nth-value 1 (subtypep wrt-type single-type-pattern)))
-				  (warn "cannot determine whether ~A is a subtype of ~A"
-					wrt-type single-type-pattern)
+				  (warn 'ambiguous-subtype :sub wrt-type :super single-type-pattern)
 				  :empty-word)
 				 ((null (nth-value 1 (subtypep single-type-pattern wrt-type)))
-				  (warn "cannot determine whether ~A is a subtype of ~A"
-					single-type-pattern wrt-type)
+				  (warn 'ambiguous-subtype :sub single-type-pattern :super wrt-type)
 				  :empty-word)				 
 				 (t
 				  (warn "cannot calculate the derivative of ~A w.r.t. ~A--assuming :empty-word"
@@ -521,17 +519,17 @@ a fixed point is found."
 	     (simple-vector
 	      (let ((i 0)
 		    (len (length seq)))
-		(declare (type fixnum i len))
+		(declare (type fixnum i len) (ignorable len))
 		,(dump-tagbody simple-vector-end simple-vector-next)))
 	     (vector
 	      (let ((i 0)
 		    (len (length seq)))
-		(declare (type fixnum i len))
+		(declare (type fixnum i len) (ignorable len))
 		,(dump-tagbody vector-end vector-next)))
 	     (sequence		 ; case to handle extensible sequences
 	      (let ((i 0)
 		    (len (sequence:length seq))) ; sequence (such as infinite sequence) might not support length
-		(declare (type fixnum i len))
+		(declare (type fixnum i len) (ignorable len))
 		,(dump-tagbody sequence-end sequence-next)))
 	     (t
 	      nil)))))))

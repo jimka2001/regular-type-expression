@@ -19,20 +19,18 @@
 ;; OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 ;; WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-(asdf:defsystem :rte-test
-  :depends-on (:rte
-	       :2d-array
-	       (:version :lisp-unit "0.9.0")
-	       :2d-array-test
-	       :ndfa-test
-	       :lisp-types-test)
-  :components
-  ((:module "rte"
-    :components
-    ((:file "test-rte")
-     (:file "test-list-of")
-     (:file "test-re-pattern")
-     (:file "test-destructuring-case-1")
-     (:file "test-destructuring-case-2")
-     (:file "test-destructuring-case")
-     (:file "test-ordinary-lambda-list")))))
+(in-package :rte.test)
+
+   
+	  
+(define-test test/destructuring-case-4
+  (let ((a '(1 2 :x 3 :y 4))
+	(n 0))
+    (destructuring-case a
+      ((u v &key x y)
+       (incf n)
+       (assert-true (= u 1))
+       (assert-true (= v 2))
+       (assert-true (= x 3))
+       (assert-true (= y 4))))
+    (assert-true (= n 1))))

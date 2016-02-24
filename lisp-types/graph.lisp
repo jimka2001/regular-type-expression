@@ -70,7 +70,6 @@
 		 (write (caar node) :stream stream :pretty nil)
 		 (format stream "~%")))
 	     (connect (a b)
-	       ;;(climb:print-vals a b)
 	       (let ((a (find-name a))
 		     (b (find-name b)))
 		 (cond
@@ -281,9 +280,9 @@
 			   ; this includes the case that subtypep returns NIL;NIL in both directions
 			   (cond
 			     ((null (nth-value 1 (subtype? t1 t2)))
-			      (warn "cannot determine whether ~A is a subtype of ~A" t1 t2))
+			      (warn 'ambiguous-subtype :sub t1 :super t2))
 			     ((null (nth-value 1 (subtype? t2 t1)))
-			      (warn "cannot determine whether ~A is a subtype of ~A" t2 t1)))
+			      (warn 'ambiguous-subtype :sub t2 :super t1)))
 			   (push t2 (touches t1-node))
 			   (push t1 (touches t2-node)))))
 		      t2-tn))
