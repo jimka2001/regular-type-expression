@@ -723,6 +723,58 @@ a valid regular type expression.
   (or (gethash pattern *rte-types* nil)
       (define-rte pattern)))
 
+(defun pattern-complexity (pattern)
+  (cond ((atom pattern)
+	 1)
+	(t
+	 (reduce #'+ (mapcar #'pattern-complexity pattern) :initial-value 0))))
+
+(defun get-patterns ()
+  (let (patterns)
+    (maphash (lambda (pattern dfa)
+	       (declare (ignore dfa))
+	       (push pattern patterns))
+	     *state-machines*)
+    patterns))
+
+(defmacro defrte (pattern)
+  (let* ((dfa (make-state-machine pattern))
+	 (code (dump-code dfa)))
+    `(progn
+       (setf (gethash ',pattern *state-machines*) (make-state-machine ',pattern))
+       (defun ,(make-rte-function-name pattern) ,@(cdr code)))))
+
+(defun serialize-functions (stream patterns)
+  (let ((patterns (get-patterns)))
+
+    ;; if we sort by complexity, then whenever pattern A appears
+    ;; within pattern B, then A necessarily has smaller complexity,
+    ;; so it will go toward the front of the list.
+    (setf patterns (sort patterns #'< :key #'pattern-complexity))
+    (dolist (pattern patterns)
+      (let* ((dfa (gethash pattern *state-machines*))
+	     (name (make-rte-function-name pattern))
+	     (code (dump-code dfa)))
+	(format stream ";; ")
+	(write pattern
+	       :stream stream
+	       :escape t
+	       :pretty nil)
+	(terpri stream)
+	(write `(defun ,name ,@(cdr code)) ; cdr discards lambda
+	       :stream stream
+	       :escape t
+	       :case :downcase
+	       :pretty t)
+	(terpri stream)
+	(terpri stream)))))
+
+(defun compile-and-serialize (pathname compile)
+  (with-open-file (stream pathname :direction :output :if-exists :supersede)
+    (let ((patterns (get-patterns)))
+      (prog1 (funcall compile)
+	(serialize-functions stream (remove-if-not (get-patterns) patterns))))))
+
 (defun rte-reset ()
   (maphash (lambda (pattern type)
 	     (declare (ignore type))
