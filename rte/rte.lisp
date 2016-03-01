@@ -39,6 +39,14 @@
 
 (in-package :rte)
 
+(deftype rte-keyword ()
+  '(member :cat :1
+    :0-* :* :0-or-more
+    :1-* :+ :1-or-more
+    :0-1 :?
+    :and :or
+    :permute))
+
 (defvar *type-functions* (make-hash-table)
   "Hash tble mapping parameterized type name to function which can be used with (SATISFIES ...)")
 (defvar *state-machines* (make-hash-table :test #'equal)

@@ -25,17 +25,14 @@
 ;; TODO add some tests with satisfies types. (satisfies oddp) (satisfies evenp) etc.
 
 (define-test type/match-empty
-  (assert-true  (typep #() '(rte:rte)))
-  (assert-true (typep () '(rte:rte)))
-  (assert-false (typep #(t) '(rte:rte)))
-  (assert-false (typep '(t) '(rte:rte)))
-  (typep #() '(rte:rte (:cat)))
-  (typep () '(rte:rte (:cat)))
-  )
+  (assert-true (typep #() '(rte (:cat))))
+  (assert-true (typep () '(rte (:cat))))
+  (assert-false (typep #(t) '(rte (:cat))))
+  (assert-false (typep #(t) '(rte (:cat)))))
 
 (define-test type/typep-1
   (assert-true (typep '(:x 3 :y 4)
-		      '(RTE:RTE
+		      '(RTE
 			(:CAT
 			 (:OR
 			  (:CAT (:OR (:CAT (EQL :X) T)
@@ -49,7 +46,7 @@
 
 (define-test type/typep-2
   (assert-true (typep '(:x 3 :y 4)
-		      '(RTE:RTE
+		      '(RTE
 			(:OR
 			 (:CAT (:OR (:CAT (EQL :X) T)
 				:EMPTY-WORD)
@@ -62,7 +59,7 @@
 
 (define-test type/typep-2
   (assert-true (typep '(:x 3 :y 4)
-		      '(RTE:RTE
+		      '(RTE
 			(:OR
 			 (:CAT (:OR (:CAT (EQL :X) T)
 				:EMPTY-WORD)
@@ -77,7 +74,7 @@
 
 (define-test type/typep-13
   (assert-true (typep '(:x 3 :y 4)
-		      '(RTE:RTE
+		      '(RTE
 			(:OR
 			 (:CAT (:OR (:CAT (EQL :X) T)
 				:EMPTY-WORD)
@@ -111,46 +108,46 @@
 					    (b0 4  5  b3)
 					    (b0 b1 b2 b3)))))
     (assert-test (typep (make-instance '2d-array:row-vector :2d-array 2d :row 0)
-			'(rte:rte (:1-* symbol))))
+			'(rte (:1-* symbol))))
     (assert-test (typep (make-instance '2d-array:row-vector :2d-array 2d :row 1)
-		       '(rte:rte symbol (:1-* fixnum) symbol)))
+		       '(rte (:1 symbol (:1-* fixnum) symbol))))
     (assert-test (typep (make-instance '2d-array:column-vector :2d-array 2d :column 0)
-			'(rte:rte (:1-* (eql b0)))))
+			'(rte (:1-* (eql b0)))))
 
     (assert-test (typep (make-instance '2d-array:column-vector :2d-array 2d :column 1)
-			'(rte:rte (eql b1) (:1-* fixnum) (eql b1))))
+			'(rte (:1 (eql b1) (:1-* fixnum) (eql b1)))))
     
     (assert-test (typep (make-instance '2d-array:vector-of-rows :2d-array 2d)
-			'(rte:rte (rte:rte (:1-* symbol))
-			  (:1-* (rte:rte symbol (:1-* fixnum) symbol))
-			  (rte:rte (:1-* symbol)))))
+			'(rte (:1 (rte (:1-* symbol))
+				   (:1-* (rte (:1 symbol (:1-* fixnum) symbol)))
+				   (rte (:1-* symbol))))))
 
     (assert-test (typep (make-instance '2d-array:vector-of-columns :2d-array 2d)
-			'(rte:rte (rte:rte (:1-* symbol))
-			  (:1-* (rte:rte symbol (:1-* fixnum) symbol))
-			  (rte:rte (:1-* symbol)))))
+			'(rte (:1 (rte (:1-* symbol))
+				   (:1-* (rte (:1 symbol (:1-* fixnum) symbol)))
+				   (rte (:1-* symbol))))))
 
     (assert-false (typep (make-instance '2d-array:vector-of-columns :2d-array 2d)
-			'(rte:rte (rte:rte (:1-* symbol))
-			  (:1-* (rte:rte symbol (:1-* fixnum) symbol))
-			  (rte:rte (:1-* symbol))
-			  t)))
+			'(rte (:1 (rte (:1-* symbol))
+				   (:1-* (rte (:1 symbol (:1-* fixnum) symbol)))
+				   (rte (:1-* symbol))
+				   t))))
     ))
 
 
 (defun type/declaration2 ()
-  (typep nil '(rte:rte
+  (typep nil '(rte
 	       (:0-* number number)))
-  (typep nil '(rte:rte
-	       (rte:rte
-		(:0-* number number))))
+  (typep nil '(rte
+	       (:1 (rte
+		    (:0-* number number)))))
   
-  (typep nil '(rte:rte
-	       (:1-* (rte:rte
+  (typep nil '(rte
+	       (:1-* (rte
 		      (:0-* number number)))))
   (funcall (lambda (x)
-   	     (declare (type (rte:rte
-   			     (:1-* (rte:rte
+   	     (declare (type (rte
+   			     (:1-* (rte
 				    (:0-* number number))))
    			    x))
    	     x)
@@ -163,31 +160,31 @@
 (define-test type/declaration
   (assert-true (equal '(1 2 3)
 		      (funcall (lambda (x)
-				 (declare (type (rte:rte (:0-* t))
+				 (declare (type (rte (:0-* t))
 						x))
 				 x) '(1 2 3))))
   (assert-error 'error (funcall (lambda (x)
-				  (declare (type (rte:rte (:0-* symbol))
+				  (declare (type (rte (:0-* symbol))
 						 x))
 				  x) '(1 2 3)))
   
   (assert-error 'error
    		(funcall (lambda (x)
-   			   (declare (type (rte:rte
-   					   (:1-* (rte:rte (:0-* symbol))))
+   			   (declare (type (rte
+   					   (:1-* (rte (:0-* symbol))))
    					  x))
 			   x)
    			 '((1 1) (2 nil) (5 6.0))))
   (assert-true (funcall (lambda (x)
-   			  (declare (type (rte:rte (:1-* (rte:rte
+   			  (declare (type (rte (:1-* (rte
 								       (:cat number number))))
    					 x))
 			  x)
    			'((1 1) (2 3) (5 6.0))))
   (assert-error 'error
    		(funcall (lambda (x)
-   			   (declare (type (rte:rte
-   					   (:1-* (rte:rte
+   			   (declare (type (rte
+   					   (:1-* (rte
    						  (:cat number number)))) x))
 			   x)
    			 '((1 1) (2 nil) (5 6.0)))
@@ -298,9 +295,17 @@
 
 (define-test type/first-types
   (assert-false (set-exclusive-or '(float)
-				  (rte::first-types '(:cat float integer (:0-* symbol (:0-* number) symbol) integer (number 0 4) (rte:rte (:0-1 symbol))))))
+				  (rte::first-types '(:cat float
+						      integer
+						      (:0-* symbol (:0-* number) symbol)
+						      integer
+						      (number 0 4)
+						      (rte (:0-1 symbol))))
+				  :test #'equal))
   (assert-false (set-exclusive-or '((integer 0 1) (integer 2 9))
-				  (rte::first-types '(:cat (:0-* (integer 0 1)) (integer 2 9)))))
+				  (rte::first-types '(:cat (:0-* (integer 0 1))
+						      (integer 2 9)))
+				  :test #'equal))
   )
 
 (define-test type/equivalent-types-p
@@ -442,23 +447,23 @@
 
 
 (define-test type/rte-type
-  (assert-true (typep '(1 x) '(rte:rte number symbol)))
-  (assert-true (typep '(2 x) '(rte:rte (:or symbol number)
-			                   symbol)))
-  (assert-true (typep '()      '(rte:rte (:0-or-more number))))
-  (assert-true (typep '(1 2 3) '(rte:rte (:0-or-more number))))
+  (assert-true (typep '(1 x) '(rte (:cat number symbol))))
+  (assert-true (typep '(2 x) '(rte (:cat (:or symbol number)
+					symbol))))
+  (assert-true (typep '()      '(rte (:0-or-more number))))
+  (assert-true (typep '(1 2 3) '(rte (:0-or-more number))))
 
-  (assert-true (typep #(1 2 3) '(rte:rte number number number)))
-  (assert-true (typep #(1 2 3 5) '(rte:rte (:0-* integer))))
+  (assert-true (typep #(1 2 3) '(rte (:1 number number number))))
+  (assert-true (typep #(1 2 3 5) '(rte (:0-* integer))))
 
   )
 
 (define-test type/test1
-  (dolist (pattern '((rte:rte (:or (:cat (:1-* (eql 0)) (:0-* (eql 1)))
+  (dolist (pattern '((rte (:or (:cat (:1-* (eql 0)) (:0-* (eql 1)))
 				  (:cat (:0-* (eql 0)) (:1-* (eql 1)))))
-		     (rte:rte (:and (:1-* (:or (eql 0) (eql 1)))
+		     (rte (:and (:1-* (:or (eql 0) (eql 1)))
 				  (:cat (:0-* (eql 0)) (:0-* (eql 1)))))
-		     (rte:rte (:or (:cat (:1-* (eql 0)) (:0-* (eql 1)))
+		     (rte (:or (:cat (:1-* (eql 0)) (:0-* (eql 1)))
 				  (:1-* (eql 1))))))
     (dolist (yes '(#*0
 		   #*1
@@ -476,7 +481,7 @@
       (assert-false (typep no pattern)))))
 
 (define-test type/test2
-  (let ((pattern '(rte:rte (:and (:cat integer number)
+  (let ((pattern '(rte (:and (:cat integer number)
 			            (:cat number integer)))))
     (dolist (yes '((1 1)
 		   (1 2)))
@@ -490,95 +495,95 @@
 					
 
 (define-test type/rte
-  (assert-true (typep '(1 x) '(rte:rte number symbol)))
+  (assert-true (typep '(1 x) '(rte (:1 number symbol))))
   
-  (assert-true (typep '(1 1 1 0) '(rte:rte (:1-or-more (eql 1)) (:0-or-1 (eql 0)))))
-  (assert-true (typep '(1 1 1 0) '(rte:rte (:0-or-more (eql 1)) (:0-or-1 (eql 0)))))
-  (assert-true (typep '(1 1 1 0) '(rte:rte (:0-or-more (eql 1)) (:0-or-more (eql 0)))))
-  (assert-true (typep '(0)       '(rte:rte (:0-or-more (eql 1)) (:0-or-more (eql 0)))))
-  (assert-true (typep '()        '(rte:rte (:0-or-more (eql 1)) (:0-or-more (eql 0)))))
-  (assert-false (typep '()       '(rte:rte (:0-or-more (eql 1)) (:1-or-more (eql 0)))))
-  (assert-true (typep '(1 1 1)   '(rte:rte (:1-or-more (eql 1)))))
-  (assert-true (typep '(1 1 1)   '(rte:rte (:0-or-more (eql 1)))))
-  (assert-true (typep '(1 1 1)   '(rte:rte (:or (:1-or-more (eql 1)) (:0-or-more (eql 1))))))
-  (assert-false (typep '(1 1 1)   '(rte:rte (:or (:1-or-more (eql 2)) (:0-or-more (eql 3))))))
-  (assert-true (typep '(1 1 1)   '(rte:rte (:or (:1-or-more (eql 2)) (:0-or-more (eql 1))))))
-  (assert-true (typep '(1 1 1)   '(rte:rte (:or (:1-or-more (eql 1)) (:0-or-more (eql 2))))))
-  (assert-true (typep '(1 1 1)   '(rte:rte (:and (:1-or-more (eql 1)) (:0-or-more (eql 1))))))
-  (assert-true (typep '(1 1 1)   '(rte:rte (:and (:0-or-more (eql 1)) (:1-or-more (eql 1))))))
-  (assert-true (typep '(1 1 1 0) '(rte:rte (:and (:1-or-more (eql 1)) (:0-or-more (eql 1)))
-		      (eql 0))))
-  (assert-true (typep '(1 1 1)   '(rte:rte (:1-or-more (eql 1)) (:0-or-more (eql 0)))))
-  (assert-false (typep '(1 1 1)   '(rte:rte (:and (:1-or-more (eql 1)) (:0-or-more (eql 0))))))
-  (assert-false (typep '(1 1 1)  '(rte:rte (:and (:0-or-more (eql 1)) (:1-or-more (eql 0))))))
-  (assert-true (typep '(1 1 1)   '(rte:rte (:and (:0-or-more (eql 1)) (:1-or-more (:or (eql 1) (eql 0)))))))
+  (assert-true (typep '(1 1 1 0) '(rte (:1 (:1-or-more (eql 1)) (:0-or-1 (eql 0))))))
+  (assert-true (typep '(1 1 1 0) '(rte (:1 (:0-or-more (eql 1)) (:0-or-1 (eql 0))))))
+  (assert-true (typep '(1 1 1 0) '(rte (:1 (:0-or-more (eql 1)) (:0-or-more (eql 0))))))
+  (assert-true (typep '(0)       '(rte (:1 (:0-or-more (eql 1)) (:0-or-more (eql 0))))))
+  (assert-true (typep '()        '(rte (:1 (:0-or-more (eql 1)) (:0-or-more (eql 0))))))
+  (assert-false (typep '()       '(rte (:1 (:0-or-more (eql 1)) (:1-or-more (eql 0))))))
+  (assert-true (typep '(1 1 1)   '(rte (:1-or-more (eql 1)))))
+  (assert-true (typep '(1 1 1)   '(rte (:0-or-more (eql 1)))))
+  (assert-true (typep '(1 1 1)   '(rte (:or (:1-or-more (eql 1)) (:0-or-more (eql 1))))))
+  (assert-false (typep '(1 1 1)   '(rte (:or (:1-or-more (eql 2)) (:0-or-more (eql 3))))))
+  (assert-true (typep '(1 1 1)   '(rte (:or (:1-or-more (eql 2)) (:0-or-more (eql 1))))))
+  (assert-true (typep '(1 1 1)   '(rte (:or (:1-or-more (eql 1)) (:0-or-more (eql 2))))))
+  (assert-true (typep '(1 1 1)   '(rte (:and (:1-or-more (eql 1)) (:0-or-more (eql 1))))))
+  (assert-true (typep '(1 1 1)   '(rte (:and (:0-or-more (eql 1)) (:1-or-more (eql 1))))))
+  (assert-true (typep '(1 1 1 0) '(rte (:1 (:and (:1-or-more (eql 1)) (:0-or-more (eql 1)))
+					(eql 0)))))
+  (assert-true (typep '(1 1 1)   '(rte (:1 (:1-or-more (eql 1)) (:0-or-more (eql 0))))))
+  (assert-false (typep '(1 1 1)   '(rte (:and (:1-or-more (eql 1)) (:0-or-more (eql 0))))))
+  (assert-false (typep '(1 1 1)  '(rte (:and (:0-or-more (eql 1)) (:1-or-more (eql 0))))))
+  (assert-true (typep '(1 1 1)   '(rte (:and (:0-or-more (eql 1)) (:1-or-more (:or (eql 1) (eql 0)))))))
   (assert-true (typep '(x 100 y 200 z 300 "hello" "world")
-		      '(rte:rte (:0-or-more symbol number) (:1-or-more string))))
+		      '(rte (:1 (:0-or-more symbol number) (:1-or-more string)))))
 
   ;; recursive use of rte
   (assert-false (typep '((1 1)
 			 (2 2 x 2 2))
-		       '(rte:rte (:0-or-more (rte:rte (:1-or-more number))))))
+		       '(rte (:0-or-more (rte (:1-or-more number))))))
   (assert-true (typep '((1 1)
 			(2 2 x 2 2))
-		      '(rte:rte (:0-or-more (rte:rte (:1-or-more (:or symbol number)))))))
-  (assert-true (typep '((1 1) (2 2 2 2)) '(rte:rte (:0-or-more (rte:rte (:1-or-more number))))))
+		      '(rte (:0-or-more (rte (:1-or-more (:or symbol number)))))))
+  (assert-true (typep '((1 1) (2 2 2 2)) '(rte (:0-or-more (rte (:1-or-more number))))))
   
 
   ;; zero-or-more
-  (assert-true (typep '() '(rte:rte (:0-* number))))
-  (assert-true (typep '(nil) '(rte:rte (:0-* null) (:0-* number))))
-  (assert-true (typep '(nil nil) '(rte:rte (:0-* null) (:0-* number))))
-  (assert-true (typep '(nil nil nil) '(rte:rte (:0-* null) (:0-* number))))
-  (assert-true (typep '(nil nil 1) '(rte:rte (:0-* null) (:0-* number))))
-  (assert-true (typep '(nil nil 1 2 3 4) '(rte:rte (:0-* null) (:0-* number))))
+  (assert-true (typep '() '(rte (:0-* number))))
+  (assert-true (typep '(nil) '(rte (:1 (:0-* null) (:0-* number)))))
+  (assert-true (typep '(nil nil) '(rte (:1 (:0-* null) (:0-* number)))))
+  (assert-true (typep '(nil nil nil) '(rte (:1 (:0-* null) (:0-* number)))))
+  (assert-true (typep '(nil nil 1) '(rte (:1 (:0-* null) (:0-* number)))))
+  (assert-true (typep '(nil nil 1 2 3 4) '(rte (:1 (:0-* null) (:0-* number)))))
   
   ;; one-or-more
-  (assert-false (typep '() '(rte:rte (:1-* null) (:0-* number))))
-  (assert-true (typep '(nil) '(rte:rte (:1-* null) (:0-* number))))
-  (assert-true (typep '(nil nil) '(rte:rte (:1-* null) (:0-* number))))
-  (assert-true (typep '(nil nil 1) '(rte:rte (:1-* null) (:0-* number))))
-  (assert-true (typep '(nil nil 1 2 3 4) '(rte:rte (:1-* null) (:0-* number))))
-  (assert-false (typep '(nil nil "1" 2 3 4) '(rte:rte (:1-* null) (:0-* number))))
+  (assert-false (typep '() '(rte (:1 (:1-* null) (:0-* number)))))
+  (assert-true (typep '(nil) '(rte (:1 (:1-* null) (:0-* number)))))
+  (assert-true (typep '(nil nil) '(rte (:1 (:1-* null) (:0-* number)))))
+  (assert-true (typep '(nil nil 1) '(rte (:1 (:1-* null) (:0-* number)))))
+  (assert-true (typep '(nil nil 1 2 3 4) '(rte (:1 (:1-* null) (:0-* number)))))
+  (assert-false (typep '(nil nil "1" 2 3 4) '(rte (:1 (:1-* null) (:0-* number)))))
 
   ;; zero-or-one
-  (assert-true (typep nil '(rte:rte (:0-1 null) (:0-* t))))
-  (assert-true (typep nil '(rte:rte (:0-1 null) (:0-* t))))
-  (assert-true (typep '(1) '(rte:rte (:0-1 null) (:0-* number))))
-  (assert-true (typep '(nil 1) '(rte:rte (:0-1 null) (:0-* number))))
-  (assert-false (typep '(nil nil 1) '(rte:rte (:0-1 null) (:0-* number))))
+  (assert-true (typep nil '(rte (:1 (:0-1 null) (:0-* t)))))
+  (assert-true (typep nil '(rte (:1 (:0-1 null) (:0-* t)))))
+  (assert-true (typep '(1) '(rte (:1 (:0-1 null) (:0-* number)))))
+  (assert-true (typep '(nil 1) '(rte (:1 (:0-1 null) (:0-* number)))))
+  (assert-false (typep '(nil nil 1) '(rte (:1 (:0-1 null) (:0-* number)))))
 
-  (assert-true (typep '(1 "hello")                 '(rte:rte number (:1-* string))))
-  (assert-true (typep '(1 2 "hello" "world")       '(rte:rte number number (:1-* string))))
-  (assert-true (typep '(1 "hello" "there" "world") '(rte:rte (:1-* number) (:1-* string))))
-  (assert-true (typep '(1 hello "there" "world")   '(rte:rte number symbol (:1-* string))))
-  (assert-true (typep '(1 hello)                   '(rte:rte number symbol (:0-* string))))
-  (assert-false (typep '(1 hello)                  '(rte:rte number (:0-* string))))
+  (assert-true (typep '(1 "hello")                 '(rte (:1 number (:1-* string)))))
+  (assert-true (typep '(1 2 "hello" "world")       '(rte (:1 number number (:1-* string)))))
+  (assert-true (typep '(1 "hello" "there" "world") '(rte (:1 (:1-* number) (:1-* string)))))
+  (assert-true (typep '(1 hello "there" "world")   '(rte (:1 number symbol (:1-* string)))))
+  (assert-true (typep '(1 hello)                   '(rte (:1 number symbol (:0-* string)))))
+  (assert-false (typep '(1 hello)                  '(rte (:1 number (:0-* string)))))
 
   ;; pattern-prefix
-  (assert-true (typep '(x 100 y 200 z 300)       '(rte:rte (:1-* symbol number))))
-  (assert-true (typep '(x 100 y 200 z 300 400)   '(rte:rte (:1-* symbol number) (:0-1 t))))
-  (assert-true (typep '(x 100 y 200 z 300 400)   '(rte:rte (:1-* symbol number) (:0-* t))))
-  (assert-false (typep  '(x 100 y 200 z 300 400) '(rte:rte (:1-* symbol number) null)))
+  (assert-true (typep '(x 100 y 200 z 300)       '(rte (:1-* symbol number))))
+  (assert-true (typep '(x 100 y 200 z 300 400)   '(rte (:1 (:1-* symbol number) (:0-1 t)))))
+  (assert-true (typep '(x 100 y 200 z 300 400)   '(rte (:1 (:1-* symbol number) (:0-* t)))))
+  (assert-false (typep  '(x 100 y 200 z 300 400) '(rte (:1 (:1-* symbol number) null))))
 
   (assert-true (typep '(x 100 y 200 z 300)
-		      '(rte:rte (:or (:0-* string) (:0-* symbol integer)))))
-  (assert-true (typep nil '(rte:rte (:0-* string))))
+		      '(rte (:1 (:or (:0-* string) (:0-* symbol integer))))))
+  (assert-true (typep nil '(rte (:0-* string))))
   (assert-true (typep '("hello" nil 1 2 3  
 			"there" nil 
 			"world" nil 12.0 "foo"
 			"world" nil 12.0 "bar"
 			)
-		      '(rte:rte (:0-* (:cat string null (:or (:1-* integer) (:0-* number string)))))))
+		      '(rte (:0-* (:cat string null (:or (:1-* integer) (:0-* number string)))))))
 
   (assert-false (typep '("hello" nil 1 2 3  
 			"there" nil  12.0
 			"world" nil 13.0 "foo"
 			"world" nil 14.0 "bar"
 			)
-		      '(rte:rte (:0-* (:cat string null (:or (:1-* integer) (:0-* number string)))))))
+		      '(rte (:0-* (:cat string null (:or (:1-* integer) (:0-* number string)))))))
   
-  (let ((pattern     '(rte:rte float integer (:0-* symbol (:0-* number) symbol) integer)))
+  (let ((pattern     '(rte (:1 float integer (:0-* symbol (:0-* number) symbol) integer))))
 
     (assert-true (typep '(            1.0   3      x 1 2 3 y 12)		pattern))
     (assert-true (typep '(            1.0   3 4)                                pattern))
@@ -638,7 +643,7 @@
 						      (:|0-1| (EQL :Y) T (:0-* (MEMBER :X :Y) T)))))))
 		      (rte::canonicalize-pattern (rte::destructuring-lambda-list-to-rte '(a b c &optional r &key x y)))))
 
-  (assert-true (equal (rte::canonicalize-pattern '(:cat (:and list (RTE:RTE (:cat T T))) T (:|0-1| T)
+  (assert-true (equal (rte::canonicalize-pattern '(:cat (:and list (RTE (:cat T T))) T (:|0-1| T)
 						   (:and (:0-* keyword t) 
 						    (:OR (:CAT (:|0-1| (EQL :Y) T (:0-* (MEMBER :Y) T))
 							  (:|0-1| (EQL :X) T (:0-* (MEMBER :X :Y) T)))
@@ -647,23 +652,23 @@
 		      (rte::canonicalize-pattern (rte::destructuring-lambda-list-to-rte '((a b) c &optional r &key x y)))))
 
   ;; test &rest
-  (assert-true (equal (rte::canonicalize-pattern '(:CAT (:AND LIST (RTE:RTE (:CAT T T))) T (:OR T :EMPTY-WORD)
+  (assert-true (equal (rte::canonicalize-pattern '(:CAT (:AND LIST (RTE (:CAT T T))) T (:OR T :EMPTY-WORD)
 						   (:and (:0-* keyword t) 
-						    (:OR (:AND (:AND LIST (RTE:RTE (:CAT T T T T)))
+						    (:OR (:AND (:AND LIST (RTE (:CAT T T T T)))
 							  (:CAT (:OR (:CAT (EQL :X) T (:0-* (MEMBER :X) T)) :EMPTY-WORD)
 							   (:OR (:CAT (EQL :Y) T (:0-* (MEMBER :X :y) T)) :EMPTY-WORD)))
-						     (:AND (:AND LIST (RTE:RTE (:CAT T T T T)))
+						     (:AND (:AND LIST (RTE (:CAT T T T T)))
 						      (:CAT (:OR (:CAT (EQL :Y) T (:0-* (MEMBER :Y) T)) :EMPTY-WORD)
 						       (:OR (:CAT (EQL :X) T (:0-* (MEMBER :X :Y) T)) :EMPTY-WORD)))))))
 		      (rte::canonicalize-pattern  (rte::destructuring-lambda-list-to-rte '((a b) c &optional q &rest (d e f g) &key x y)))))
 
   ;; &aux
-  (assert-true (equal (rte::canonicalize-pattern '(:CAT (:AND LIST (RTE:RTE (:CAT T T))) T (:OR T :EMPTY-WORD)
+  (assert-true (equal (rte::canonicalize-pattern '(:CAT (:AND LIST (RTE (:CAT T T))) T (:OR T :EMPTY-WORD)
 						   (:and (:0-* keyword t)
-						    (:OR (:AND (:AND LIST (RTE:RTE (:CAT T T T T)))
+						    (:OR (:AND (:AND LIST (RTE (:CAT T T T T)))
 							  (:CAT (:OR (:CAT (EQL :X) T (:0-* (MEMBER :X) T)) :EMPTY-WORD)
 							   (:OR (:CAT (EQL :Y) T (:0-* (MEMBER :X :Y) T)) :EMPTY-WORD)))
-						     (:AND (:AND LIST (RTE:RTE (:CAT T T T T)))
+						     (:AND (:AND LIST (RTE (:CAT T T T T)))
 						      (:CAT (:OR (:CAT (EQL :Y) T (:0-* (MEMBER :Y) T)) :EMPTY-WORD)
 						       (:OR (:CAT (EQL :X) T (:0-* (MEMBER :X :Y) T)) :EMPTY-WORD)))))))
 		      (rte::canonicalize-pattern  (rte::destructuring-lambda-list-to-rte '((a b) c &optional q &rest (d e f g) &key x y &aux u v)))))

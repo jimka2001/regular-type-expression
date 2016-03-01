@@ -576,7 +576,6 @@ a fixed point is found."
 (defun make-state-machine (pattern)
   "Create and return a finite state machine (ndfa) which can be used to determine if a given list
 consists of values whose types match PATTERN."
-  (declare (type cons pattern))
 
   ;; TODO need to sort the transitions of each state such that transitions labeled with an atomic
   ;;   type come before transistions with parameterized types.  I.e., list comes before (rte ...)
@@ -676,6 +675,7 @@ consists of values whose types match PATTERN."
   (match-sequence input-sequence (or (find-state-machine pattern)
 				     (remember-state-machine (make-state-machine pattern) pattern))))
 
+
 (defun make-rte-function-name (pattern)
   (intern (with-output-to-string (str)
 	    (write " " :stream str)
@@ -687,17 +687,19 @@ consists of values whose types match PATTERN."
 
 (defun define-rte (pattern)
   (setf (gethash pattern *rte-types*)
-	(let ((ndfa (make-state-machine (cons :cat pattern)))
+	(let ((dfa (make-state-machine pattern))
 	      (function-name (make-rte-function-name pattern)))
-	  (register-dependents ndfa)
-	  (remember-state-machine ndfa pattern)
-	  (setf (symbol-function function-name) (eval (dump-code ndfa)))
+	  (register-dependents dfa)
+	  (remember-state-machine dfa pattern)
+	  (setf (symbol-function function-name) (eval (dump-code dfa)))
 	  `(and sequence (satisfies ,function-name)))))
 
-(deftype rte (&rest pattern)
-  "Matches a list whose types constitute 'words' in a rational language described by the given rational 
-expression. Each argument of RTE may be a type name (as recognized by TYPEP), or a list whose 
-first element is one of the following:
+(deftype rte (pattern)
+  "Matches a list whose types constitute 'words' in a rational
+language described by the given rational expression. The PATTERN must
+either be a valid lisp type specifier or a list whose (car PATTERN) is
+a keyword of type RTE-KEYWORD, and each element of (cdr PATTERN) is
+a valid regular type expression.
 
 :0-* -- matches the types of zero or more successive list elements, E.g,
 :1-* -- matches the types of one or more successive list elements
