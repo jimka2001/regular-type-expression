@@ -739,10 +739,14 @@ a valid regular type expression.
 
 (defmacro defrte (pattern)
   (let* ((dfa (make-state-machine pattern))
+	 (name (make-rte-function-name pattern))
 	 (code (dump-code dfa)))
     `(progn
-       (setf (gethash ',pattern *state-machines*) (make-state-machine ',pattern))
-       (defun ,(make-rte-function-name pattern) ,@(cdr code)))))
+       (unless (gethash ',pattern *state-machines*)
+	 (setf (gethash ',pattern *state-machines*)
+	       (make-state-machine ',pattern)))
+       (unless (symbol-function ',name)
+	 (defun ,name ,@(cdr code))))))
 
 (defun serialize-functions (stream patterns)
   (let ((patterns (get-patterns)))
