@@ -27,9 +27,11 @@
   ((:module "rte"
     :components
     ((:file "rte")
+     (:file "asdf")
      (:file "expand-typedef")
      (:file "list-of" :depends-on ("expand-typedef"))
      (:file "dependents")
      (:file "re-pattern" :depends-on ("expand-typedef" "dependents"))
      (:file "destructuring-case" :depends-on ("re-pattern"))
+     (:file "prolog")
      ))))

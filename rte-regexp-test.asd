@@ -20,7 +20,8 @@
 ;; WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 (asdf:defsystem :rte-regexp-test
-  :depends-on (:rte-regexp
+  :depends-on (:rte
+	       :rte-regexp
 	       (:version :lisp-unit "0.9.0"))
   :components
   ((:module "rte"

@@ -20,7 +20,9 @@
 ;; WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 (asdf:defsystem :rte-test
-  :depends-on (:rte
+  :defsystem-depends-on (:rte)
+  :depends-on (;;:rte
+	       :rte-regexp-test
 	       :2d-array
 	       (:version :lisp-unit "0.9.0")
 	       :2d-array-test
@@ -31,7 +33,7 @@
     :components
     ((:file "test-rte")
      (:file "test-list-of")
-     (:file "test-re-pattern")
+     (:rte-cl-source-file "test-re-pattern")
      (:file "test-destructuring-case-1")
      (:file "test-destructuring-case-2")
      (:file "test-destructuring-case")

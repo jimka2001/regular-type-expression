@@ -22,6 +22,7 @@
 
 (in-package :rte.test)
 
+
 ;; TODO add some tests with satisfies types. (satisfies oddp) (satisfies evenp) etc.
 
 (define-test type/match-empty
@@ -135,8 +136,8 @@
     ))
 
 
-(defrte (:0-* number number))
-(defrte (:1-* (RTE (:0-* NUMBER NUMBER))))
+;;(defrte (:0-* number number))
+;;(defrte (:1-* (RTE (:0-* NUMBER NUMBER))))
 
 (defun type/declaration2 ()
   (typep nil '(rte
