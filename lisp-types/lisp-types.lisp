@@ -32,6 +32,7 @@
    "DISJOINT-TYPES-P"
    "EQUIVALENT-TYPES-P"
    "AMBIGUOUS-SUBTYPE"
+   "AUTO-PERMUTE-TYPECASE"
    ))
 
 (in-package   :lisp-types)

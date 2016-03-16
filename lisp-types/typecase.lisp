@@ -114,6 +114,45 @@ There may be cases when a type specifier reduces to nil, in which case the
 compiler may issue warnings about removing unreachable code."
   (expand-reduced-typecase obj clauses))
 
+(defun cost (type-specifier)
+  (cond
+    ((eql t type-specifier)
+     1)
+    ((null type-specifier)
+     1)
+    ((symbolp type-specifier)
+     (cond ((find-class type-specifier nil)
+	    1)
+	   ((eql (find-package type-specifier)
+		 (find-package :cl))
+	    1)
+	   (t
+	    4)))
+    ((listp type-specifier)
+     (case (car type-specifier)
+       ((or)
+	(let* ((t-tail (member t type-specifier))
+	       (head (if t-tail
+			 (ldiff type-specifier t-tail)
+			 type-specifier)))
+	  (apply #'+ (mapcar #'cost head))))
+       ((and)
+	(let* ((nil-tail (member nil type-specifier))
+	       (head (if nil-tail
+			 (ldiff type-specifier nil-tail)
+			 type-specifier)))
+	  (apply #'+ (mapcar #'cost head))))
+       ((not cons)
+	(apply #'+ (mapcar #'cost type-specifier)))
+       ((member eql)
+	(length (cdr type-specifier)))
+       ((satisfies)
+	10)
+       (t
+	4)))
+    (t
+     (error "invalid type specifier ~A" type-specifier))))
+
 (defun expand-disjoint-typecase (obj clauses &key (reorder nil))
   "Returns a TYPECASE form given its first argument, OBJ, and list of CLAUSES.
 The clauses appear in the same order, but the tests of each may have been
@@ -185,3 +224,58 @@ with the types reduced as if by DISJOINT-TYPECASE, then sorting the clauses
 by increasing complexity, and finally REDUCED-TYPECASE."
   (expand-optimized-typecase obj clauses))
   
+(defun map-permutations (visit data)
+  "call the given unary VISITOR function once for each permutation of the given list DATA"
+  (declare (type list data)
+	   (type (function (list) t)))
+  (let ((N (length data)))
+    (labels ((next (so-far k)
+               (cond
+                 ((eql k N)
+                  (funcall visit (mapcar #'car so-far)))
+                 (t
+                  (incf k)
+                  (loop :for items :on data
+			:do (unless (member items so-far :test #'eq)
+			      (next (cons items so-far) k)))))))
+      (next nil 0))))
+
+(defun lconc (buf items)
+  (cond
+    ((null buf)
+     (cons items (last items)))
+    ((null (car buf))
+     (setf (car buf) items)
+     (setf (cdr buf) (last items))
+     buf)
+    (t
+     (setf (cdr (cdr buf)) items)
+     (setf (cdr buf) (last items))
+     buf)))
+
+(defmacro auto-permute-typecase (obj &body clauses)
+  "Syntactically similar to TYPECASE. Expands to a call to TYPECASE but
+with the types reduced and re-ordered to minimize a projected cost
+heuristic function."
+  (flet ((clauses-cost (clauses)
+	   (let ((buf (list nil)))
+	     (dotimes (len (length clauses))
+	       (lconc buf (subseq clauses 0 len)))
+	     (cost `(or ,@(mapcar #'car (car buf)))))))
+    (let ((min-metric (clauses-cost clauses))
+	  (min-clauses clauses))
+      (destructuring-bind (_typecase obj &rest disjoint-clauses) (expand-disjoint-typecase obj clauses)
+	(declare (ignore _typecase))
+	(map-permutations (lambda (permuted-clauses)
+			    (destructuring-bind (_typecase _obj &rest clauses)
+				(expand-reduced-typecase obj permuted-clauses)
+			      (declare (ignore _typecase _obj))
+			      (let ((metric (clauses-cost clauses)))
+				(when (< metric min-metric)
+				  (setf min-metric metric)
+				  (setf min-clauses clauses)))))
+			  disjoint-clauses)
+	`(typecase ,obj ,@min-clauses)))))
+
+
+		       

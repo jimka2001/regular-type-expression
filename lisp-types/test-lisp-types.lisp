@@ -25,6 +25,9 @@
 
 (in-package :lisp-types.test)
 
+(defun lisp-types.test::test ()
+  (run-tests :all '(:lisp-types.test)))
+
 (define-test type/reduce-cons
   (assert-true (equal (reduce-lisp-type '(cons (and float number) (or string (not string))))
 		      '(cons float t))))

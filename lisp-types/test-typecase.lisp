@@ -157,6 +157,86 @@
 					      (null 2))
 		      2))
   )
-  
-  
-  
+
+(define-test lisp-types/auto-permute-typecase
+  (dolist (obj '(1 "hello" 3.4 nil :x))
+    (assert-true (equal (auto-permute-typecase obj
+			  (fixnum 1)
+			  (string 2)
+			  (float 5)
+			  (list 6)
+			  (keyword 8)
+			  (t 9))
+			(typecase obj
+			  (fixnum 1)
+			  (string 2)
+			  (float 5)
+			  (list 6)
+			  (keyword 8)
+			  (t 9))))
+
+    (assert-true (equal (auto-permute-typecase obj
+			  (fixnum 1)
+			  (string 2)
+			  (number 5)
+			  (list 6)
+			  (keyword 8)
+			  (t 9))
+			(typecase obj
+			  (fixnum 1)
+			  (string 2)
+			  (number 5)
+			  (list 6)
+			  (keyword 8)
+			  (t 9))))
+
+    (assert-true (equal (auto-permute-typecase obj
+			  (fixnum 1)
+			  (string 2)
+			  ((and number (not real)) 5)
+			  (list 6)
+			  (keyword 8)
+			  (t 9))
+			(typecase obj
+			  (fixnum 1)
+			  (string 2)
+			  ((and number (not real)) 5)
+			  (list 6)
+			  (keyword 8)
+			  (t 9))))
+
+    (assert-true (equal (auto-permute-typecase obj
+			  (fixnum 1)
+			  (string 2)
+			  ((and number (not real)) 5)
+			  (list 6)
+			  (symbol 7)
+			  (keyword 8)
+			  (t 9))
+			(typecase obj
+			  (fixnum 1)
+			  (string 2)
+			  ((and number (not real)) 5)
+			  (list 6)
+			  (symbol 7)
+			  (keyword 8)
+			  (t 9))))
+
+    (assert-true (equal (auto-permute-typecase obj
+			  (fixnum 1)
+			  (string 2)
+			  ((and number (not real)) 5)
+			  (list 6)
+			  (keyword 7)
+			  (symbol 8)
+			  (t 9))
+			(typecase obj
+			  (fixnum 1)
+			  (string 2)
+			  ((and number (not real)) 5)
+			  (list 6)
+			  (keyword 7)
+			  (symbol 8)
+			  (t 9))))
+    ))
+			
