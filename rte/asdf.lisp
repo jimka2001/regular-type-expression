@@ -22,7 +22,7 @@
 
 (in-package   :rte)
 
-(defclass asdf::rte-cl-source-file (asdf:cl-source-file)
+(defclass asdf-user::rte-cl-source-file (asdf:cl-source-file)
   ()
   (:documentation
    "This class adds some qualified methods to ASDF:PERFORM to manage a .rte
@@ -36,7 +36,7 @@ the normal ASDF::CL-SOURCE-FILE, substitute the keyword
 :RTE-CL-SOURCE-FILE in place of :LOAD in the :COMPONENTS section
 of the ASDF:DEFSYSTEM."))
 
-(defmethod asdf:perform :before ((operation asdf:load-op) (file asdf::rte-cl-source-file))
+(defmethod asdf:perform :before ((operation asdf:load-op) (file asdf-user::rte-cl-source-file))
   "Load the .rte file in the fasl directory if it exists with the same base file name."
   (let ((fasl (first (asdf/action::input-files operation file))))
     (when fasl
@@ -45,7 +45,7 @@ of the ASDF:DEFSYSTEM."))
 	  ;; (format t "reading patterns from file ~A" registry)
 	  (load registry))))))
 
-(defmethod asdf:perform :around ((operation asdf:compile-op) (file asdf::rte-cl-source-file))
+(defmethod asdf:perform :around ((operation asdf:compile-op) (file asdf-user::rte-cl-source-file))
   "Create a file in the fasl directory whose lisp text defines the matching functions for the
 rte patterns which come into existing while compiling FILE."
   (let ((old-patterns (copy-list (get-patterns)))
