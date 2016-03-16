@@ -40,6 +40,10 @@ SUBSTITUTIONS is an alist (car/cadr) to used with :test #'equal."
        type))))
 
 (defun expand-reduced-typecase (obj clauses &aux reductions)
+  "Returns a TYPECASE form given its first argument, OBJ, and list of CLAUSES.
+The clauses appear in the same order, but the tests of each may have been
+(non-destructively) modified to remove redundant logic.  This function
+is the work-horse for REDUCED-TYPECASE."
   (labels ((not? (type)
 	     (and (consp type)
 		  (eq 'not (car type))))
@@ -93,7 +97,8 @@ SUBSTITUTIONS is an alist (car/cadr) to used with :test #'equal."
 (defmacro reduced-typecase (obj &rest clauses)
   "Syntactically similar to TYPECASE. Expands to a call to TYPECASE but
 with cases reduced if possible.  In particular latter cases assume that previous
-cases have failed.
+cases have failed.  This macro preserves the order of the clauses, but is
+likely to change the logic of the test of each clause.
 E.g.,
 (reduced-typecase obj
    (float 41)
@@ -110,6 +115,9 @@ compiler may issue warnings about removing unreachable code."
   (expand-reduced-typecase obj clauses))
 
 (defun expand-disjoint-typecase (obj clauses &key (reorder nil))
+  "Returns a TYPECASE form given its first argument, OBJ, and list of CLAUSES.
+The clauses appear in the same order, but the tests of each may have been
+(non-destructively) modified so that the caller is free to re-order the clauses."
   (labels ((transform-clauses (clauses)
 	     (let (complements)
 	       (loop :for clause :in clauses
@@ -142,7 +150,6 @@ compiler may issue warnings about removing unreachable code."
 		   (t
 		    (error "cannot compare objects ~A vs ~A" (class-of a) (class-of b))))))
 		    
-
     (let ((new-clauses (transform-clauses clauses)))
       `(typecase ,obj ,@(if reorder
 			    (stable-sort new-clauses #'cmp :key #'car)
@@ -150,7 +157,9 @@ compiler may issue warnings about removing unreachable code."
 
 (defmacro disjoint-typecase (obj &rest clauses)
   "Syntactically similar to TYPECASE. Expands to a call to TYPECASE but
-with cases made exclusive so they can be re-ordered.
+with cases made exclusive so they can be re-ordered.  The expansions contains
+the cases in the given order, but the caller may safely chose to reorder them.
+
 E.g.,
 (disjoint-typecase obj
    ((satisfies F) 41)
