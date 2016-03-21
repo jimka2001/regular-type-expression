@@ -238,5 +238,20 @@
 			  (keyword 7)
 			  (symbol 8)
 			  (t 9))))
+
+    (assert-true (equal (auto-permute-typecase obj
+			  (string 2)
+			  ((and number (not real)) 5)
+			  (list 6)
+			  (keyword 7)
+			  (symbol 8)
+			  (t 9))
+			(typecase obj
+			  (string 2)
+			  ((and number (not real)) 5)
+			  (list 6)
+			  (keyword 7)
+			  (symbol 8)
+			  (t 9))))
     ))
 			

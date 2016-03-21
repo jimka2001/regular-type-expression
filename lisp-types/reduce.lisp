@@ -63,6 +63,7 @@
 ;;   --> (or (and A B) E F)
 (defun reduce-absorption (operands)
   (declare (type list operands)
+	   (notinline member)
 	   (optimize (speed 3) (compilation-speed 0)))
   (dolist (operand operands)
     (setf operands (remove-if (lambda (op)
@@ -81,7 +82,61 @@
 			      operands)))
   operands)
 
-(defun reduce-lisp-type-once (type)
+(defmacro exists-tail (var list &body body)
+  (let ((name (gensym)))
+    `(block ,name
+       (mapl #'(lambda (,var)
+		 (when (progn ,@body)
+		   (return-from ,name ,var)))
+	     ,list)
+       nil)))
+
+(defvar *compound-type-specifier-names*
+  '(
+    (array :type dimension-spec)
+    (base-string size)
+    (bit-vector size)
+    (complex :type)
+    (cons :type :type)
+    (double-float  lower-limit upper-limit)
+    (float lower-limit upper-limit)
+    (integer)
+    (long-float lower-limit upper-limit)
+    (rational)
+    (real)
+    (short-float lower-limit upper-limit)
+    (signed-byte)
+    (simple-array :type dimension-spec)
+    (simple-base-string )
+    (simple-bit-vector ) 
+    (simple-string    )  
+    (simple-vector   )   
+    (single-float   )    
+    (string        )     
+    (unsigned-byte) 
+    (vector  :type size)
+    )
+  "Each element of this list of sublists, each describin how to parse a CL compound type.
+The CAR of each sublist the name of a type.
+The CDR of each sublist is a list of symbols which may or may not contain the symbol
+:type one or more times.  Any symbol not EQ to :type has no distinguished meaning.
+If a type is found in this list that it treated as a declaration of to things:
+1) That trailing * characters in a type specifiers can be removed, and if a singleton
+   list remains it may be replaced by just the name.
+   E.g., (short-float * *), (short-float *) (short-float) and short-float
+   are equivalent, and the REDUCE-TYPE function will reduce any of them to short-float.
+2) If :type appears in the list, then the corresponding argument in a type specifier
+   is treated as a type specifier and is subject to reduction by REDUCE-LISP-TYPE.
+   E.g., (vector :type size) ==> that a type specifier such as (vector (and integer number) 3)
+   can be reduced to (vector integer 3).
+Applications are free to push entries onto this list to notify REDUCE-LISP-TYPE of how
+to reduce a type defined by DEFTYPE.")
+
+
+(defmacro forall (var data &body body)
+  `(every #'(lambda (,var) ,@body) ,data))
+
+(defun reduce-lisp-type-once (type &aux it)
   "Given a lisp type designator, make one pass at reducing it, removing redundant information such as
 repeated or contradictory type designators."
   (declare (optimize (speed 3) (compilation-speed 0))
@@ -102,23 +157,34 @@ repeated or contradictory type designators."
 	   (not? (obj)
 	     (and (consp obj)
 		  (eq 'not (car obj))))
-	   (eql? (obj)
-	     (and (consp obj)
-		  (eq 'eql (car obj))))
 	   (member? (obj)
 	     (and (consp obj)
 		  (eq 'member (car obj))))
-	   (cons? (obj)
+	   (function? (obj)
 	     (and (consp obj)
-		  (eq 'cons (car obj))))
+		  (eq 'function (car obj))))
+	   (values? (obj)
+	     (and (consp obj)
+		  (eq 'values (car obj))))
+	   (reducable-compound? (obj)
+	     (declare (notinline assoc))
+	     (and (consp obj)
+		  (assoc (car obj) *compound-type-specifier-names*)))
+	   ;; (cons? (obj)
+	   ;;   (and (consp obj)
+	   ;; 	  (eq 'cons (car obj))))
 	   (eql-or-member? (obj)
 	     (and (consp obj)
 		  (member (car obj) '(eql member) :test #'eq)))
 	   (not-eql-or-member? (obj) ; (not (eql ...)) or (not (member ...))
 	     (and (not? obj)
 		  (consp (cadr obj))
-		  (member (car (cadr obj)) '(eql member) :test #'eq))))
-
+		  (member (car (cadr obj)) '(eql member) :test #'eq)))
+	   (remove-trailing-*s (data &aux (trailing (exists-tail tail data
+						      (forall e tail (eq '* e)))))
+	     (if trailing
+		 (ldiff data trailing)
+		 data)))
     (cond
       ((atom type)
        type)
@@ -129,15 +195,127 @@ repeated or contradictory type designators."
       ((and (member? type)
 	    (not (cddr type))) ;; (member A) --> (eql A)
        (cons 'eql (cdr type)))
-      ;; TODO - extend to understand other type specifiers which reference type specifiers such as
-      ;;   (function (float float) number)
-      ;;   (vector number)
-      ;;   (complex float)
-      ;;   etc
-      ((cons? type) ; (cons (and float number) (or string (not string))) --> (cons float t)
-       (cons 'cons (mapcar #'reduce-lisp-type-once (cdr type))))
+      ((setq it (reducable-compound? type))
+       (setf type (remove-trailing-*s type))
+       ;; reduce 'type' arguments
+       (let ((tail type))
+	 (setf type
+	       (mapcar #'(lambda (arg param)
+			   (pop tail)
+			   (cond
+			     ((eq '* arg)
+			      '*)
+			     ((eq :type param)
+			      (reduce-lisp-type-once arg))
+			     (t
+			      arg)))
+		       type
+		       it))
+	 (when tail
+	   (setf type (append type tail)))
+	 ;; after removing trailing *'s, if the result is a singleton list, return the car of the list, i.e., (car it)
+	 (if (cdr type)
+	     type
+	     (car type))))
 
-      ((not (or (or? type)	       ; (number 1 8) --> (number 1 8)
+      ((function? type)
+	 (flet ((reduce-spec (arg-typespec)
+		  ;;arg-typespec::= (typespec*  
+		  ;;                  [&optional typespec*]  
+		  ;;                  [&rest typespec]  
+		  ;;                  [&key (keyword typespec)*])
+		  (let* ((type-conc (list nil))
+			 (required-tail arg-typespec)
+			 (optional-tail (member '&optional required-tail))
+			 (rest-tail     (member '&rest (or optional-tail
+							   required-tail)))
+			 (key-tail      (member '&key  (cond
+							 (rest-tail
+							  (cddr rest-tail))
+							 (t
+							  (or optional-tail
+							      required-tail)))))
+			 (rest-subseq (ldiff rest-tail
+					     key-tail))
+			 (optional-subseq (ldiff optional-tail
+						 (or rest-tail
+						     key-tail)))
+			 (required-subseq (ldiff required-tail
+						 (or optional-tail
+						     rest-tail
+						     key-tail))))
+		    (dolist (spec required-subseq)
+		      (tconc type-conc (reduce-lisp-type-once spec)))
+		    (when optional-subseq
+		      (tconc type-conc (pop optional-subseq))
+		      (dolist (spec optional-subseq)
+			(tconc type-conc (reduce-lisp-type-once spec))))
+		    (when rest-subseq
+		      (assert (= 2 (length rest-subseq)) ()
+			      "Invalid &rest portion of ~A" arg-typespec)
+		      (tconc type-conc (car rest-subseq))
+		      (tconc type-conc (reduce-lisp-type-once (cadr rest-subseq))))
+		    (when key-tail
+		      (tconc type-conc (car key-tail))
+		      (dolist (keyword-spec (cdr key-tail))
+			(declare (notinline length))
+			(assert (= 2 (length keyword-spec)) ()
+				"Invalid &key ~S portion of ~S" keyword-spec arg-typespec)
+			(destructuring-bind (keyword spec) keyword-spec
+			  (tconc type-conc (list keyword
+						 (reduce-lisp-type-once spec))))))
+		    (car type-conc))))
+
+	   (declare (notinline length))
+	   (case (length type)
+	     ((1)			; (function)
+	      'function)
+	     ((2)			; (function arg-typespec)
+	      (list 'function
+		    (reduce-spec (cadr type))))
+	     ((3)	      ; (function arg-typespec value-typespec)
+	      (list 'function
+		    (reduce-spec (cadr type))
+		    (reduce-lisp-type-once (caddr type)))))))
+      ((values? type)
+       ;; value-typespec::= typespec* [&optional typespec*] [&rest typespec] [&allow-other-keys] 
+       (let* ((type-conc (list nil))
+	      (required-tail (cdr type))
+	      (optional-tail (member '&optional required-tail))
+	      (rest-tail     (member '&rest (or optional-tail
+						required-tail)))
+	      (allow-other-keys-tail (member '&allow-other-keys (cond
+								  (rest-tail
+								   (cddr rest-tail))
+								  (t
+								   (or optional-tail
+								       required-tail)))))
+	      (rest-subseq (ldiff rest-tail
+				  (cddr rest-tail)))
+	      (optional-subseq (ldiff optional-tail
+				      (or rest-tail
+					  allow-other-keys-tail)))
+	      (required-subseq (ldiff required-tail
+				      (or optional-tail
+					  rest-tail
+					  allow-other-keys-tail))))
+
+	 (tconc type-conc (car type)) ; values
+	 (dolist (spec required-subseq)
+	   (tconc type-conc (reduce-lisp-type-once spec)))
+	 (when optional-subseq
+	   (tconc type-conc (pop optional-subseq))
+	   (dolist (spec optional-subseq)
+	     (tconc type-conc (reduce-lisp-type-once spec))))
+	 (when rest-subseq
+	   (assert (= 2 (length rest-subseq)) ()
+		   "Invalid &rest portion of ~A" type)
+	   (tconc type-conc (car rest-subseq))
+	   (tconc type-conc (reduce-lisp-type-once (cadr rest-subseq))))
+	 (when allow-other-keys-tail
+	   (tconc type-conc '&allow-other-keys))
+	 (car type-conc)))
+      ((not (or (or? type)
 		(and? type)
 		(not? type)))
        type)
@@ -148,6 +326,7 @@ repeated or contradictory type designators."
 			(mapcar #'reduce-lisp-type-once (cdr type))))
        (destructuring-bind (operator &rest operands) type
 	 (declare (type (member and or not) operator)
+		  (notinline remove-supers remove-subs reduce-absorption reduce-redundancy)
 		  (type list operands))
 	 (ecase operator
 	   ((and)			; REDUCE AND
@@ -180,6 +359,7 @@ repeated or contradictory type designators."
 	       ;; (and (member a 2) symbol) --> (eql a)
 	       ;; (and (member a b) fixnum) --> nil
 	       (let ((objects (remove-if-not (lambda (e)
+					       (declare (notinline typep))
 					       (typep e type)) (cdr (find-if #'eql-or-member? operands)))))
 		 (cond ((null objects)
 			nil)
@@ -209,6 +389,7 @@ repeated or contradictory type designators."
 		 (declare (ignore _not _member))
 		 (let ((new-elements (remove-if-not (lambda (e)
 						      (every (lambda (o)
+							       (declare (notinline typep))
 							       (typep e o))
 							     others))
 						    old-elements)))
@@ -240,6 +421,7 @@ repeated or contradictory type designators."
 		       (let ((t1 (find-if (lambda (t1)
 					    (member `(not ,t1) (cdr and2) :test #'equal))
 					  (cdr and1))))
+			 (declare (notinline union))
 			 (when t1
 			   (union (remove t1 (cdr and1) :test #'equal)
 				  (remove `(not ,t1) (cdr and2) :test #'equal)
@@ -294,6 +476,7 @@ repeated or contradictory type designators."
 		 (declare (ignore _member))
 		 (let ((new-elements (remove-if (lambda (e)
 						  (some (lambda (o)
+							  (declare (notinline typep))
 							  (typep e o))
 							others))
 						old-elements)))

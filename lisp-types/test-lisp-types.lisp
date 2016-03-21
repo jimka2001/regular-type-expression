@@ -28,9 +28,115 @@
 (defun lisp-types.test::test ()
   (run-tests :all '(:lisp-types.test)))
 
+(define-test type/reduce-compound
+  ;; array
+  (assert-true (equal (reduce-lisp-type '(array (and integer number) (3)))
+		      '(array integer (3))))
+  (assert-true (equal (reduce-lisp-type '(array * (3)))
+		      '(array * (3))))
+
+  ;; base-string
+  (assert-true (equal (reduce-lisp-type '(base-string *))
+		      'base-string))
+
+  ;; bit-vector
+  (assert-true (equal (reduce-lisp-type '(bit-vector *))
+		      'bit-vector))
+
+  (assert-true (equal (reduce-lisp-type '(bit-vector 3))
+		      '(bit-vector 3)))
+
+  ;; complex
+  (assert-true (equal (reduce-lisp-type '(complex (and number real)))
+		      '(complex real)))
+  (assert-true (equal (reduce-lisp-type '(complex *))
+		      'complex ))
+
+  ;; simple-array
+  (assert-true (equal (reduce-lisp-type '(simple-array (and number real) (3)))
+		      '(simple-array real (3))))
+
+  ;; vector
+  (assert-true (equal (reduce-lisp-type '(vector (and number real)))
+		      '(vector real)))
+
+  )
+
+
 (define-test type/reduce-cons
   (assert-true (equal (reduce-lisp-type '(cons (and float number) (or string (not string))))
-		      '(cons float t))))
+		      '(cons float t)))
+  (assert-true (equal (reduce-lisp-type '(cons * *))
+		      'cons))
+  (assert-true (equal (reduce-lisp-type '(cons (and float number) *))
+		      '(cons float)))
+  (assert-true (equal (reduce-lisp-type '(cons * (and float number)))
+		      '(cons * float))))
+
+(define-test type/reduce-function
+  (assert-true (equal (reduce-lisp-type '(function (integer integer) integer))
+		      '(function (integer integer) integer)))
+  (assert-true (equal (reduce-lisp-type '(function ((and integer integer) integer) integer))
+		      '(function (integer integer) integer)))
+
+  (assert-true (equal (reduce-lisp-type '(function ((and integer integer) (and integer integer)) (and integer integer)))
+		      '(function (integer integer) integer)))
+  ;; test some optional arguments &optional &key &rest etc
+
+  ;; &optional
+  (assert-true (equal (reduce-lisp-type '(function (&optional) (and list cons)))
+		      '(function (&optional) cons)))
+
+  (assert-true (equal (reduce-lisp-type '(function (&optional (and integer number)) (and list cons)))
+		      '(function (&optional integer) cons)))
+  
+  ;; &rest
+  (assert-true (equal (reduce-lisp-type '(function (&rest (and integer number)) (and list cons)))
+		      '(function (&rest integer) cons)))
+
+  (assert-error 'error (reduce-lisp-type '(function (&rest t t))))
+
+
+  ;; &key
+  (assert-true (equal (reduce-lisp-type '(function (&key) t))
+		      '(function (&key) t)))
+
+  (assert-true (equal (reduce-lisp-type '(function (&key (x (and integer number))) (and list cons)))
+		      '(function (&key (x integer)) cons)))
+
+  ;; combining &optional &key &rest
+  (assert-true (equal (reduce-lisp-type
+		       '(function ((and integer number)
+				   &optional (and integer number) (and integer number)
+				   &rest (and integer number)
+				   &key (x (and integer number)) (y (and integer number)))
+			 (and list cons)))
+		      '(function (integer
+				  &optional integer integer
+				  &rest integer
+				  &key (x integer) (y integer))
+			cons)))
+
+  )
+
+;; test function subtypes
+;; (define-test type/function-subtypes
+;;   ;; If   T1 <: S1  and S2 <: T2
+;;   ;; then S1->S2 <: T1->T2
+;;
+;;   ;; If  in-sub <: in-super   and out-sub <: out-super
+;;   ;; then in-super -> out-sub <: in-sub -> out-super
+;;
+;;   (let ((types '(number real integer))) 
+;;     (dolist (T1 types)
+;;       (dolist (T2 types)
+;; 	(dolist (S1 types)
+;; 	  (dolist (S2 types)
+;; 	    (when (and (subtypep T1 S1)
+;; 		       (subtypep S2 T2))
+;; 	      (assert-true (subtypep `(function (,S1) ,S2)
+;; 				     `(function (,T1) ,T2))))))))))
+
 
 (define-test type/reduce-lisp-type
   (flet ((reduce-lisp-type (type)

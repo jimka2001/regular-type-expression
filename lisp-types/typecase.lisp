@@ -253,6 +253,9 @@ by increasing complexity, and finally REDUCED-TYPECASE."
      (setf (cdr buf) (last items))
      buf)))
 
+(defun tconc (buf &rest items)
+  (lconc buf items))
+
 (defmacro auto-permute-typecase (obj &body clauses)
   "Syntactically similar to TYPECASE. Expands to a call to TYPECASE but
 with the types reduced and re-ordered to minimize a projected cost

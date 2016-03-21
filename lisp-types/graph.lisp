@@ -493,6 +493,7 @@
     (setf types (set-difference types '(t nil class built-in-class )))))
 
 (defun perf-decompose-types-graph (&key (max 18))
+  (declare (notinline string< sort))
   (let (all-types)
     (do-external-symbols (sym :cl)
       (when (valid-type-p sym)
