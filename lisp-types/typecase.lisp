@@ -114,7 +114,16 @@ There may be cases when a type specifier reduces to nil, in which case the
 compiler may issue warnings about removing unreachable code."
   (expand-reduced-typecase obj clauses))
 
-(defun cost (type-specifier)
+(defun cost-heuristic (type-specifier)
+  "Calculate a heuristic guess of the cost of checking type membership of a given
+type-specifier.  There are a few rules for calculating this heuristic:
+1) cost=1 : t and nil
+2) cost=2 : class-names in any package or type names in the CL package
+3) cost=2 : class-object
+4) and/or cost=1 + recursive costs of each type-specifier
+     exception short circuited for and/nil and or/t
+5) cost=10 : satisfies 
+6) cost=4 : otherwise"
   (cond
     ((eql t type-specifier)
      1)
@@ -122,36 +131,36 @@ compiler may issue warnings about removing unreachable code."
      1)
     ((symbolp type-specifier)
      (cond ((find-class type-specifier nil)
-	    1)
+	    2)
 	   ((eql (find-package type-specifier)
 		 (find-package :cl))
-	    1)
+	    2)
 	   (t
 	    4)))
-    ((listp type-specifier)
+    ((atom type-specifier)
+     2)
+    (t ; list
      (case (car type-specifier)
        ((or)
 	(let* ((t-tail (member t type-specifier))
 	       (head (if t-tail
 			 (ldiff type-specifier t-tail)
 			 type-specifier)))
-	  (apply #'+ (mapcar #'cost head))))
+	  (apply #'+ (if t-tail 2 1) (mapcar #'cost-heuristic (cdr head)))))
        ((and)
 	(let* ((nil-tail (member nil type-specifier))
 	       (head (if nil-tail
 			 (ldiff type-specifier nil-tail)
 			 type-specifier)))
-	  (apply #'+ (mapcar #'cost head))))
+	  (apply #'+ (if nil-tail 2 1) (mapcar #'cost-heuristic (cdr head)))))
        ((not cons)
-	(apply #'+ (mapcar #'cost type-specifier)))
+	(apply #'+ 1 (mapcar #'cost-heuristic (cdr type-specifier))))
        ((member eql)
 	(length (cdr type-specifier)))
-       ((satisfies)
+       ((satisfies)	
 	10)
        (t
-	4)))
-    (t
-     (error "invalid type specifier ~A" type-specifier))))
+	4)))))
 
 (defun expand-disjoint-typecase (obj clauses &key (reorder nil))
   "Returns a TYPECASE form given its first argument, OBJ, and list of CLAUSES.
@@ -248,6 +257,8 @@ by increasing complexity, and finally REDUCED-TYPECASE."
      (setf (car buf) items)
      (setf (cdr buf) (last items))
      buf)
+    ((null items)
+     buf)
     (t
      (setf (cdr (cdr buf)) items)
      (setf (cdr buf) (last items))
@@ -264,7 +275,7 @@ heuristic function."
 	   (let ((buf (list nil)))
 	     (dotimes (len (length clauses))
 	       (lconc buf (subseq clauses 0 len)))
-	     (cost `(or ,@(mapcar #'car (car buf)))))))
+	     (cost-heuristic `(or ,@(mapcar #'car (car buf)))))))
     (let ((min-metric (clauses-cost clauses))
 	  (min-clauses clauses))
       (destructuring-bind (_typecase obj &rest disjoint-clauses) (expand-disjoint-typecase obj clauses)

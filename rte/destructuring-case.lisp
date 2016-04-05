@@ -30,6 +30,8 @@
      (setf (car buf) items)
      (setf (cdr buf) (last items))
      buf)
+    ((null items)
+     buf)
     (t
      (setf (cdr (cdr buf)) items)
      (setf (cdr buf) (last items))
