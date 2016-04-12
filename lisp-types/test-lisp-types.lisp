@@ -25,8 +25,12 @@
 
 (in-package :lisp-types.test)
 
-(defun lisp-types.test::test ()
-  (run-tests :all '(:lisp-types.test)))
+(defun test ()
+  (let ((*print-summary* t)
+	(*print-failures* t)
+	(*summarize-results* t)
+	(*print-errors* t))
+    (run-tests :all (list :lisp-types.test))))
 
 (define-test type/reduce-compound
   ;; array

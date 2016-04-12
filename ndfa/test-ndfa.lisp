@@ -25,6 +25,15 @@
 
 (in-package :ndfa.test)
 
+(defun test ()
+  (let ((*print-summary* t)
+	(*print-failures* t)
+	(*summarize-results* t)
+	(*print-errors* t))
+    (run-tests :all (list :ndfa.test))))
+
+
+
 (define-test ndfa/test1
   (let ((sm (make-instance 'ndfa:state-machine :key #'evenp)))
     (ndfa:add-state sm :label 'a

@@ -24,6 +24,15 @@
 
 (in-package :rte-regexp.test)
 
+(defun test ()
+  (let ((*print-summary* t)
+	(*print-failures* t)
+	(*summarize-results* t)
+	(*print-errors* t))
+    (run-tests :all (list :rte-regexp.test))))
+
+
+
 (define-test type/regexp-parsing
   ;; implicitly asserts that they expressions parse at all
   (regexp-to-rte "a+b")

@@ -23,3 +23,12 @@
   (:use :cl :rte :lisp-unit))
 
 (in-package :rte.test)
+
+
+(defun test ()
+  (let ((*print-summary* t)
+	(*print-failures* t)
+	(*summarize-results* t)
+	(*print-errors* t))
+    (run-tests :all (list :rte.test))))
+
