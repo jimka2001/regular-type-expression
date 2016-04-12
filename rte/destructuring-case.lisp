@@ -89,6 +89,10 @@ type declarations.  An assoc list (car/cadr) is returned of the form
 		  (when (eq 'type (car decl))
 		    (destructuring-bind (_ typespec &rest vars) decl
 		      (declare (ignore _))
+                       ;; need to handle the case that the same
+                       ;; variable appears twice with two different
+                       ;; declarations.  Need to check with the spec
+                       ;; to see what the defined semantics are.
 		      (dolist (var vars)
 			(push (list var typespec) var-declarations))))
 		  (pop body))))
@@ -97,7 +101,7 @@ type declarations.  An assoc list (car/cadr) is returned of the form
 (defun destructuring-lambda-list-to-rte (lambda-list &key type-specifiers)
   "Generate an RTE (regular type expression) given a destructuring-lambda-list.
 If TYPE-SPECIFIERS is given it should be an alist (car/cadr) mapping variables
-in the lambda list to cl type specifiers.  Such a list can be computed by callilng
+in the lambda list to cl type specifiers.  Such a list can be computed by calling
 the function GATHER-TYPE-DECLARATIONS given a list whose leading elements are
 zero or more (declare ...) forms some of which contain type declarations.
 
