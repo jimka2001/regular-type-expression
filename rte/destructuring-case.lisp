@@ -253,27 +253,33 @@ Not supporting this syntax -> (wholevar reqvars optvars . var) "
        ==>
          (:and (:0-* keyword t)
 	       (:or
-		(:cat (:0-1 (eql :x) Fx (:0-* (not (member :y :z)) t))
+		(:cat                   (:0-* (not (member :x :y :z)) t)
+		      (:0-1 (eql :x) Fx (:0-* (not (member :y :z)) t))
 		      (:0-1 (eql :y) Fy (:0-* (not (member :z)) t))
 		      (:0-1 (eql :z) Fz (:0-* t t)))
 
-		(:cat (:0-1 (eql :y) Fy (:0-* (not (member :x :z)) t))
+		(:cat                   (:0-* (not (member :x :y :z)) t)
+		      (:0-1 (eql :y) Fy (:0-* (not (member :x :z)) t))
 		      (:0-1 (eql :x) Fx (:0-* (not (member :z)) t))
 		      (:0-1 (eql :z) Fz (:0-* t t)))
 
-		(:cat (:0-1 (eql :x) Fx (:0-* (not (member :y :z)) t))
+		(:cat                   (:0-* (not (member :x :y :z)) t)
+		      (:0-1 (eql :x) Fx (:0-* (not (member :y :z)) t))
 		      (:0-1 (eql :z) Fz (:0-* (not (member :y)) t))
 		      (:0-1 (eql :y) Fy (:0-* t t)))
 
-		(:cat (:0-1 (eql :z) Fz (:0-* (not (member :x :y)) t))
+		(:cat                   (:0-* (not (member :x :y :z)) t)
+		      (:0-1 (eql :z) Fz (:0-* (not (member :x :y)) t))
 		      (:0-1 (eql :x) Fx (:0-* (not (member :y)) t))
 		      (:0-1 (eql :y) Fy (:0-* t t)))
 
-		(:cat (:0-1 (eql :y) Fy (:0-* (not (member :x :z)) t))
+		(:cat                   (:0-* (not (member :x :y :z)) t)
+		      (:0-1 (eql :y) Fy (:0-* (not (member :x :z)) t))
 		      (:0-1 (eql :z) Fz (:0-* (not (member :x)) t))
 		      (:0-1 (eql :x) Fx (:0-* t t)))
 
-		(:cat (:0-1 (eql :z) Fz (:0-* (not (member :x :y)) t))
+		(:cat                   (:0-* (not (member :x :y :z)) t)
+		      (:0-1 (eql :z) Fz (:0-* (not (member :x :y)) t))
 		      (:0-1 (eql :y) Fy (:0-* (not (member :x)) t))
 		      (:0-1 (eql :x) Fx (:0-* t t)))))
       |#
@@ -299,6 +305,8 @@ Not supporting this syntax -> (wholevar reqvars optvars . var) "
 			      (let ((done nil)
 				    (remaining (alphabetize used-keywords))
 				    (buf (list nil)))
+				(when allow-other-keys
+				  (tconc buf `(:0-* (not (member ,@remaining)) t)))
 				(dolist (item permutation)
 				  (destructuring-bind (keyword pattern) item
 				    (push keyword done)
@@ -360,7 +368,7 @@ Not supporting this syntax -> (wholevar reqvars optvars . var) "
 	   ((not list) nil)
 	   ,@(mapcar #'transform-clause clauses))))))
 
-(defmacro destructuring-case (object-form &rest clauses)
+(defmacro destructuring-case (object-form &body clauses)
   (expand-destructuring-case object-form clauses))
 
 

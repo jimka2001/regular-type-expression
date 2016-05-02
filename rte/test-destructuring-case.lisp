@@ -122,32 +122,38 @@
 	       (canonicalize-pattern
 		'(:or
 		  (:and (:0-* keyword t)
-		   (:cat (:or (:cat (eql :x) t (:0-* (not (member :y :z)) t)) :empty-word)
-		    (:or (:cat (eql :y) t (:0-* (not (member :z)) t)) :empty-word)
-		    (:or (:cat (eql :z) t (:0-* t t)) :empty-word)))
+		   (:cat (:0-* (not (member :x :y :z)) t)
+		    (:or (:cat (eql :x) t (:0-* (not (member :y :z)) t)) :empty-word)
+		         (:or (:cat (eql :y) t (:0-* (not (member :z)) t)) :empty-word)
+		         (:or (:cat (eql :z) t (:0-* t t)) :empty-word)))
  
 		  (:and (:0-* keyword t)
-		   (:cat (:or (:cat (eql :x) t (:0-* (not (member :y :z)) t)) :empty-word)
+		   (:cat (:0-* (not (member :x :y :z)) t)
+		    (:or (:cat (eql :x) t (:0-* (not (member :y :z)) t)) :empty-word)
 		    (:or (:cat (eql :z) t (:0-* (not (member :y)) t)) :empty-word)
 		    (:or (:cat (eql :y) t (:0-* t t)) :empty-word)))
  
 		  (:and (:0-* keyword t)
-		   (:cat (:or (:cat (eql :y) t (:0-* (not (member :x :z)) t)) :empty-word)
+		   (:cat (:0-* (not (member :x :y :z)) t)
+		    (:or (:cat (eql :y) t (:0-* (not (member :x :z)) t)) :empty-word)
 		    (:or (:cat (eql :x) t (:0-* (not (member :z)) t)) :empty-word)
 		    (:or (:cat (eql :z) t (:0-* t t)) :empty-word)))
  
 		  (:and (:0-* keyword t)
-		   (:cat (:or (:cat (eql :y) t (:0-* (not (member :x :z)) t)) :empty-word)
+		   (:cat (:0-* (not (member :x :y :z)) t)
+		    (:or (:cat (eql :y) t (:0-* (not (member :x :z)) t)) :empty-word)
 		    (:or (:cat (eql :z) t (:0-* (not (member :x)) t)) :empty-word)
 		    (:or (:cat (eql :x) t (:0-* t t)) :empty-word)))
 
 		  (:and (:0-* keyword t)
-		   (:cat (:or (:cat (eql :z) t (:0-* (not (member :x :y)) t)) :empty-word)
+		   (:cat (:0-* (not (member :x :y :z)) t)
+		    (:or (:cat (eql :z) t (:0-* (not (member :x :y)) t)) :empty-word)
 		    (:or (:cat (eql :x) t (:0-* (not (member :y)) t)) :empty-word)
 		    (:or (:cat (eql :y) t (:0-* t t)) :empty-word)))
 
 		  (:and (:0-* keyword t)
-		   (:cat (:or (:cat (eql :z) t (:0-* (not (member :x :y)) t)) :empty-word)
+		   (:cat (:0-* (not (member :x :y :z)) t)
+		    (:or (:cat (eql :z) t (:0-* (not (member :x :y)) t)) :empty-word)
 		    (:or (:cat (eql :y) t (:0-* (not (member :x)) t)) :empty-word)
 		    (:or (:cat (eql :x) t (:0-* t t)) :empty-word))))))
 
@@ -430,3 +436,39 @@
 			  (declare (ignore a b c))
 			  (cnm)))))
 
+
+(define-test test/destructuring-case-allow-other-keys
+  (let ((data '(1 (2 3) :a 12
+		:x name :x "not-symbol"
+		:b 13 :z nil :z 14 :y "hello" :a 15 :x 16 :y 17 :z 18)))
+    (destructuring-bind (&whole llist a (b c) 
+			 &rest keys
+			 &key (x t) (y "") z &allow-other-keys) data
+      (declare (type fixnum a b c)
+	       (type symbol x)
+	       (type string y)
+	       (type list z))
+      (assert-true (= a 1))
+      (assert-true (= b 2))
+      (assert-true (= c 3))
+      (list a b c x y z llist keys))
+
+    (assert-false
+     (null
+      (destructuring-case data
+	((&whole llist a (b c) 
+		 &rest keys
+		 &key (x t) (y "") z &allow-other-keys)
+	 (declare (type fixnum a b c)
+		  (type symbol x)
+		  (type string y)
+		  (type list z))
+	 (assert-true (= a 1))
+	 (assert-true (= b 2))
+	 (assert-true (= c 3))
+	 (assert-true (eq x 'name))
+	 (assert-true (string= "hello" y))
+	 (assert-true (eq nil z))
+	 (assert-false (null keys))
+	 llist))))))
+       
