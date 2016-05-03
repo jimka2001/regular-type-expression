@@ -174,6 +174,7 @@
 
 (defun decompose-types-graph (type-specifiers &key verbose reduce)
   (declare (type list type-specifiers)
+	   (notinline assoc sort)
 	   (optimize (speed 3) (debug 0) (compilation-speed 0)))
   (let* (disjoint-types
 	 (node-id 0)
@@ -206,8 +207,9 @@
 	     (find-node (a)
 	       (assoc a graph :test #'eq))
 	     (subtype? (t1 t2)
-	       (declare (type cons t1 t2))
-	       (subtypep (car t1) (car t2)))
+	       (declare (notinline typep)
+			(type cons t1 t2))
+	       (smarter-subtyepp (car t1) (car t2)))
 	     (disjoint? (t1 t2)
 	       (declare (type cons t1 t2))
 	       (disjoint-types-p (car t1) (car t2)))
@@ -277,7 +279,7 @@
 			  ((disjoint? t1 t2)
 			   nil)
 			  (t		; touches
-			   ; this includes the case that subtypep returns NIL;NIL in both directions
+			   ;; this includes the case that subtypep returns NIL;NIL in both directions
 			   (cond
 			     ((null (nth-value 1 (subtype? t1 t2)))
 			      (warn 'ambiguous-subtype :sub t1 :super t2))

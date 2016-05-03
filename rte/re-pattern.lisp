@@ -22,6 +22,19 @@
 
 (in-package   :rte)
 
+(defun map-subsets (visitor data)
+  "call the given VISITOR function once for each subset of the list DATA"
+  (dotimes (n (expt 2 (length data)))
+    (let ((n n)
+	  (data data)
+	  subset)
+      (loop :while (and data (plusp n))
+	    :do (progn (when (oddp n)
+			 (push (car data) subset))
+		       (pop data)
+		       (setf n (truncate n 2))))
+      (funcall visitor subset))))
+
 (defun map-permutations (visit data)
   "call the given VISITOR function once for each permutation of the given list DATA"
   (declare (type list data)
@@ -374,14 +387,14 @@ a fixed point is found."
 				  ;; are the types mutually exclusive, e.g., string vs number
 				  ;; (warn "~A and ~A are mutually exclusive~%" wrt-type single-type-pattern)
 				  :empty-set)
-				 ((null (nth-value 1 (subtypep wrt-type single-type-pattern)))
+				 ((null (nth-value 1 (smarter-subtypep wrt-type single-type-pattern)))
 				  (warn 'ambiguous-subtype :sub wrt-type :super single-type-pattern)
 				  :empty-word)
-				 ((null (nth-value 1 (subtypep single-type-pattern wrt-type)))
+				 ((null (nth-value 1 (smarter-subtypep single-type-pattern wrt-type)))
 				  (warn 'ambiguous-subtype :sub single-type-pattern :super wrt-type)
 				  :empty-word)				 
 				 (t
-				  (warn "cannot calculate the derivative of ~A w.r.t. ~A--assuming :empty-word"
+				  (warn "cannot calculate the derivative of ~S w.r.t. ~S--assuming :empty-word"
 					single-type-pattern wrt-type)
 				  :empty-word)))
 		  :f-or    #'(lambda (patterns)
@@ -677,6 +690,10 @@ consists of values whose types match PATTERN."
 
 
 (defun make-rte-function-name (pattern)
+  (when (and (consp pattern)
+	     (symbolp (car pattern))
+	     (eql 'rte (car pattern))) 
+    (error "cannot make pattern function of pattern string with ~S: ~S" (car pattern) pattern))
   (intern (with-output-to-string (str)
 	    (write " " :stream str)
 	    (write pattern
@@ -727,7 +744,8 @@ a valid regular type expression.
   (let* ((dfa (make-state-machine pattern))
 	 (name (make-rte-function-name pattern))
 	 (code (dump-code dfa)))
-    `(unless (symbol-function ',name)
+    `(unless (and (fboundp ',name )
+		  (symbol-function ',name))
        (setf (getf (symbol-plist ',name) :rte-pattern) ',pattern)
        (defun ,name ,@(cdr code)))))
 

@@ -471,4 +471,46 @@
 	 (assert-true (eq nil z))
 	 (assert-false (null keys))
 	 llist))))))
+
+(define-test test/destructuring-case-allow-other-keys-2
+  (let ((data '(1 (2 3)
+		:x name :y 3.14 :z 14)))
+    (assert-error 'error
+		  (destructuring-bind (&whole llist a (b c) 
+				       &rest keys
+				       &key (x t) (y "") z &allow-other-keys) data
+		    (declare (type fixnum a b c)
+			     (type symbol x)
+			     (type string y)
+			     (type list z))
+		    (list llist a b c keys x y z)))
+
+    (assert-true
+     (equal
+      'default
+      (destructuring-case data
+	((&whole llist a (b c) 
+		 &rest keys
+		 &key (x t) (y "") z &allow-other-keys)
+	 (declare (type fixnum a b c)
+		  (type symbol x)
+		  (type string y)
+		  (type list z))
+	 (list llist a b c keys x y z))
+	((&rest args)
+	 (declare (ignore args))
+	 'default))))
+))
        
+(defun test-graph ()
+  (let ((pattern (rte::destructuring-lambda-list-to-rte
+		  '(&key (x t) (y "") &allow-other-keys)
+		  :type-specifiers
+		  (gather-type-declarations
+		   '((declare (type symbol x)
+		      (type string y)))))))
+    (format t "~S~%" pattern)
+    (ndfa::ndfa-to-dot
+     (rte::make-state-machine pattern)
+     #p"/tmp/dfa.png" :state-legend nil)))
+

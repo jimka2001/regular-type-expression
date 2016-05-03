@@ -30,6 +30,7 @@
    "REDUCED-TYPECASE"
    "OPTIMIZED-TYPECASE"
    "DISJOINT-TYPES-P"
+   "SMARTER-SUBTYPEP"
    "EQUIVALENT-TYPES-P"
    "AMBIGUOUS-SUBTYPE"
    "AUTO-PERMUTE-TYPECASE"
@@ -119,14 +120,26 @@
 (assert (not (valid-type-p (gensym))))
 (assert (valid-type-p 'bignum))
 
+(defun smarter-subtypep (t1 t2)
+  "The sbcl subtypep function does not know that (eql :x) is a subtype of keyword,
+this function SMARTER-SUBTYEPP understands this."
+  (declare (notinline typep))
+  (typecase t1
+    ((cons (member eql member))	      ; (eql obj) or (member obj1 ...)
+     (values (forall obj (cdr t1)
+	       (typep obj t2))
+	     t))
+    (t
+     (subtypep t1 t2))))
+
 (defun disjoint-types-p (T1 T2)
   "Two types are considered disjoint, if their interseciton is empty, i.e., is a subtype of nil."
   (subtypep `(and ,T1 ,T2) nil))
 
 (defun equivalent-types-p (T1 T2)
   "Two types are considered equivalent if each is a subtype of the other."
-  (multiple-value-bind (T1<=T2 okT1T2) (subtypep T1 T2)
-    (multiple-value-bind (T2<=T1 okT2T2) (subtypep T2 T1)
+  (multiple-value-bind (T1<=T2 okT1T2) (smarter-subtypep T1 T2)
+    (multiple-value-bind (T2<=T1 okT2T2) (smarter-subtypep T2 T1)
       (values (and T1<=T2 T2<=T1) (and okT1T2 okT2T2)))))
 
 (defun set-equalp (set-a set-b &key (test #'equal))

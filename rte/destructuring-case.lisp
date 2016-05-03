@@ -120,9 +120,9 @@ Not supporting this syntax -> (wholevar reqvars optvars . var) "
   (declare (type list lambda-list type-specifiers))
   (let ((copy-lambda-list lambda-list)
 	(ll-keywords '(&whole &optional &rest &body &key &allow-other-keys &aux))
-	(whole-pattern '(:0-* t))
+	(whole-pattern '(:* t))
 	req-pattern
-	(rest-pattern '(:0-* t))
+	(rest-pattern '(:* t))
 	(key-pattern '(:cat))
 	(optional-pattern '(:cat)))
 
@@ -157,7 +157,7 @@ Not supporting this syntax -> (wholevar reqvars optvars . var) "
       (when (eq '&whole (car lambda-list))
 	(pop lambda-list)		; pop off &whole
 	(setf whole-pattern (recursive-pattern-var (car lambda-list)
-						   :symbol-pattern '(:0-* t)))
+						   :symbol-pattern '(:* t)))
 	(pop lambda-list)		; pop off the variable
 	)
     
@@ -184,7 +184,7 @@ Not supporting this syntax -> (wholevar reqvars optvars . var) "
       (when (member (car lambda-list) '(&rest &body))
 	(pop lambda-list)		; pop off the &rest | &body
 	(when (listp (car lambda-list))
-	  (setf rest-pattern (recursive-pattern-var (car lambda-list) :symbol-pattern '(:0-* t))))
+	  (setf rest-pattern (recursive-pattern-var (car lambda-list) :symbol-pattern '(:* t))))
 	(pop lambda-list)		; pop off the var,
 	(pop ll-keywords)		; pop &rest
 	(pop ll-keywords)		; pop &body
@@ -300,30 +300,35 @@ Not supporting this syntax -> (wholevar reqvars optvars . var) "
 	      (allow-other-keys (when (eql '&allow-other-keys (car lambda-list))
 				  (pop lambda-list)
 				  t))
-	      or-terms)
-	  (map-permutations (lambda (permutation)
-			      (let ((done nil)
-				    (remaining (alphabetize used-keywords))
-				    (buf (list nil)))
-				(when allow-other-keys
-				  (tconc buf `(:0-* (not (member ,@remaining)) t)))
-				(dolist (item permutation)
-				  (destructuring-bind (keyword pattern) item
-				    (push keyword done)
-				    (setf remaining (remove keyword remaining))
-				    (let ((key-suffix (cond
-							((not allow-other-keys)
-							 `(member ,@done))
-							(remaining
-							 `(not (member ,@remaining)))
-							(t
-							 t))))
-				    (tconc buf `(:0-1 (eql ,keyword) ,pattern (:0-* ,key-suffix t))))))
-				(push `(:cat ,@(car buf)) or-terms)))
-			    key-formats)
+	       or-terms)
 
-	  (setf key-pattern `(:and (:0-* keyword t)
-				   (:or ,@or-terms)))))
+	  (map-subsets (lambda (subset)
+			 (map-permutations (lambda (permutation)
+					     (let ((done nil)
+						   (remaining (alphabetize used-keywords))
+						   (buf (list nil)))
+					       (dolist (item permutation)
+						 (destructuring-bind (keyword pattern) item
+						   (push keyword done)
+						   (setf remaining (remove keyword remaining))
+						   (let ((key-suffix (cond
+								       ((not allow-other-keys)
+									`(member ,@done))
+								       (remaining
+									`(not (member ,@remaining)))
+								       (t
+									t))))
+						     (tconc buf `(eql ,keyword) pattern `(:* ,key-suffix t)))))
+					       (push `(:cat ,@(car buf)) or-terms)))
+					   subset))
+		       key-formats)
+	  (setf key-pattern
+		(if allow-other-keys
+		    `(:and (:* keyword t)
+			   (:cat (:* (not (member ,@(alphabetize used-keywords))) t)
+				 (:or :empty-word ,@or-terms)))
+		    `(:and (:* keyword t)
+			   (:or ,@or-terms))))))
 	
       (pop ll-keywords)			; pop off &key
       (pop ll-keywords)			; pop off &allow-other-keys

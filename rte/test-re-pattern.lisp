@@ -136,15 +136,16 @@
     ))
 
 
-;;(defrte (:0-* number number))
-;;(defrte (:1-* (RTE (:0-* NUMBER NUMBER))))
+(defrte (:0-* number number))
+(defrte (:1-* (RTE (:0-* NUMBER NUMBER))))
 
 (defun type/declaration2 ()
   (typep nil '(rte
 	       (:0-* number number)))
   (typep nil '(rte
-	        (rte
-		    (:0-* number number))))
+	       (:1 (rte
+		    (:0-* number number)))))
+  
   
   (typep nil '(rte
 	       (:1-* (rte
