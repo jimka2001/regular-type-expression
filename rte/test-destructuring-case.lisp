@@ -516,14 +516,40 @@
 
 (defun test-graph-3keys ()
   (let ((pattern (rte::destructuring-lambda-list-to-rte
-		  '(&key (x t) (y "") (z 12) &allow-other-keys)
+		  '(&whole llist a (b c)
+		    &rest keys
+		    &key (x t) (y "") (z 12) &allow-other-keys)
 		  :type-specifiers
 		  (gather-type-declarations
-		   '((declare (type symbol x)
+		   '((declare (type fixnum a b c)
+		      (type symbol x)
 		      (type string y)
 		      (type fixnum z)))))))
     (format t "~S~%" pattern)
-    (ndfa::ndfa-to-dot
+    (ndfa::ndfa-to-dot 
      (rte::make-state-machine pattern)
-     #p"/tmp/dfa3.png" :state-legend nil)))
+     #p"/tmp/dfa3.png"
+     :transition-abrevs '((t t1)
+			  (list t2)
+			  (fixnum t3)
+			  (symbol t4)
+			  (keyword t5)
+			  (string t6)
+			  ((and list (rte (:cat fixnum fixnum))) t7)
+			  ((eql :x) t8)
+			  ((eql :y) t9)
+			  ((eql :z) t10)
+			  ((eql :x :y) t11)
+			  ((eql :x :z) t12)
+			  ((eql :y :z) t13)
+			  ((eql :x :y :z) t14)
+			  ((and keyword (not (eql :x))) t15)
+			  ((and keyword (not (eql :y))) t16)
+			  ((and keyword (not (eql :z))) t17)
+			  ((and keyword (not (member :x :y))) t18)
+			  ((and keyword (not (member :x :z))) t19)
+			  ((and keyword (not (member :y :z))) t20)
+			  ((and keyword (not (member :x :y :z))) t21))
+     :transition-legend t
+     :state-legend nil)))
 
