@@ -512,7 +512,7 @@
     (format t "~S~%" pattern)
     (ndfa::ndfa-to-dot
      (rte::make-state-machine pattern)
-     #p"/tmp/dfa.png" :state-legend nil)))
+     #p"/tmp/dfa2.png" :state-legend nil)))
 
 (defun test-graph-3keys ()
   (let ((pattern (rte::destructuring-lambda-list-to-rte
@@ -525,5 +525,5 @@
     (format t "~S~%" pattern)
     (ndfa::ndfa-to-dot
      (rte::make-state-machine pattern)
-     #p"/tmp/dfa.png" :state-legend nil)))
+     #p"/tmp/dfa3.png" :state-legend nil)))
 
