@@ -502,13 +502,26 @@
 	 'default))))
 ))
        
-(defun test-graph ()
+(defun test-graph-2keys ()
   (let ((pattern (rte::destructuring-lambda-list-to-rte
 		  '(&key (x t) (y "") &allow-other-keys)
 		  :type-specifiers
 		  (gather-type-declarations
 		   '((declare (type symbol x)
 		      (type string y)))))))
+    (format t "~S~%" pattern)
+    (ndfa::ndfa-to-dot
+     (rte::make-state-machine pattern)
+     #p"/tmp/dfa.png" :state-legend nil)))
+
+(defun test-graph-3keys ()
+  (let ((pattern (rte::destructuring-lambda-list-to-rte
+		  '(&key (x t) (y "") (z 12) &allow-other-keys)
+		  :type-specifiers
+		  (gather-type-declarations
+		   '((declare (type symbol x)
+		      (type string y)
+		      (type fixnum z)))))))
     (format t "~S~%" pattern)
     (ndfa::ndfa-to-dot
      (rte::make-state-machine pattern)
