@@ -123,15 +123,17 @@
 (assert (not (valid-type-p (gensym))))
 (assert (valid-type-p 'bignum))
 
+;; TODO need to update some calls to subtypep to use smarter-subtypep instead.
 (defun smarter-subtypep (t1 t2)
   "The sbcl subtypep function does not know that (eql :x) is a subtype of keyword,
 this function SMARTER-SUBTYEPP understands this."
   (declare (optimize (speed 3) (compilation-speed 0)))
   (cond
     ((typep t1 '(cons (member eql member))) ; (eql obj) or (member obj1 ...)
-     (values (forall obj (cdr t1)
-	       (declare (notinline typep))
-	       (typep obj t2))
+     (values (every #'(lambda (obj)
+			(declare (notinline typep))
+			(typep obj t2))
+		    (cdr t1))
 	     t))
     ;; T1 <: T2 ==> not(T2) <: not(T1)
     ((and (typep t1 '(cons (eql not)))
