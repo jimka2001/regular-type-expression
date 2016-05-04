@@ -123,18 +123,64 @@
 (defun smarter-subtypep (t1 t2)
   "The sbcl subtypep function does not know that (eql :x) is a subtype of keyword,
 this function SMARTER-SUBTYEPP understands this."
-  (declare (notinline typep))
-  (typecase t1
-    ((cons (member eql member))	      ; (eql obj) or (member obj1 ...)
+  (declare (optimize (speed 3) (compilation-speed 0)))
+  (cond
+    ((typep t1 '(cons (member eql member))) ; (eql obj) or (member obj1 ...)
      (values (forall obj (cdr t1)
+	       (declare (notinline typep))
 	       (typep obj t2))
 	     t))
+    ;; T1 <: T2 ==> not(T2) <: not(T1)
+    ((and (typep t1 '(cons (eql not)))
+	  (typep t2 '(cons (eql not))))
+     (smarter-subtypep (cadr t2) (cadr t1)))
+    ;; T1 <: T2 ==> not( T1 <= not(T2))
+    ((and (typep t2 '(cons (eql not)))
+	  (smarter-subtypep t1 (cadr t2)))
+     (values nil t))
+    ;; T1 <: T2 ==> not( not(T1) <= T2)
+    ((and (typep t1 '(cons (eql not)))
+	  (smarter-subtypep (cadr t1) t2))
+     (values nil t))
     (t
      (subtypep t1 t2))))
 
+(defun xor (a b)
+  (or (and a (not b))
+      (and (not a) b)))
+
 (defun disjoint-types-p (T1 T2)
-  "Two types are considered disjoint, if their interseciton is empty, i.e., is a subtype of nil."
-  (subtypep `(and ,T1 ,T2) nil))
+  "Two types are considered disjoint, if their interseciton is empty,
+i.e., is a subtype of nil."
+  (declare (optimize (speed 3) (compilation-speed 0)))
+  (cond
+    ((and (typep T1 '(cons (eql not)))
+	  (typep T2 '(cons (eql not))))
+     (disjoint-types-p (cadr T1) (cadr T2))) 
+    ;; T1 ^ T2 = 0 ==> (not(T1) ^ T2) != 0
+   ((and (typep T1 '(cons (eql not)))
+	  (disjoint-types-p (cadr T1) T2))
+     (values nil t))
+    ;; T1 ^ T2 = 0 ==>  (T1 ^ not(T2)) = 0
+    ((and (typep T2 '(cons (eql not)))
+	  (disjoint-types-p T1 (cadr T2)))
+     (values nil t))
+    ;; T1 <: T2 && not(T2 <: T1) ==> T1 ^ not(T2) != 0
+    ((and (typep T1 '(cons (eql not)))
+	  (xor (smarter-subtypep (cadr T1) T2)
+	       (smarter-subtypep T2 (cadr T1))))
+     (values t t))
+    ;; T2 <: T1 && not(T1 <: T2) ==> not(T1) ^ T2 != 0
+    ((and (typep T2 '(cons (eql not)))
+	  (xor (smarter-subtypep T1 (cadr T2))
+	       (smarter-subtypep (cadr T2) T1)))
+     (values t t))
+    ;; 
+    ((or (smarter-subtypep T1 T2)
+	 (smarter-subtypep T2 T1))
+     (values nil t))
+    (t
+     (subtypep `(and ,T1 ,T2) nil))))
 
 (defun equivalent-types-p (T1 T2)
   "Two types are considered equivalent if each is a subtype of the other."
