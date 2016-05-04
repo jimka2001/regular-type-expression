@@ -381,7 +381,7 @@ a fixed point is found."
 				  ;; then they are NOT mutually exclusive, thus the 3rd clause of this cond would be taken.
 				  ;; Nevertheless, equivalence check is probably common, and fast.
 				  :empty-word)
-				 ((subtypep wrt-type single-type-pattern)
+				 ((smarter-subtypep wrt-type single-type-pattern)
 				  :empty-word)
 				 ((disjoint-types-p wrt-type single-type-pattern)
 				  ;; are the types mutually exclusive, e.g., string vs number
@@ -394,6 +394,10 @@ a fixed point is found."
 				 ((null (nth-value 1 (smarter-subtypep single-type-pattern wrt-type)))
 				  (warn 'ambiguous-subtype :sub single-type-pattern :super wrt-type
 							   :consequence "assuming :empty-word")
+				  :empty-word)
+				 ((smarter-subtypep single-type-pattern wrt-type)
+				  (warn "cannot calculate the derivative of ~S~%    w.r.t. ~S beause ~S is a subtype of ~S--assuming :empty-word"
+					single-type-pattern wrt-type single-type-pattern wrt-type)
 				  :empty-word)
 				 (t
 				  (warn "cannot calculate the derivative of ~S~%    w.r.t. ~S--assuming :empty-word"
