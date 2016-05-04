@@ -40,12 +40,15 @@
 
 (define-condition ambiguous-subtype (style-warning)
   ((sub   :type (or symbol nil cons) :initarg :sub :initform :UNINITIALIZED)
-   (super :type (or symbol nil cons) :initarg :super :initform :UNINITIALIZED))
+   (super :type (or symbol nil cons) :initarg :super :initform :UNINITIALIZED)
+   (consequence :type (or string nil) :initarg :consequence :initform nil))
   (:documentation "Warning raised when unable to determine the subtype relationship.")
   (:report (lambda (condition stream)
 	     (format stream "Cannot determine whether ~S is a subtype of ~S"
 		     (slot-value condition 'sub)
-		     (slot-value condition 'super)))))
+		     (slot-value condition 'super))
+	     (when (slot-value condition 'consequence)
+	       (format stream ", ~A" (slot-value condition 'consequence))))))
 		     
 (defun hash-to-list (hash &aux list)
   "HASH is a hashtable with test=EQUAL which has been used with ENTER-CONSES.

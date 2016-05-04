@@ -388,13 +388,15 @@ a fixed point is found."
 				  ;; (warn "~A and ~A are mutually exclusive~%" wrt-type single-type-pattern)
 				  :empty-set)
 				 ((null (nth-value 1 (smarter-subtypep wrt-type single-type-pattern)))
-				  (warn 'ambiguous-subtype :sub wrt-type :super single-type-pattern)
+				  (warn 'ambiguous-subtype :sub wrt-type :super single-type-pattern
+							   :consequence "assuming :empty-word")
 				  :empty-word)
 				 ((null (nth-value 1 (smarter-subtypep single-type-pattern wrt-type)))
-				  (warn 'ambiguous-subtype :sub single-type-pattern :super wrt-type)
-				  :empty-word)				 
+				  (warn 'ambiguous-subtype :sub single-type-pattern :super wrt-type
+							   :consequence "assuming :empty-word")
+				  :empty-word)
 				 (t
-				  (warn "cannot calculate the derivative of ~S w.r.t. ~S--assuming :empty-word"
+				  (warn "cannot calculate the derivative of ~S~%    w.r.t. ~S--assuming :empty-word"
 					single-type-pattern wrt-type)
 				  :empty-word)))
 		  :f-or    #'(lambda (patterns)
