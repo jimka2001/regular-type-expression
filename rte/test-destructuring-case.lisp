@@ -120,71 +120,19 @@
   ;; with &allow-other-keys
   (assert-true (canonicalize-pattern (destructuring-lambda-list-to-rte '(&key x y z &allow-other-keys)))
 	       (canonicalize-pattern
-		'(:or
-		  (:and (:0-* keyword t)
-		   (:cat (:0-* (not (member :x :y :z)) t)
-		    (:or (:cat (eql :x) t (:0-* (not (member :y :z)) t)) :empty-word)
-		         (:or (:cat (eql :y) t (:0-* (not (member :z)) t)) :empty-word)
-		         (:or (:cat (eql :z) t (:0-* t t)) :empty-word)))
- 
-		  (:and (:0-* keyword t)
-		   (:cat (:0-* (not (member :x :y :z)) t)
-		    (:or (:cat (eql :x) t (:0-* (not (member :y :z)) t)) :empty-word)
-		    (:or (:cat (eql :z) t (:0-* (not (member :y)) t)) :empty-word)
-		    (:or (:cat (eql :y) t (:0-* t t)) :empty-word)))
- 
-		  (:and (:0-* keyword t)
-		   (:cat (:0-* (not (member :x :y :z)) t)
-		    (:or (:cat (eql :y) t (:0-* (not (member :x :z)) t)) :empty-word)
-		    (:or (:cat (eql :x) t (:0-* (not (member :z)) t)) :empty-word)
-		    (:or (:cat (eql :z) t (:0-* t t)) :empty-word)))
- 
-		  (:and (:0-* keyword t)
-		   (:cat (:0-* (not (member :x :y :z)) t)
-		    (:or (:cat (eql :y) t (:0-* (not (member :x :z)) t)) :empty-word)
-		    (:or (:cat (eql :z) t (:0-* (not (member :x)) t)) :empty-word)
-		    (:or (:cat (eql :x) t (:0-* t t)) :empty-word)))
-
-		  (:and (:0-* keyword t)
-		   (:cat (:0-* (not (member :x :y :z)) t)
-		    (:or (:cat (eql :z) t (:0-* (not (member :x :y)) t)) :empty-word)
-		    (:or (:cat (eql :x) t (:0-* (not (member :y)) t)) :empty-word)
-		    (:or (:cat (eql :y) t (:0-* t t)) :empty-word)))
-
-		  (:and (:0-* keyword t)
-		   (:cat (:0-* (not (member :x :y :z)) t)
-		    (:or (:cat (eql :z) t (:0-* (not (member :x :y)) t)) :empty-word)
-		    (:or (:cat (eql :y) t (:0-* (not (member :x)) t)) :empty-word)
-		    (:or (:cat (eql :x) t (:0-* t t)) :empty-word))))))
+		'(:and (:* t)
+		  (:cat (:cat) (:cat)
+		   (:and (:* t)
+		    (:and (:* keyword t) (:cat (:* (not (eql :x)) t) (:? (eql :x) t (:* t)))
+		     (:cat (:* (not (eql :y)) t) (:? (eql :y) t (:* t)))
+		     (:cat (:* (not (eql :z)) t) (:? (eql :z) t (:* t)))))))))
 
   (assert-equal (canonicalize-pattern (destructuring-lambda-list-to-rte '(&key x y z)))
 		(canonicalize-pattern
-		 '(:or
-		   (:and (:0-* keyword t)
-		    (:cat (:or (:cat (eql :x) t (:0-* (member :x) t)) :empty-word)
-		     (:or (:cat (eql :y) t (:0-* (member :x :y) t)) :empty-word)
-		     (:or (:cat (eql :z) t (:0-* (member :x :y :z) t)) :empty-word)))
-
-		   (:and (:0-* keyword t)
-		    (:cat (:or (:cat (eql :x) t (:0-* (member :x) t)) :empty-word)
-		     (:or (:cat (eql :z) t (:0-* (member :x :z) t)) :empty-word)
-		     (:or (:cat (eql :y) t (:0-* (member :x :y :z) t)) :empty-word)))
-		   (:and (:0-* keyword t)
-		    (:cat (:or (:cat (eql :y) t (:0-* (member :y) t)) :empty-word)
-		     (:or (:cat (eql :x) t (:0-* (member :x :y) t)) :empty-word)
-		     (:or (:cat (eql :z) t (:0-* (member :x :y :z) t)) :empty-word)))
-		   (:and (:0-* keyword t)
-		    (:cat (:or (:cat (eql :y) t (:0-* (member :y) t)) :empty-word)
-		     (:or (:cat (eql :z) t (:0-* (member :y :z) t)) :empty-word)
-		     (:or (:cat (eql :x) t (:0-* (member :x :y :z) t)) :empty-word)))
-		   (:and (:0-* keyword t)
-		    (:cat (:or (:cat (eql :z) t (:0-* (member :z) t)) :empty-word)
-		     (:or (:cat (eql :x) t (:0-* (member :x :z) t)) :empty-word)
-		     (:or (:cat (eql :y) t (:0-* (member :x :y :z) t)) :empty-word)))
-		   (:and (:0-* keyword t)
-		    (:cat (:or (:cat (eql :z) t (:0-* (member :z) t)) :empty-word)
-		     (:or (:cat (eql :y) t (:0-* (member :y :z) t)) :empty-word)
-		     (:or (:cat (eql :x) t (:0-* (member :x :y :z) t)) :empty-word)))))))
+		 '(:and (:0-* (member :x :y :z) t)
+		   (:cat (:0-* (not (eql :x)) t) (:or :empty-word (:cat (eql :x) t (:0-* t))))
+		   (:cat (:0-* (not (eql :y)) t) (:or :empty-word (:cat (eql :y) t (:0-* t))))
+		   (:cat (:0-* (not (eql :z)) t) (:or :empty-word (:cat (eql :z) t (:0-* t))))))))
 
 (define-test test/destructuring-case-9
   (let ((n 0))
@@ -518,13 +466,56 @@
   (let ((pattern (rte::destructuring-lambda-list-to-rte
 		  '(&whole llist a (b c)
 		    &rest keys
-		    &key (x t) (y "") (z 12) &allow-other-keys)
+		    &key (x t) (y "") (z 12) ;; &allow-other-keys
+		    )
 		  :type-specifiers
 		  (gather-type-declarations
 		   '((declare (type fixnum a b c)
 		      (type symbol x)
 		      (type string y)
 		      (type fixnum z)))))))
+    (format t "~S~%" pattern)
+    (ndfa::ndfa-to-dot 
+     (rte::make-state-machine pattern)
+     #p"/tmp/dfa3.png"
+     :transition-abrevs '((t t1)
+			  (list t2)
+			  (fixnum t3)
+			  (symbol t4)
+			  (keyword t5)
+			  (string t6)
+			  ((and list (rte (:cat fixnum fixnum))) t7)
+			  ((eql :x) t8)
+			  ((eql :y) t9)
+			  ((eql :z) t10)
+			  ((eql :x :y) t11)
+			  ((eql :x :z) t12)
+			  ((eql :y :z) t13)
+			  ((eql :x :y :z) t14)
+			  ((and keyword (not (eql :x))) t15)
+			  ((and keyword (not (eql :y))) t16)
+			  ((and keyword (not (eql :z))) t17)
+			  ((and keyword (not (member :x :y))) t18)
+			  ((and keyword (not (member :x :z))) t19)
+			  ((and keyword (not (member :y :z))) t20)
+			  ((and keyword (not (member :x :y :z))) t21))
+     :transition-legend t
+     :state-legend nil)))
+
+(defun test-graph-3keys-b ()
+  ;; (&key (x t) (y "") (z 12) &allow-other-keys)
+  ;; (declare (type symbol x)
+  ;;          (type string y)
+  ;;          (type fixnum z))
+  (let ((pattern '(:and (:* keyword t)
+		   ;; the first :x is followed by a symbol
+		   (:cat (:* (not (eql :x)) t) (:? (eql :x) symbol (:* t)))
+
+		   ;; the first :y is followed by a string
+		   (:cat (:* (not (eql :y)) t) (:? (eql :y) string (:* t)))
+
+		   ;; the first :z is followed by a fixnum
+		   (:cat (:* (not (eql :z)) t) (:? (eql :z) fixnum (:* t))))))
     (format t "~S~%" pattern)
     (ndfa::ndfa-to-dot 
      (rte::make-state-machine pattern)

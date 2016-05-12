@@ -122,8 +122,9 @@ Not supporting this syntax -> (wholevar reqvars optvars . var) "
 	(ll-keywords '(&whole &optional &rest &body &key &allow-other-keys &aux))
 	(whole-pattern '(:* t))
 	req-pattern
-	(rest-pattern '(:* t))
-	(key-pattern '(:cat))
+	rest-pattern
+	key-pattern
+	rest-key-pattern
 	(optional-pattern '(:cat)))
 
     (labels ((get-var-type (var)
@@ -183,8 +184,9 @@ Not supporting this syntax -> (wholevar reqvars optvars . var) "
       ;; restvar::= [{&rest | &body} var] 
       (when (member (car lambda-list) '(&rest &body))
 	(pop lambda-list)		; pop off the &rest | &body
-	(when (listp (car lambda-list))
-	  (setf rest-pattern (recursive-pattern-var (car lambda-list) :symbol-pattern '(:* t))))
+	(setf rest-pattern (if (listp (car lambda-list))
+			       (recursive-pattern-var (car lambda-list) :symbol-pattern '(:* t))
+			       '(:* t)))
 	(pop lambda-list)		; pop off the var,
 	(pop ll-keywords)		; pop &rest
 	(pop ll-keywords)		; pop &body
@@ -224,64 +226,17 @@ Not supporting this syntax -> (wholevar reqvars optvars . var) "
       (&key x y z) ; without &allow-other-keys
        ==>
           (:and (:0-* keyword t)
-		(:or
-		 (:cat (:0-1 (eql :x) Fx (:0-* (member :x) t))
-		       (:0-1 (eql :y) Fy (:0-* (member :y :x) t))
-		       (:0-1 (eql :z) Fz (:0-* (member :z :y :x) t)))
-
-		 (:cat (:0-1 (eql :y) Fy (:0-* (member :y) t))
-		       (:0-1 (eql :x) Fx (:0-* (member :x :y) t))
-		       (:0-1 (eql :z) Fz (:0-* (member :z :x :y) t)))
-
-		 (:cat (:0-1 (eql :x) Fx (:0-* (member :x) t))
-		       (:0-1 (eql :z) Fz (:0-* (member :z :x) t))
-		       (:0-1 (eql :y) Fy (:0-* (member :y :z :x) t)))
-
-		 (:cat (:0-1 (eql :z) Fz (:0-* (member :z) t))
-		       (:0-1 (eql :x) Fx (:0-* (member :x :z) t))
-		       (:0-1 (eql :y) Fy (:0-* (member :y :x :z) t)))
-
-		 (:cat (:0-1 (eql :y) Fy (:0-* (member :y) t))
-		       (:0-1 (eql :z) Fz (:0-* (member :z :y) t))
-		       (:0-1 (eql :x) Fx (:0-* (member :x :z :y) t)))
-
-		 (:cat (:0-1 (eql :z) Fz (:0-* (member :z) t))
-		       (:0-1 (eql :y) Fy (:0-* (member :y :z) t))
-		       (:0-1 (eql :x) Fx (:0-* (member :x :y :z) t)))))
+                (:0-* (not (member :x :y :z)) t)
+                (:cat (:* (not :x) t) (:? (eql :x) Fx (:* t)))
+                (:cat (:* (not :y) t) (:? (eql :y) Fy (:* t)))
+                (:cat (:* (not :z) t) (:? (eql :z) Fz (:* t))))
 
       (&key x y z &allow-other-keys)
        ==>
-         (:and (:0-* keyword t)
-	       (:or
-		(:cat                   (:0-* (not (member :x :y :z)) t)
-		      (:0-1 (eql :x) Fx (:0-* (not (member :y :z)) t))
-		      (:0-1 (eql :y) Fy (:0-* (not (member :z)) t))
-		      (:0-1 (eql :z) Fz (:0-* t t)))
-
-		(:cat                   (:0-* (not (member :x :y :z)) t)
-		      (:0-1 (eql :y) Fy (:0-* (not (member :x :z)) t))
-		      (:0-1 (eql :x) Fx (:0-* (not (member :z)) t))
-		      (:0-1 (eql :z) Fz (:0-* t t)))
-
-		(:cat                   (:0-* (not (member :x :y :z)) t)
-		      (:0-1 (eql :x) Fx (:0-* (not (member :y :z)) t))
-		      (:0-1 (eql :z) Fz (:0-* (not (member :y)) t))
-		      (:0-1 (eql :y) Fy (:0-* t t)))
-
-		(:cat                   (:0-* (not (member :x :y :z)) t)
-		      (:0-1 (eql :z) Fz (:0-* (not (member :x :y)) t))
-		      (:0-1 (eql :x) Fx (:0-* (not (member :y)) t))
-		      (:0-1 (eql :y) Fy (:0-* t t)))
-
-		(:cat                   (:0-* (not (member :x :y :z)) t)
-		      (:0-1 (eql :y) Fy (:0-* (not (member :x :z)) t))
-		      (:0-1 (eql :z) Fz (:0-* (not (member :x)) t))
-		      (:0-1 (eql :x) Fx (:0-* t t)))
-
-		(:cat                   (:0-* (not (member :x :y :z)) t)
-		      (:0-1 (eql :z) Fz (:0-* (not (member :x :y)) t))
-		      (:0-1 (eql :y) Fy (:0-* (not (member :x)) t))
-		      (:0-1 (eql :x) Fx (:0-* t t)))))
+          (:and (:0-* keyword t)
+                (:cat (:* (not :x) t) (:? (eql :x) Fx (:* t)))
+                (:cat (:* (not :y) t) (:? (eql :y) Fy (:* t)))
+                (:cat (:* (not :z) t) (:? (eql :z) Fz (:* t))))
       |#
       
       (when (eql '&key (car lambda-list))
@@ -299,40 +254,34 @@ Not supporting this syntax -> (wholevar reqvars optvars . var) "
 				  :do (push key-var key-vars)))
 	      (allow-other-keys (when (eql '&allow-other-keys (car lambda-list))
 				  (pop lambda-list)
-				  t))
-	       or-terms)
+				  t)))
 
-	  (map-subsets (lambda (subset)
-			 (map-permutations (lambda (permutation)
-					     (let ((done nil)
-						   (remaining (alphabetize used-keywords))
-						   (buf (list nil)))
-					       (dolist (item permutation)
-						 (destructuring-bind (keyword pattern) item
-						   (push keyword done)
-						   (setf remaining (remove keyword remaining))
-						   (let ((key-suffix (cond
-								       ((not allow-other-keys)
-									`(member ,@done))
-								       (remaining
-									`(not (member ,@remaining)))
-								       (t
-									t))))
-						     (tconc buf `(eql ,keyword) pattern `(:* ,key-suffix t)))))
-					       (push `(:cat ,@(car buf)) or-terms)))
-					   subset))
-		       key-formats)
 	  (setf key-pattern
-		(if allow-other-keys
-		    `(:and (:* keyword t)
-			   (:cat (:* (not (member ,@(alphabetize used-keywords))) t)
-				 (:or :empty-word ,@or-terms)))
-		    `(:and (:* keyword t)
-			   (:or ,@or-terms))))))
-	
+		(let ((patt-1 (if allow-other-keys
+				  '(:* keyword t)
+				  `(:* (member ,@used-keywords) t)))
+		      (patt-per-key (loop :for key-format :in key-formats
+					  :collect
+					  (destructuring-bind (key type) key-format
+					    `(:cat (:* (not (eql ,key)) t) (:? (eql ,key) ,type (:* t)))))))
+					  
+		  `(:and ,patt-1
+			 ,@patt-per-key)))))
+
+      
+      (setf rest-key-pattern (cond
+			       ((and rest-pattern key-pattern)
+				`(:and ,rest-pattern ,key-pattern))
+			       (rest-pattern
+				rest-pattern)
+			       (key-pattern
+				key-pattern)
+			       (t
+				'(:cat))))
+
       (pop ll-keywords)			; pop off &key
       (pop ll-keywords)			; pop off &allow-other-keys
-    
+
       ;; auxvars
       ;; auxvars::= [&aux {var | (var [init-form])}*]     
       (when (eql '&aux (car lambda-list))
@@ -356,8 +305,7 @@ Not supporting this syntax -> (wholevar reqvars optvars . var) "
 	  `(:and ,whole-pattern
 		 (:cat ,req-pattern
 		       ,optional-pattern
-		       (:and ,rest-pattern
-			     ,key-pattern)))))))
+		       ,rest-key-pattern))))))
 
 (defun expand-destructuring-case (object-form clauses)
   (let ((object (gensym)))
