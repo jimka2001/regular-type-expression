@@ -132,7 +132,33 @@
 		 '(:and (:0-* (member :x :y :z) t)
 		   (:cat (:0-* (not (eql :x)) t) (:or :empty-word (:cat (eql :x) t (:0-* t))))
 		   (:cat (:0-* (not (eql :y)) t) (:or :empty-word (:cat (eql :y) t (:0-* t))))
-		   (:cat (:0-* (not (eql :z)) t) (:or :empty-word (:cat (eql :z) t (:0-* t))))))))
+		   (:cat (:0-* (not (eql :z)) t) (:or :empty-word (:cat (eql :z) t (:0-* t)))))))
+
+    (rte::map-permutations (lambda (perm)
+			     (assert-test (equal :here
+						 (destructuring-case (mapcan (lambda (key)
+									       (list key 12))
+									     perm)
+						   ((&key (x 1) (y 1) (z 1))
+						    (declare (type fixnum x y z))
+						    (assert-test (equal 12 x))
+						    (assert-test (equal 12 y))
+						    (assert-test (equal 12 z))
+						    :here)))))
+		    '(:x :y :z))
+
+  (rte::map-permutations (lambda (perm)
+			   (assert-test (equal :here
+					       (destructuring-case (mapcan (lambda (key)
+									     (list key 12))
+									   perm)
+						 ((&key (x 1) (y 1) (z 1) &allow-other-keys)
+						  (declare (type fixnum x y z))
+						  (assert-test (equal 12 x))
+						  (assert-test (equal 12 y))
+						  (assert-test (equal 12 z))
+						  :here)))))
+		    '(:w :x :y :z)))
 
 (define-test test/destructuring-case-9
   (let ((n 0))
