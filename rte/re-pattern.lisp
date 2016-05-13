@@ -804,3 +804,7 @@ a valid regular type expression.
 	   rte::*type-functions*)
   (setf *rte-types* (make-hash-table :test #'equal))
   (setf *type-functions* (make-hash-table)))
+
+(defun equivalent-patterns (rte1 rte2)
+  (and (null (get-final-states (prune (make-state-machine `(:and ,rte1 (:not ,rte2))))))
+       (null (get-final-states (prune (make-state-machine `(:and ,rte2 (:not ,rte1))))))))

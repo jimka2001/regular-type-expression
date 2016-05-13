@@ -681,3 +681,21 @@
 
 
 
+(define-test test/equivalent-patterns
+  (assert-true (rte::equivalent-patterns '(:or string number)
+					 '(:or string number float)))
+  (assert-false (rte::equivalent-patterns '(:or string number)
+					  '(:or string symbol)))
+
+  (assert-true (rte::equivalent-patterns '(:AND (:* T)
+					   (:CAT (:CAT (:AND LIST (RTE (:CAT T T))) T) (:CAT (:|0-1| T))
+					    (:AND (:AND LIST (RTE (:CAT T T T T)))
+					     (:AND (:* (MEMBER :Y :X) T)
+					      (:CAT (:* (NOT (EQL :X)) T) (:? (EQL :X) T (:* T)))
+					      (:CAT (:* (NOT (EQL :Y)) T) (:? (EQL :Y) T (:* T)))))))
+
+					 '(:CAT (:CAT (:AND LIST (RTE (:CAT T T))) T) (:CAT (:|0-1| T))
+					   (:AND (:AND LIST (RTE (:CAT T T T T)))
+					    (:AND (:* (MEMBER :Y :X) T)
+					     (:CAT (:* (NOT (EQL :X)) T) (:? (EQL :X) T (:* T)))
+					     (:CAT (:* (NOT (EQL :Y)) T) (:? (EQL :Y) T (:* T)))))))))

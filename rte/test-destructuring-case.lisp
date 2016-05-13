@@ -611,7 +611,7 @@
 (defun test-graph-3keys-d (pattern)
   (format t "~S~%" pattern)
   (ndfa::ndfa-to-dot 
-   (rte::make-state-machine pattern)
+   (rte::prune (rte::make-state-machine pattern))
    #p"/tmp/dfa4.png"
     :transition-legend t
    :state-legend t))
