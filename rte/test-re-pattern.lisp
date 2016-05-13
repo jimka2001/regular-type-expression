@@ -137,7 +137,7 @@
 
 
 (defrte (:0-* number number))
-(defrte (:1-* (RTE (:0-* NUMBER NUMBER))))
+(defrte (:1 (RTE (:0-* NUMBER NUMBER))))
 
 (defun type/declaration2 ()
   (typep nil '(rte

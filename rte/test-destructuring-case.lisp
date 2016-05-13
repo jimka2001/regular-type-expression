@@ -570,3 +570,49 @@
      :transition-legend t
      :state-legend nil)))
 
+(defun test-graph-3keys-c ()
+  (let ((pattern  '(:and
+		    (:and (:* keyword t)
+		     (:cat (:* (not (eql :x)) t) (:? (eql :x) symbol (:* t)))
+		     (:cat (:* (not (eql :y)) t) (:? (eql :y) string (:* t)))
+		     (:cat (:* (not (eql :z)) t) (:? (eql :z) fixnum (:* t))))
+		    (:not (:and (:* keyword t)
+			   (:cat (:* (not (eql :x)) t) (:? (eql :x) symbol (:* t)))
+			   (:cat (:* (not (eql :y)) t) (:? (eql :y) string (:* t)))
+			   (:cat (:* (not (eql :z)) t) (:? (eql :z) fixnum (:* t))))))))
+    (format t "~S~%" pattern)
+    (ndfa::ndfa-to-dot 
+     (rte::make-state-machine pattern)
+     #p"/tmp/dfa4.png"
+     :transition-abrevs '((t t1)
+			  (list t2)
+			  (fixnum t3)
+			  (symbol t4)
+			  (keyword t5)
+			  (string t6)
+			  ((and list (rte (:cat fixnum fixnum))) t7)
+			  ((eql :x) t8)
+			  ((eql :y) t9)
+			  ((eql :z) t10)
+			  ((eql :x :y) t11)
+			  ((eql :x :z) t12)
+			  ((eql :y :z) t13)
+			  ((eql :x :y :z) t14)
+			  ((and keyword (not (eql :x))) t15)
+			  ((and keyword (not (eql :y))) t16)
+			  ((and keyword (not (eql :z))) t17)
+			  ((and keyword (not (member :x :y))) t18)
+			  ((and keyword (not (member :x :z))) t19)
+			  ((and keyword (not (member :y :z))) t20)
+			  ((and keyword (not (member :x :y :z))) t21))
+     :transition-legend t
+     :state-legend nil)))
+
+(defun test-graph-3keys-d (pattern)
+  (format t "~S~%" pattern)
+  (ndfa::ndfa-to-dot 
+   (rte::make-state-machine pattern)
+   #p"/tmp/dfa4.png"
+    :transition-legend t
+   :state-legend t))
+
