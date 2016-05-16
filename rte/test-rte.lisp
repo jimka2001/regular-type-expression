@@ -20,7 +20,11 @@
 ;; WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 (defpackage :rte.test
+  (:shadowing-import-from :rte "TEST")
   (:use :cl :rte :lisp-unit))
+
+(do-symbols (name :rte)
+  (import name :rte.test))
 
 (in-package :rte.test)
 
