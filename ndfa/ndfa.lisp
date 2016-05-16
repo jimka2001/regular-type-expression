@@ -39,7 +39,7 @@
 	   "GET-INITIAL-STATES"
 	   "GET-FINAL-STATES"
 	   "GET-STICKY-STATES"
-	   "PRUNE"
+	   "TRIM-STATE-MACHINE"
 	   "PERFORM-TRANSITIONS"
 	   "PERFORM-SOME-TRANSITIONS"))
 
@@ -278,8 +278,6 @@ the ADD-STATE function."
       (apply #'add-state ndfa state-designator))
     ndfa))
 
-
-
 (defun lconc (buf items)
   (cond
     ((null buf)
@@ -298,23 +296,19 @@ the ADD-STATE function."
 (defun tconc (buf &rest items)
   (lconc buf items))
 
-(defun prune (dfa)
+(defun trim-state-machine (dfa)
   "Remove all states from the state machine which have no path to a final state"
   (declare (type state-machine dfa))
   (let ((buf (list nil)))
     (dolist (f (get-final-states dfa))
       (tconc buf f))
 
-    (dolist (state (car buf))
-      (dolist (transition (transitions state))
-	(let ((next (next-state transition)))
-	  (cond
-	    ((not (eql state next))
-	     nil)
-	    ((member next (car buf))
-	     nil)
-	    (t
-	     (tconc buf next))))))
+    (dolist (target (car buf))
+      (dolist (before (states dfa))
+	(unless (member before (car buf))
+	  (dolist (transition (transitions before))
+	    (when (eql target (next-state transition))
+	      (tconc buf before))))))
     (setf (states dfa)
 	  (intersection (states dfa) (car buf))
 

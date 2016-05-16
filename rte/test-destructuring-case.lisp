@@ -24,7 +24,40 @@
 
 
 
+(define-test test/destructuring-lambda-list-to-rte-2
+  (equivalent-patterns 
+   (destructuring-lambda-list-to-rte '(&whole llist
+				       a (b c)
+				       &rest keys
+				       &key x y z
+				       &allow-other-keys)
+				     :type-specifiers (gather-type-declarations '((declare (type fixnum a b c)
+										   (type symbol x)
+										   (type string y)
+										   (type list z)))))
 
+   '(:1 (:1 fixnum (:and list (rte (:1 fixnum fixnum))))
+     (:and
+      (:* keyword t)
+      (:or
+       (:1 (:? (eql :x) symbol (:* (not (member :y :z)) t))
+	(:? (eql :y) string (:* (not (eql    :z))    t))
+	(:? (eql :z) list   (:* t t)))
+       (:1 (:? (eql :y) string (:* (not (member :x :z)) t))
+	(:? (eql :x) symbol (:* (not (eql    :z))    t))
+	(:? (eql :z) list   (:* t t)))
+       (:1 (:? (eql :x) symbol (:* (not (member :y :z)) t))
+	(:? (eql :z) list   (:* (not (eql    :y))    t))
+	(:? (eql :y) string (:* t t)))
+       (:1 (:? (eql :z) list   (:* (not (member :x :y)) t))
+	(:? (eql :x) symbol (:* (not (eql    :y))    t))
+	(:? (eql :y) string (:* t t)))
+       (:1 (:? (eql :y) string (:* (not (member :x :z)) t))
+	(:? (eql :z) list   (:* (not (eql    :x))    t))
+	(:? (eql :x) symbol (:* t t)))
+       (:1 (:? (eql :z) list   (:* (not (member :x :y)) t))
+	(:? (eql :y) string (:* (not (eql    :x))    t))
+	(:? (eql :x) symbol (:* t t))))))))
 
 
 (define-test test/destructuring-case-5
@@ -134,30 +167,30 @@
 		   (:cat (:0-* (not (eql :y)) t) (:or :empty-word (:cat (eql :y) t (:0-* t))))
 		   (:cat (:0-* (not (eql :z)) t) (:or :empty-word (:cat (eql :z) t (:0-* t)))))))
 
-    (rte::map-permutations (lambda (perm)
-			     (assert-test (equal :here
-						 (destructuring-case (mapcan (lambda (key)
-									       (list key 12))
-									     perm)
-						   ((&key (x 1) (y 1) (z 1))
-						    (declare (type fixnum x y z))
-						    (assert-test (equal 12 x))
-						    (assert-test (equal 12 y))
-						    (assert-test (equal 12 z))
-						    :here)))))
-		    '(:x :y :z))
+    (map-permutations (lambda (perm)
+			(assert-test (equal :here
+					    (destructuring-case (mapcan (lambda (key)
+									  (list key 12))
+									perm)
+					      ((&key (x 1) (y 1) (z 1))
+					       (declare (type fixnum x y z))
+					       (assert-test (equal 12 x))
+					       (assert-test (equal 12 y))
+					       (assert-test (equal 12 z))
+					       :here)))))
+		      '(:x :y :z))
 
-  (rte::map-permutations (lambda (perm)
-			   (assert-test (equal :here
-					       (destructuring-case (mapcan (lambda (key)
-									     (list key 12))
-									   perm)
-						 ((&key (x 1) (y 1) (z 1) &allow-other-keys)
-						  (declare (type fixnum x y z))
-						  (assert-test (equal 12 x))
-						  (assert-test (equal 12 y))
-						  (assert-test (equal 12 z))
-						  :here)))))
+  (map-permutations (lambda (perm)
+		      (assert-test (equal :here
+					  (destructuring-case (mapcan (lambda (key)
+									(list key 12))
+								      perm)
+					    ((&key (x 1) (y 1) (z 1) &allow-other-keys)
+					     (declare (type fixnum x y z))
+					     (assert-test (equal 12 x))
+					     (assert-test (equal 12 y))
+					     (assert-test (equal 12 z))
+					     :here)))))
 		    '(:w :x :y :z)))
 
 (define-test test/destructuring-case-9
@@ -393,7 +426,7 @@
 				  :test #'equal)))
 								 
 (define-test test/destructuring-methods
-  (assert-true (= 6 (rte:destructuring-methods '(1 2 3) (:call-next-method cnm)
+  (assert-true (= 6 (destructuring-methods '(1 2 3) (:call-next-method cnm)
 		      ((a b c)
 		       (declare (type number a b c)
 				(ignore a b c))
@@ -402,7 +435,7 @@
 		       (declare (type fixnum a b c)
 				(ignore a b c))
 		       3))))
-  (assert-error 'error (rte:destructuring-methods '(1 2 3) (:call-next-method cnm)
+  (assert-error 'error (destructuring-methods '(1 2 3) (:call-next-method cnm)
 			 ((a b)
 			  (declare (ignore a b))
 			  1)
@@ -477,7 +510,7 @@
 ))
        
 (defun test-graph-2keys ()
-  (let ((pattern (rte::destructuring-lambda-list-to-rte
+  (let ((pattern (destructuring-lambda-list-to-rte
 		  '(&key (x t) (y "") &allow-other-keys)
 		  :type-specifiers
 		  (gather-type-declarations
@@ -485,11 +518,11 @@
 		      (type string y)))))))
     (format t "~S~%" pattern)
     (ndfa::ndfa-to-dot
-     (rte::make-state-machine pattern)
+     (make-state-machine pattern)
      #p"/tmp/dfa2.png" :state-legend nil)))
 
 (defun test-graph-3keys ()
-  (let ((pattern (rte::destructuring-lambda-list-to-rte
+  (let ((pattern (destructuring-lambda-list-to-rte
 		  '(&whole llist a (b c)
 		    &rest keys
 		    &key (x t) (y "") (z 12) ;; &allow-other-keys
@@ -502,7 +535,7 @@
 		      (type fixnum z)))))))
     (format t "~S~%" pattern)
     (ndfa::ndfa-to-dot 
-     (rte::make-state-machine pattern)
+     (make-state-machine pattern)
      #p"/tmp/dfa3.png"
      :transition-abrevs '((t t1)
 			  (list t2)
@@ -544,7 +577,7 @@
 		   (:cat (:* (not (eql :z)) t) (:? (eql :z) fixnum (:* t))))))
     (format t "~S~%" pattern)
     (ndfa::ndfa-to-dot 
-     (rte::make-state-machine pattern)
+     (make-state-machine pattern)
      #p"/tmp/dfa3.png"
      :transition-abrevs '((t t1)
 			  (list t2)
@@ -582,7 +615,7 @@
 			   (:cat (:* (not (eql :z)) t) (:? (eql :z) fixnum (:* t))))))))
     (format t "~S~%" pattern)
     (ndfa::ndfa-to-dot 
-     (rte::make-state-machine pattern)
+     (make-state-machine pattern)
      #p"/tmp/dfa4.png"
      :transition-abrevs '((t t1)
 			  (list t2)
@@ -608,11 +641,11 @@
      :transition-legend t
      :state-legend nil)))
 
-(defun test-graph-3keys-d (pattern)
+(defun test-graph-3keys-d (pattern &key (file #p"/tmp/dfa4.png"))
   (format t "~S~%" pattern)
   (ndfa::ndfa-to-dot 
-   (rte::prune (rte::make-state-machine pattern))
-   #p"/tmp/dfa4.png"
-    :transition-legend t
+   (trim-state-machine (make-state-machine pattern))
+   file
+   :transition-legend t
    :state-legend t))
 

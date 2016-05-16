@@ -806,5 +806,5 @@ a valid regular type expression.
   (setf *type-functions* (make-hash-table)))
 
 (defun equivalent-patterns (rte1 rte2)
-  (and (null (get-final-states (prune (make-state-machine `(:and ,rte1 (:not ,rte2))))))
-       (null (get-final-states (prune (make-state-machine `(:and ,rte2 (:not ,rte1))))))))
+  (and (null (get-final-states (trim-state-machine (make-state-machine `(:and ,rte1 (:not ,rte2))))))
+       (null (get-final-states (trim-state-machine (make-state-machine `(:and ,rte2 (:not ,rte1))))))))
