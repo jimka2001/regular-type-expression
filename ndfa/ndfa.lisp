@@ -299,16 +299,26 @@ the ADD-STATE function."
 (defun trim-state-machine (dfa)
   "Remove all states from the state machine which have no path to a final state"
   (declare (type state-machine dfa))
-  (let ((buf (list nil)))
+  (let ((buf (list nil))
+	reverse-assoc)
     (dolist (f (get-final-states dfa))
       (tconc buf f))
 
+    ;; build an alist which maps a state to all the states which have a transition to it.
+    ;;   car --> target state
+    ;;   cdr --> list of states with a transition to target 
+    (dolist (state (states dfa))
+      (dolist (transition (transitions state))
+	(let ((target (next-state transition)))
+	  (if (assoc target reverse-assoc)
+	      (pushnew state (cdr (assoc target reverse-assoc)))
+	      (push (list target state) reverse-assoc)))))
+
     (dolist (target (car buf))
-      (dolist (before (states dfa))
+      (dolist (before (cdr (assoc target reverse-assoc)))
 	(unless (member before (car buf))
-	  (dolist (transition (transitions before))
-	    (when (eql target (next-state transition))
-	      (tconc buf before))))))
+	  (tconc buf before))))
+    
     (setf (states dfa)
 	  (intersection (states dfa) (car buf))
 
