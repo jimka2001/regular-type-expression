@@ -109,11 +109,11 @@ depend on the choice of F-... function given."
 	   ((:permute)
 	    (funcall f-permutations (cdr pattern)))
 	   ((type)
-	    (assert (null (cddr pattern)) nil "Invalid type: ~A" pattern)
+	    (assert (null (cddr pattern)) nil "Invalid type: ~S" pattern)
 	    (funcall f-type (cadr pattern)))
 	   (t
 	    (unless (valid-type-p pattern)
-	      (warn "Invalid type specifier ~A" pattern))
+	      (warn "Invalid type specifier ~S" pattern))
 	    (funcall f-type pattern))))))
 
 (defun cmp-objects (a b)
@@ -242,14 +242,18 @@ a fixed point is found."
 			    ((cons (eql :or))
 			     (cons :and (mapcar #'(lambda (p)
 						    (canonicalize-pattern (list :not p))) (cdr pattern))))
-			    ((cons (eql :0-*) (cons (eql t) null)) ;; (:not (:0-* t)) --> :empty-set
+			    ((cons (member :0-* :*) (cons (eql t) null)) ;; (:not (:0-* t)) --> :empty-set
 			     :empty-set)
 			    ((eql :empty-word) ;; (:not :empty-word) --> (:+ t)
 			      '(:+ t))
 			    ((eql :empty-set) ;; (:not :empty-set) --> (:* t)
 			     '(:* t))
+			    ((cons keyword)
+			     (cons :not (mapcar #'canonicalize-pattern patterns)))
 			    (t
-			     (cons :not (mapcar #'canonicalize-pattern patterns)))))
+			     `(:or :empty-word
+				   (not ,@patterns)
+				   (:cat t t (:0-* t))))))
 	       :f-or #'(lambda (patterns)
 			 (let ((sub-or (setof s patterns
 					      (and (listp s)

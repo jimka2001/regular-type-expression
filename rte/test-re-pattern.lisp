@@ -682,20 +682,59 @@
 
 
 (define-test test/equivalent-patterns
-  (assert-true (rte::equivalent-patterns '(:or string number)
-					 '(:or string number float)))
-  (assert-false (rte::equivalent-patterns '(:or string number)
-					  '(:or string symbol)))
+  (assert-true (equivalent-patterns '(:or string number)
+				    '(:or string number float)))
+  (assert-false (equivalent-patterns '(:or string number)
+				     '(:or string symbol)))
 
-  (assert-true (rte::equivalent-patterns '(:AND (:* T)
-					   (:CAT (:CAT (:AND LIST (RTE (:CAT T T))) T) (:CAT (:|0-1| T))
-					    (:AND (:AND LIST (RTE (:CAT T T T T)))
-					     (:AND (:* (MEMBER :Y :X) T)
-					      (:CAT (:* (NOT (EQL :X)) T) (:? (EQL :X) T (:* T)))
-					      (:CAT (:* (NOT (EQL :Y)) T) (:? (EQL :Y) T (:* T)))))))
+  (assert-true (equivalent-patterns '(:AND (:* T)
+				      (:CAT (:CAT (:AND LIST (RTE (:CAT T T))) T) (:CAT (:|0-1| T))
+				       (:AND (:AND LIST (RTE (:CAT T T T T)))
+					(:AND (:* (MEMBER :Y :X) T)
+					 (:CAT (:* (NOT (EQL :X)) T) (:? (EQL :X) T (:* T)))
+					 (:CAT (:* (NOT (EQL :Y)) T) (:? (EQL :Y) T (:* T)))))))
 
-					 '(:CAT (:CAT (:AND LIST (RTE (:CAT T T))) T) (:CAT (:|0-1| T))
-					   (:AND (:AND LIST (RTE (:CAT T T T T)))
-					    (:AND (:* (MEMBER :Y :X) T)
-					     (:CAT (:* (NOT (EQL :X)) T) (:? (EQL :X) T (:* T)))
-					     (:CAT (:* (NOT (EQL :Y)) T) (:? (EQL :Y) T (:* T)))))))))
+				    '(:CAT (:CAT (:AND LIST (RTE (:CAT T T))) T) (:CAT (:|0-1| T))
+				      (:AND (:AND LIST (RTE (:CAT T T T T)))
+				       (:AND (:* (MEMBER :Y :X) T)
+					(:CAT (:* (NOT (EQL :X)) T) (:? (EQL :X) T (:* T)))
+					(:CAT (:* (NOT (EQL :Y)) T) (:? (EQL :Y) T (:* T))))))))
+
+  (assert-true (equivalent-patterns '(:* t)
+				    '(:or number
+				      (:not number))))
+
+  (assert-true (equivalent-patterns ':empty-set
+				    '(:and number
+				      (:not number))))
+
+  (dolist (pattern '(number
+		     (:cat number number)
+		     (:cat (:* number) string)
+		     (:cat (:or number string) (:+ fixnum))
+		     (:not (:+ number))
+		     (:cat number (:not (:+ number)))
+		     (:cat (:and (:+ float) (:* number)) string)))
+    (assert-true (equivalent-patterns :empty-set
+				      `(:and ,pattern (:not ,pattern))))
+    (assert-true (equivalent-patterns :empty-set
+				      `(:and (:not ,pattern) ,pattern)))
+    (assert-true (equivalent-patterns `(:and ,pattern (:not ,pattern))
+				      :empty-set))
+    (assert-true (equivalent-patterns `(:and (:not ,pattern) ,pattern)
+				      :empty-set))
+    
+    (assert-true (equivalent-patterns '(:* t)
+				      `(:or ,pattern (:not ,pattern))))
+    (assert-true (equivalent-patterns '(:* t)
+				      `(:or (:not ,pattern) ,pattern)))
+    (assert-true (equivalent-patterns `(:or ,pattern (:not ,pattern))
+				      '(:* t)))
+    (assert-true (equivalent-patterns `(:or (:not ,pattern) ,pattern)
+				      '(:* t)))
+    
+    )
+
+  
+  )
+
