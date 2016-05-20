@@ -59,6 +59,18 @@
 	(:? (eql :y) string (:* (not (eql    :x))    t))
 	(:? (eql :x) symbol (:* t t))))))))
 
+(define-test test/destructuring-lambda-list-to-rte-3
+  (let ((rte-float (destructuring-lambda-list-to-rte
+	       '(arg1)
+	       :type-specifiers (gather-type-declarations '((declare (type float arg1))))))
+	(rte-number (destructuring-lambda-list-to-rte
+	       '(arg2)
+	       :type-specifiers (gather-type-declarations '((declare (type number arg2)))))))
+    (assert-true (equivalent-patterns `(:and ,rte-float (:not ,rte-number)) :empty-set))
+    (assert-true (equivalent-patterns `(:and (:not ,rte-number) ,rte-float) :empty-set))
+    (assert-false (equivalent-patterns `(:and ,rte-number (:not ,rte-float)) :empty-set))
+    (assert-false (equivalent-patterns `(:and (:not ,rte-float) ,rte-number) :empty-set))))
+
 
 (define-test test/destructuring-case-5
   (destructuring-bind (u v &key x ((:y (y1 y2)) '(nil nil))) '(1 2 :x 3 :y (4 5))
@@ -409,6 +421,24 @@
 			((name &key (count 42))
 			 (declare (type fixnum count))
 			 (list 2 name count))))))
+
+(define-test test/destructuring-case-17
+  (let ((expanded (macroexpand-1 '(destructuring-case x
+				   ((arg1)
+				    (declare (type number arg1))
+				    (list arg1))
+				   ((arg1)
+				    (declare (type float arg1))
+				    (list arg1))))))
+    (destructuring-bind (_ignore _ignore ; let arglist
+				 (_ignore _ignore ; typecase var
+					  _ignore ; case1
+					  _ignore ; case2
+				  (type3 &rest _ignore ))) expanded
+      (declare (ignore _ignore))
+      (assert-false (reduce-lisp-type type3)))))
+      
+
 		    
 
 (define-test test/gather-type-declarations
@@ -478,6 +508,168 @@
 	 (assert-true (eq nil z))
 	 (assert-false (null keys))
 	 llist))))))
+
+(define-test test/destructuring-lambda-list-to-rte-optional-rest
+  ;; this test excercises many combinations of &optional &rest &key &allow-other-keys
+  
+  ;; &rest
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&rest others))
+				    '(:* t)))
+  ;; &key
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&key))
+				    :empty-word))
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&key &allow-other-keys))
+				    '(:* keyword t)))
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&key a)
+								      :type-specifiers '((a integer)))
+				    '(:? (eql :a) integer (:* (eql :a) t))))
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&key a b)
+								      :type-specifiers '((a integer) (b string)))
+				    '(:and (:* (member :a :b) t) ; don't allow other keys
+				      (:cat (:* (not (eql :a)) t) (:? (eql :a) integer (:* t)))
+				      (:cat (:* (not (eql :b)) t) (:? (eql :b) string  (:* t))))))
+  
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&key a b &allow-other-keys)
+								      :type-specifiers '((a integer) (b string)))
+				    '(:and (:* keyword t) ; do allow other keys
+				      (:cat (:* (not (eql :a)) t) (:? (eql :a) integer (:* t)))
+				      (:cat (:* (not (eql :b)) t) (:? (eql :b) string  (:* t))))))
+  
+  ;; &rest &key
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&rest r &key a b )
+								      :type-specifiers '((r cons) (a integer) (b string)))
+				    '(:and (:+ t)
+				      (:* (member :a :b) t) ; do not allow other keys
+				      (:cat (:* (not (eql :a)) t) (:? (eql :a) integer (:* t)))
+				      (:cat (:* (not (eql :b)) t) (:? (eql :b) string  (:* t))))))
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&rest r &key a b &allow-other-keys)
+								      :type-specifiers '((r cons) (a integer) (b string)))
+				    '(:and (:+ t)
+				      (:* keyword t) ; do allow other keys
+				      (:cat (:* (not (eql :a)) t) (:? (eql :a) integer (:* t)))
+				      (:cat (:* (not (eql :b)) t) (:? (eql :b) string  (:* t))))))
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&rest r &key )
+								      :type-specifiers '((r list)))
+				    ':empty-word ; do not allow other keys
+				    ))
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&rest r &key &allow-other-keys)
+								      :type-specifiers '((r cons))) ;; not yet working
+				    '(:and (:+ t)
+				      (:* keyword t) ; do allow other keys
+				      )))
+  
+  ;; &optional
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&optional))
+				    :empty-word))
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&optional a))
+				    '(:? t)))
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&optional a)
+								      :type-specifiers '((a integer)))
+				    '(:? integer)))
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&optional a b)
+								      :type-specifiers '((a integer) (b string)))
+				    '(:? integer (:? string))))
+  
+  ;; &optional &key
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&optional &key))
+				    :empty-word))
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&optional a &key))
+				    '(:? t)))
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&optional a &key)
+								      :type-specifiers '((a integer) (b string)))
+				    '(:? integer)))
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&optional a b &key)
+								      :type-specifiers '((a integer) (b string)))
+				    '(:? integer (:? string))))
+  
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&optional &key a)
+								      :type-specifiers '((a integer) (b string)))
+				    '(:and (:* (eql :a) t)
+				      (:cat (:* (not (eql :a)) t) (:? (eql :a) integer (:* t))))))
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&optional &key a &allow-other-keys)
+								      :type-specifiers '((a integer) (b string)))
+				    '(:and (:* keyword t)
+				      (:cat (:* (not (eql :a)) t) (:? (eql :a) integer (:* t))))))
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&optional a &key b)
+								      :type-specifiers '((a integer) (b string)))
+				    '(:? integer (:and (:* (eql :b) t)
+						  (:? (eql :b) string (:* t))))))
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&optional a &key b c &allow-other-keys)
+								      :type-specifiers '((a integer) (b string) (c list)))
+				    '(:? integer (:and (:* keyword t)
+						  (:cat (:* (not (eql :b)) t) (:? (eql :b) string (:* t)))
+						  (:cat (:* (not (eql :c)) t) (:? (eql :c) list (:* t)))))))
+  
+  ;; &optional &rest
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&optional &rest others))
+				    '(:* t)))
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&optional a &rest others)
+								      :type-specifiers '((a integer)))
+				    '(:or :empty-word
+				      (:cat integer (:* t)))))
+
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&optional a b &rest others)
+								      :type-specifiers '((a integer)
+											 (b string)))
+				    '(:or :empty-word
+				      integer
+				      (:cat integer string (:* t)))))
+
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&optional a b c &rest others)
+								      :type-specifiers '((a integer)
+											 (b string)
+											 (c list)))
+				    '(:or :empty-word
+				      integer
+				      (:cat integer string)
+				      (:cat integer string list (:* t)))))
+
+  ;; &optional &rest &key
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&optional &rest r &key))
+				    :empty-word))
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&optional &rest r &key &allow-other-keys))
+				    '(:* keyword t)))
+  
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&optional a &rest r &key b c)
+								      :type-specifiers '((a integer)
+											 (b string)
+											 (c list)))
+				    '(:? integer
+				      (:and (:* (member :b :c) t)
+				       (:cat (:* (not (eql :b)) t) (:? (eql :b) string (:* t)))
+				       (:cat (:* (not (eql :c)) t) (:? (eql :c) list (:* t)))))))
+
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&optional a &rest r &key b c)
+								      :type-specifiers '((a integer)
+											 (b string)
+											 (c list)
+											 (r cons)))
+				    '(:? integer
+				      (:and (:+ t)
+				       (:* (member :b :c) t)
+				       (:cat (:* (not (eql :b)) t) (:? (eql :b) string (:* t)))
+				       (:cat (:* (not (eql :c)) t) (:? (eql :c) list (:* t)))))))
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&optional a &rest r &key b c &allow-other-keys)
+								      :type-specifiers '((a integer)
+											 (b string)
+											 (c list)))
+				    '(:? integer
+				      (:and (:* keyword t)
+				       (:cat (:* (not (eql :b)) t) (:? (eql :b) string (:* t)))
+				       (:cat (:* (not (eql :c)) t) (:? (eql :c) list (:* t)))))))
+
+  (assert-true (equivalent-patterns (destructuring-lambda-list-to-rte '(&optional a &rest r &key b c &allow-other-keys)
+								      :type-specifiers '((a integer)
+											 (b string)
+											 (c list)
+											 (r cons)))
+				    '(:? integer
+				      (:and (:+ t)
+				       (:* keyword t)
+				       (:cat (:* (not (eql :b)) t) (:? (eql :b) string (:* t)))
+				       (:cat (:* (not (eql :c)) t) (:? (eql :c) list (:* t)))))))
+
+  )
 
 (define-test test/destructuring-case-allow-other-keys-2
   (let ((data '(1 (2 3)
@@ -641,10 +833,12 @@
      :transition-legend t
      :state-legend nil)))
 
-(defun test-graph-3keys-d (pattern &key (file #p"/tmp/dfa4.png"))
+(defun test-graph-3keys-d (pattern &key (file #p"/tmp/dfa4.png") (trim t))
   (format t "~S~%" pattern)
   (ndfa::ndfa-to-dot 
-   (trim-state-machine (make-state-machine pattern))
+   (if trim
+       (trim-state-machine (make-state-machine pattern))
+       (make-state-machine pattern))
    file
    :transition-legend t
    :state-legend t))

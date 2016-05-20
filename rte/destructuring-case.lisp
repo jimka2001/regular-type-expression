@@ -124,10 +124,14 @@ Not supporting this syntax -> (wholevar reqvars optvars . var) "
 	req-pattern
 	rest-pattern
 	key-pattern
-	rest-key-pattern
-	(optional-pattern '(:cat)))
+	optional-types
+	tail-pattern)
 
-    (labels ((get-var-type (var)
+    (labels ((stack-optional (types base)
+	       (if (null types)
+		   base
+		   (list :? (car types) (stack-optional (cdr types) base))))
+	     (get-var-type (var)
 	       (cadr (assoc var type-specifiers)))
 	     (recursive-pattern-var (var &key (symbol-pattern t))
 	       (typecase var
@@ -174,24 +178,30 @@ Not supporting this syntax -> (wholevar reqvars optvars . var) "
       (when (eql '&optional (car lambda-list))
 	(pop ll-keywords)	    ; pop &optional off of ll-keywords
 	(pop lambda-list)           ; pop &optional off the lambda-list
-	(setf optional-pattern (cons :cat
-				     (loop :while (and lambda-list
-						       (not (member (car lambda-list) ll-keywords)))
-					   :collect (prog1 (list :0-1 (recursive-pattern-var-val (car lambda-list)))
-						      (pop lambda-list))))))
+	(setf optional-types (loop :while (and lambda-list
+					       (not (member (car lambda-list) ll-keywords)))
+				   :collect (prog1 (recursive-pattern-var-val (car lambda-list))
+					      (pop lambda-list)))))
 
       ;; restvar
       ;; restvar::= [{&rest | &body} var] 
       (when (member (car lambda-list) '(&rest &body))
 	(pop lambda-list)		; pop off the &rest | &body
-	(setf rest-pattern (if (listp (car lambda-list))
-			       (recursive-pattern-var (car lambda-list) :symbol-pattern '(:* t))
-			       '(:* t)))
+	(setf rest-pattern (cond
+			     ((listp (car lambda-list))
+			      (recursive-pattern-var (car lambda-list) :symbol-pattern '(:* t)))
+			     ((member (recursive-pattern-var-val (car lambda-list)) '(list t))
+			      '(:* t))
+			     ((eq 'cons (recursive-pattern-var-val (car lambda-list)))
+			      '(:+ t))
+			     (t
+			      (error "unable to convert &rest ~A with declared type ~A to RTE"
+				     (car lambda-list) (recursive-pattern-var-val (car lambda-list))))))
 	(pop lambda-list)		; pop off the var,
 	(pop ll-keywords)		; pop &rest
 	(pop ll-keywords)		; pop &body
 	)
-    
+
       ;; keyvars
       ;; keyvars::= [&key {var | ({var | (keyword-name var)} [init-form [supplied-p-parameter]])}* 
       ;;             [&allow-other-keys]]
@@ -269,15 +279,30 @@ Not supporting this syntax -> (wholevar reqvars optvars . var) "
 			 ,@patt-per-key)))))
 
       
-      (setf rest-key-pattern (cond
-			       ((and rest-pattern key-pattern)
-				`(:and ,rest-pattern ,key-pattern))
-			       (rest-pattern
-				rest-pattern)
-			       (key-pattern
-				key-pattern)
-			       (t
-				'(:cat))))
+      (setf tail-pattern (cond
+			   ((and optional-types rest-pattern key-pattern)
+			    ;; &optional &rest &key
+			    (stack-optional optional-types `(:and ,rest-pattern ,key-pattern)))
+			   ((and optional-types rest-pattern (not key-pattern))
+			    ;; &optional &rest
+			    (stack-optional optional-types rest-pattern))
+			   ((and optional-types (not rest-pattern) key-pattern)
+			    ;; &optional &key
+			    (stack-optional  optional-types key-pattern))
+			   ((and optional-types (not rest-pattern) (not key-pattern))
+			    ;; &optional
+			    (stack-optional optional-types :empty-word))
+			   ((and (not optional-types) rest-pattern key-pattern)
+			    ;; &rest &key
+			    `(:and ,rest-pattern ,key-pattern))
+			   ((and (not optional-types) rest-pattern (not key-pattern))
+			    ;; &rest
+			    rest-pattern)
+			   ((and (not optional-types) (not rest-pattern) key-pattern)
+			    ;; &key
+			    key-pattern)
+			   ((and (not optional-types) (not rest-pattern) (not key-pattern))
+			    ':empty-word)))
 
       (pop ll-keywords)			; pop off &key
       (pop ll-keywords)			; pop off &allow-other-keys
@@ -285,6 +310,8 @@ Not supporting this syntax -> (wholevar reqvars optvars . var) "
       ;; auxvars
       ;; auxvars::= [&aux {var | (var [init-form])}*]     
       (when (eql '&aux (car lambda-list))
+	;; We only parse the &aux section so that we can check for errors.  If there's something
+	;; trailing the &aux section, we trigger an error below.
 	(pop lambda-list)	   ; pop off the &aux from lambda-list
 	(loop :while lambda-list
 	      :for var = (pop lambda-list) ;; update every time through the loop
@@ -304,18 +331,25 @@ Not supporting this syntax -> (wholevar reqvars optvars . var) "
 	  (error "lambda list ~A not parsed correctly: suspicious tail is ~A" copy-lambda-list lambda-list)
 	  `(:and ,whole-pattern
 		 (:cat ,req-pattern
-		       ,optional-pattern
-		       ,rest-key-pattern))))))
+		       ,tail-pattern))))))
 
 (defun expand-destructuring-case (object-form clauses)
-  (let ((object (gensym)))
+  (let ((object (gensym))
+	previous-anti-patterns)
     (flet ((transform-clause (clause)
 	     (destructuring-bind (lambda-list &rest body) clause
-	       (let ((pattern (destructuring-lambda-list-to-rte lambda-list
-								:type-specifiers (gather-type-declarations body))))
-		 `((rte  ,(canonicalize-pattern pattern))
-		   (destructuring-bind ,lambda-list ,object
-		     ,@body))))))
+	       (let* ((pattern (canonicalize-pattern (destructuring-lambda-list-to-rte
+						     lambda-list
+						     :type-specifiers (gather-type-declarations body))))
+		      (derived-pattern `(:and ,pattern ,@previous-anti-patterns))
+		      (used-type (if (equivalent-patterns :empty-set
+							  derived-pattern)
+				     `(and nil (rte ,derived-pattern))
+				     `(rte ,pattern))))
+		 (prog1 `(,used-type
+			  (destructuring-bind ,lambda-list ,object
+			    ,@body))
+		   (push `(:not ,pattern) previous-anti-patterns))))))
       `(let ((,object ,object-form))
 	 (typecase ,object
 	   ((not list) nil)
@@ -323,6 +357,47 @@ Not supporting this syntax -> (wholevar reqvars optvars . var) "
 
 (defmacro destructuring-case (object-form &body clauses)
   (expand-destructuring-case object-form clauses))
+
+
+;; (defun foo (x)
+;;   (destructuring-case x
+;;     ((arg1)
+;;      (declare (type float arg1))
+;;      (list arg1))
+;;     ((arg1)
+;;      (declare (type number arg1))
+;;      (list arg1))
+;;     ((arg1)
+;;      (declare (type string arg1))
+;;      (list arg1)))
+
+;;   (destructuring-case x
+;;     ((arg1)
+;;      (declare (type number arg1))
+;;      (list arg1))
+;;     ((arg1)
+;;      (declare (type float arg1))
+;;      (list arg1))
+;;     ((arg1)
+;;      (declare (type string arg1))
+;;      (list arg1)))
+
+;;   (destructuring-case x
+;;     ((&optional (arg1 0.0))
+;;      (declare (type float arg1))
+;;      (list arg1 43))
+;;     ((&optional (arg1 0))
+;;      (declare (type number arg1))
+;;      (list arg1 42)))
+  
+  
+;;   (destructuring-case x
+;;     ((&optional (arg1 0.0) &rest args)
+;;      (declare (type float arg1))
+;;      (list arg1 args 43))
+;;     ((&optional (arg1 0) &rest args)
+;;      (declare (type number arg1))
+;;      (list arg1 args 42))))
 
 
 (defun expand-destructuring-methods (object-form clauses call-next-method)

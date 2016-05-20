@@ -203,29 +203,29 @@
 
 (define-test type/remove-redundant-types-2
     ;; canot remove any redundant if one of the types is not a valid lisp type
-    (assert-true (equal (rte::remove-redundant-types '(t (:cat t t)) :and)
+    (assert-true (equal (remove-redundant-types '(t (:cat t t)) :and)
 			'(t (:cat t t))))
-    (assert-true (equal (rte::remove-redundant-types '((:cat t t) t) :and)
+    (assert-true (equal (remove-redundant-types '((:cat t t) t) :and)
 			'((:cat t t) t)))
-    (assert-true (equal (rte::remove-redundant-types '(t (:cat t t)) :or)
+    (assert-true (equal (remove-redundant-types '(t (:cat t t)) :or)
 			'(t (:cat t t))))
-    (assert-true (equal (rte::remove-redundant-types '((:cat t t) t) :or)
+    (assert-true (equal (remove-redundant-types '((:cat t t) t) :or)
 			'((:cat t t) t))))
 
 (define-test type/remove-redundant-types
   (assert-true (equal '((integer 0 1))
-		      (rte::remove-redundant-types '(integer (integer 0 1) (integer 0 3) number)
+		      (remove-redundant-types '(integer (integer 0 1) (integer 0 3) number)
 						   :and)))
   (assert-true (equal '(number)
-		      (rte::remove-redundant-types '(integer (integer 0 1) (integer 0 3) number)
+		      (remove-redundant-types '(integer (integer 0 1) (integer 0 3) number)
 						   :or)))
   (assert-true (equal '(integer float)
-		      (rte::remove-redundant-types '(integer (integer 0) (integer 0 5) float (float 0.0) (float 0.0 100.0))
+		      (remove-redundant-types '(integer (integer 0) (integer 0 5) float (float 0.0) (float 0.0 100.0))
 						   :or))))
 
 (define-test type/alphabetize
-  (assert-true (equal '(float number string) (rte::alphabetize '(number float string))))
-  (assert-true (equal (rte::alphabetize '(number (number 10 12) (number 2 5) (number 6) float))
+  (assert-true (equal '(float number string) (alphabetize '(number float string))))
+  (assert-true (equal (alphabetize '(number (number 10 12) (number 2 5) (number 6) float))
 		      '(float number (number 2 5) (number 6) (number 10 12)))))
 
 (define-test type/canonicalize-pattern
@@ -286,21 +286,21 @@
 
 
 (define-test type/traverse-pattern
-  (assert-true (equal :empty-word (rte::traverse-pattern :empty-word :client #'identity)))
-  (assert-true (equal :empty-set (rte::traverse-pattern :empty-set :client #'identity)))
-  (assert-true (equal 'float (rte::traverse-pattern 'float :client #'identity)))
+  (assert-true (equal :empty-word (traverse-pattern :empty-word :client #'identity)))
+  (assert-true (equal :empty-set (traverse-pattern :empty-set :client #'identity)))
+  (assert-true (equal 'float (traverse-pattern 'float :client #'identity)))
 
-  (assert-true (equal '(:or float number) (rte::traverse-pattern '(:or float number) :client #'identity)))
-  (assert-true (equal '(:and float number) (rte::traverse-pattern '(:and float number) :client #'identity)))
-  (assert-true (equal '(:cat float number) (rte::traverse-pattern '(:cat float number) :client #'identity)))
+  (assert-true (equal '(:or float number) (traverse-pattern '(:or float number) :client #'identity)))
+  (assert-true (equal '(:and float number) (traverse-pattern '(:and float number) :client #'identity)))
+  (assert-true (equal '(:cat float number) (traverse-pattern '(:cat float number) :client #'identity)))
 
-  (assert-true (equal '(:0-* float number) (rte::traverse-pattern '(:0-* float number) :client #'identity)))
+  (assert-true (equal '(:0-* float number) (traverse-pattern '(:0-* float number) :client #'identity)))
 
-  (assert-true (equal '(:0-* float number) (rte::traverse-pattern '(:0-* float number) :f-type #'identity))))
+  (assert-true (equal '(:0-* float number) (traverse-pattern '(:0-* float number) :f-type #'identity))))
 
 (define-test type/first-types
   (assert-false (set-exclusive-or '(float)
-				  (rte::first-types '(:cat float
+				  (first-types '(:cat float
 						      integer
 						      (:0-* symbol (:0-* number) symbol)
 						      integer
@@ -308,77 +308,77 @@
 						      (rte (:0-1 symbol))))
 				  :test #'equal))
   (assert-false (set-exclusive-or '((integer 0 1) (integer 2 9))
-				  (rte::first-types '(:cat (:0-* (integer 0 1))
+				  (first-types '(:cat (:0-* (integer 0 1))
 						      (integer 2 9)))
 				  :test #'equal))
   )
 
 (define-test type/equivalent-types-p
-  (assert-true (rte::equivalent-types-p '(member 1 2 3) '(or (eql 1) (eql 2) (eql 3)))))
+  (assert-true (equivalent-types-p '(member 1 2 3) '(or (eql 1) (eql 2) (eql 3)))))
 
 (define-test type/nullable
-  (assert-false (rte::nullable :empty-set))
-  (assert-true  (rte::nullable :empty-word))
-  (assert-false (rte::nullable 'float))
-  (assert-false (rte::nullable '(integer 1 3)))
-  (assert-true  (rte::nullable '(:cat (:0-1 number) (:0-1 string) (:0-* float) :empty-word)))
-  (assert-true  (rte::nullable '(:0-* number)))
-  (assert-false (rte::nullable '(:1-* number)))
-  (assert-true  (rte::nullable '(:0-1 number)))
-  (assert-true  (rte::nullable '(:and (:0-1 number)
+  (assert-false (nullable :empty-set))
+  (assert-true  (nullable :empty-word))
+  (assert-false (nullable 'float))
+  (assert-false (nullable '(integer 1 3)))
+  (assert-true  (nullable '(:cat (:0-1 number) (:0-1 string) (:0-* float) :empty-word)))
+  (assert-true  (nullable '(:0-* number)))
+  (assert-false (nullable '(:1-* number)))
+  (assert-true  (nullable '(:0-1 number)))
+  (assert-true  (nullable '(:and (:0-1 number)
 				 (:0-* number))))
-  (assert-false (rte::nullable '(:and (:0-1 number)
+  (assert-false (nullable '(:and (:0-1 number)
 				 (:1-* number))))
-  (assert-true  (rte::nullable '(:or (:0-1 number)
+  (assert-true  (nullable '(:or (:0-1 number)
 				 (:1-* number))))
-  (assert-true  (rte::nullable '(:or (:0-1 string)
+  (assert-true  (nullable '(:or (:0-1 string)
 				 (:0-* number))))
-  (assert-false (rte::nullable '(:or string
+  (assert-false (nullable '(:or string
 				 (:1-* number)))))
   
 
 (define-test type/derivative
 
   ;; trivial cases
-  (assert-true (rte::derivative 'float 'float))
-  (assert-true (equal :empty-word (rte::derivative 'float 'float)))
-  (assert-true (equal :empty-set  (rte::derivative :empty-word 'float)))
-  (assert-true (equal :empty-set  (rte::derivative 'float 'string)))
-  (assert-true (equal :empty-set  (rte::derivative :empty-set 'float)))
+  (assert-true (derivative 'float 'float))
+  (assert-true (equal :empty-word (derivative 'float 'float)))
+  (assert-true (equal :empty-set  (derivative :empty-word 'float)))
+  (assert-true (equal :empty-set  (derivative 'float 'string)))
+  (assert-true (equal :empty-set  (derivative :empty-set 'float)))
 
   ;; or/and
 
-  (assert-true (equal :empty-word (rte::derivative '(:or float float) 'float)))
-  (assert-true (equal :empty-word (rte::derivative '(:and float float) 'float)))
-  (assert-true (equal :empty-word (rte::derivative '(:or  float string) 'float)))
-  (assert-true (equal :empty-word (rte::derivative '(:or  float string) 'string)))
+  (assert-true (equal :empty-word (derivative '(:or float float) 'float)))
+  (assert-true (equal :empty-word (derivative '(:and float float) 'float)))
+  (assert-true (equal :empty-word (derivative '(:or  float string) 'float)))
+  (assert-true (equal :empty-word (derivative '(:or  float string) 'string)))
 
 
   (assert-true (equal :empty-word
-		      (rte::derivative '(:cat float) 'float)))
+		      (derivative '(:cat float) 'float)))
   (assert-true (equal 'string
-		      (rte::derivative '(:cat float string) 'float)))
+		      (derivative '(:cat float string) 'float)))
   (assert-true (equal '(:0-* string)
-		      (rte::derivative '(:cat float (:0-* string)) 'float)))
-  (assert-true (rte::equivalent-patterns '(:0-* (:or float string))
-					 (rte::derivative '(:cat float (:0-* (:or string float))) 'float)))
+		      (derivative '(:cat float (:0-* string)) 'float)))
+  (assert-true (equivalent-patterns '(:0-* (:or float string))
+					 (derivative '(:cat float (:0-* (:or string float))) 'float)))
     
-  (assert-true (rte::equivalent-patterns '(:0-* float)
-					 (rte::derivative '(:0-* float) 'float)))
+  (assert-true (equivalent-patterns '(:0-* float)
+					 (derivative '(:0-* float) 'float)))
 
-  (assert-true (rte::equivalent-patterns '(:0-* float)
-					 (rte::derivative '(:1-* float) 'float)))
+  (assert-true (equivalent-patterns '(:0-* float)
+					 (derivative '(:1-* float) 'float)))
 
-  (assert-true (rte::equivalent-patterns '(:or (:cat (:0-* float) (:or float string))  :empty-word)
-					 (rte::derivative '(:cat (:0-* float) (:or string float)) 'float)))
-  (assert-true (rte::equivalent-patterns '(:or (:cat (:0-* float) (:0-* (:or float string)))
+  (assert-true (equivalent-patterns '(:or (:cat (:0-* float) (:or float string))  :empty-word)
+					 (derivative '(:cat (:0-* float) (:or string float)) 'float)))
+  (assert-true (equivalent-patterns '(:or (:cat (:0-* float) (:0-* (:or float string)))
 					   (:0-* (:or float string)))
-					 (rte::derivative '(:cat (:0-* float) (:0-* (:or string float))) 'float)))
+					 (derivative '(:cat (:0-* float) (:0-* (:or string float))) 'float)))
 
   )
 
 (define-test type/derivative-2
-  (assert-true (rte::equivalent-patterns (rte::derivative '(:OR
+  (assert-true (equivalent-patterns (derivative '(:OR
 							    (:CAT (:OR (:CAT (EQL :X) T)
 								   :EMPTY-WORD)
 							     (:OR (:CAT (EQL :Y) T)
@@ -388,12 +388,12 @@
 							     (:OR (:CAT (EQL :X) T)
 							      :EMPTY-WORD)))
 							  '(eql :y))
-					 `(:or ,(rte::derivative '(:CAT (:OR (:CAT (EQL :X) T)
+					 `(:or ,(derivative '(:CAT (:OR (:CAT (EQL :X) T)
 									 :EMPTY-WORD)
 								   (:OR (:CAT (EQL :Y) T)
 								    :EMPTY-WORD))
 								 '(eql :y))
-					       ,(rte::derivative '(:CAT (:OR (:CAT (EQL :Y) T)
+					       ,(derivative '(:CAT (:OR (:CAT (EQL :Y) T)
 									 :EMPTY-WORD)
 								   (:OR (:CAT (EQL :X) T)
 								    :EMPTY-WORD))
@@ -410,40 +410,40 @@
 	     :EMPTY-WORD))
 	(S '(:OR (:CAT (EQL :Y) T)
 	     :EMPTY-WORD)))
-    (assert-true (rte::nullable R))
+    (assert-true (nullable R))
     ;; RS/y
-    (assert-true (equal (rte::canonicalize-pattern (rte::derivative `(:cat ,R ,S)
+    (assert-true (equal (canonicalize-pattern (derivative `(:cat ,R ,S)
 								     '(eql :y)))
-			(rte::canonicalize-pattern `(:or (:cat ,(rte::derivative R '(eql :y)) ,S)
-							 ,(rte::derivative S '(eql :y))))))
-    (assert-true (rte::nullable R))
-    (assert-true (rte::nullable S))
-    (assert-true (rte::nullable `(:cat ,R ,S)))
-    (assert-true (rte::nullable `(:cat ,S ,R)))
+			(canonicalize-pattern `(:or (:cat ,(derivative R '(eql :y)) ,S)
+							 ,(derivative S '(eql :y))))))
+    (assert-true (nullable R))
+    (assert-true (nullable S))
+    (assert-true (nullable `(:cat ,R ,S)))
+    (assert-true (nullable `(:cat ,S ,R)))
     ;; RS/x
-    (assert-true (equal (rte::canonicalize-pattern (rte::derivative `(:cat ,R ,S) '(eql :x)))
-			(rte::canonicalize-pattern '(:cat t (:or :empty-word
+    (assert-true (equal (canonicalize-pattern (derivative `(:cat ,R ,S) '(eql :x)))
+			(canonicalize-pattern '(:cat t (:or :empty-word
 							     (:cat (eql :y) t))))))
     ;; RS/y
-    (assert-true (equal (rte::canonicalize-pattern (rte::derivative `(:cat ,R ,S)
+    (assert-true (equal (canonicalize-pattern (derivative `(:cat ,R ,S)
 								    '(eql :y)))
 			t))
     ;; SR/x
-    (assert-true (equal (rte::canonicalize-pattern (rte::derivative `(:cat ,S ,R) '(eql :x)))
+    (assert-true (equal (canonicalize-pattern (derivative `(:cat ,S ,R) '(eql :x)))
 			t))
     
     ;; SR/y
-    (assert-true (equal (rte::canonicalize-pattern (rte::derivative `(:cat ,S ,R) '(eql :y)))
-			(rte::canonicalize-pattern '(:cat t (:or :empty-word
+    (assert-true (equal (canonicalize-pattern (derivative `(:cat ,S ,R) '(eql :y)))
+			(canonicalize-pattern '(:cat t (:or :empty-word
 							     (:cat (eql :x) t))))))
 
     (assert-false (equal t
-			 (rte::canonicalize-pattern (rte::derivative `(:or (:cat ,R ,S)
+			 (canonicalize-pattern (derivative `(:or (:cat ,R ,S)
 									   (:cat ,S ,R))
 								     '(eql :x)))))
 
     (assert-false (equal t
-			 (rte::canonicalize-pattern (rte::derivative `(:or (:cat ,R ,S)
+			 (canonicalize-pattern (derivative `(:or (:cat ,R ,S)
 									   (:cat ,S ,R))
 								     '(eql :y)))))
     
@@ -602,79 +602,80 @@
 
 
 (define-test type/find-keyword
-  (assert-true (eq :x (rte::find-keyword 'x nil)))
-  (assert-true (eq :x (rte::find-keyword '(x) nil)))
-  (assert-true (eq :x (rte::find-keyword '((x y)) nil)))
-  (assert-true (eq :x (rte::find-keyword '((:x y)) nil))))
+  (assert-true (eq :x (find-keyword 'x nil)))
+  (assert-true (eq :x (find-keyword '(x) nil)))
+  (assert-true (eq :x (find-keyword '((x y)) nil)))
+  (assert-true (eq :x (find-keyword '((:x y)) nil))))
 
 (define-test test/alphabetize
-  (assert-true (equal (RTE::ALPHABETIZE
+  (assert-true (equal (ALPHABETIZE
 		       '((:CAT (:OR (:CAT (EQL :Y) T) :EMPTY-WORD) (:OR (:CAT (EQL :X) T) :EMPTY-WORD))
 			 (:CAT (:OR (:CAT (EQL :X) T) :EMPTY-WORD) (:OR (:CAT (EQL :Y) T) :EMPTY-WORD))))
 		      '((:CAT (:OR (:CAT (EQL :X) T) :EMPTY-WORD) (:OR (:CAT (EQL :Y) T) :EMPTY-WORD))
 			(:CAT (:OR (:CAT (EQL :Y) T) :EMPTY-WORD) (:OR (:CAT (EQL :X) T) :EMPTY-WORD)))))
 
-  (assert-true (equal (RTE::ALPHABETIZE
+  (assert-true (equal (ALPHABETIZE
 		       '((:CAT (:OR (:CAT (EQL :X) T) :EMPTY-WORD) (:OR (:CAT (EQL :Y) T) :EMPTY-WORD))
 			 (:CAT (:OR (:CAT (EQL :Y) T) :EMPTY-WORD) (:OR (:CAT (EQL :X) T) :EMPTY-WORD))))
 		      '((:CAT (:OR (:CAT (EQL :X) T) :EMPTY-WORD) (:OR (:CAT (EQL :Y) T) :EMPTY-WORD))
 			(:CAT (:OR (:CAT (EQL :Y) T) :EMPTY-WORD) (:OR (:CAT (EQL :X) T) :EMPTY-WORD))))))
 
 (define-test test/destructuring-lambda-list-to-rte
-  (assert-true (rte::equivalent-patterns '(:cat t t t)
-					 (rte::destructuring-lambda-list-to-rte '(a b c))))
-  (assert-true (rte::equivalent-patterns '(:cat t t t)
-					 (rte::destructuring-lambda-list-to-rte '(&whole w a b c))))
-  (assert-true (rte::equivalent-patterns '(:cat t t t)
-					 (rte::destructuring-lambda-list-to-rte '(a b c &aux x y))))
+  (assert-true (equivalent-patterns '(:cat t t t)
+					 (destructuring-lambda-list-to-rte '(a b c))))
+  (assert-true (equivalent-patterns '(:cat t t t)
+					 (destructuring-lambda-list-to-rte '(&whole w a b c))))
+  (assert-true (equivalent-patterns '(:cat t t t)
+				    (destructuring-lambda-list-to-rte '(a b c &aux x y)))
+	       )
   
-  (assert-true (rte::equivalent-patterns '(:AND (:* T)
-					   (:CAT (:CAT T T T) (:CAT)
-					    (:AND (:* (MEMBER :X) T)
-					     (:CAT (:* (NOT (EQL :X)) T) (:? (EQL :X) T (:* T))))))
-					 (rte::canonicalize-pattern (rte::destructuring-lambda-list-to-rte '(a b c &key x)))))
+  (assert-true (equivalent-patterns '(:CAT (:CAT T T T)
+				      (:AND (:* (MEMBER :X) T)
+				       (:CAT (:* (NOT (EQL :X)) T) (:? (EQL :X) T (:* T)))))
+				    (destructuring-lambda-list-to-rte '(a b c &key x))))
   
-  (assert-true (rte::equivalent-patterns '(:AND (:* T)
-					   (:CAT (:CAT T T T) (:CAT)
-					    (:AND (:* (MEMBER :Y :X) T)
-					     (:CAT (:* (NOT (EQL :X)) T) (:? (EQL :X) T (:* T)))
-					     (:CAT (:* (NOT (EQL :Y)) T) (:? (EQL :Y) T (:* T))))))
-					 (rte::destructuring-lambda-list-to-rte '(a b c &key x y))))
+  (assert-true (equivalent-patterns '(:CAT (:CAT T T T)
+				      (:AND (:* (MEMBER :Y :X) T)
+				       (:CAT (:* (NOT (EQL :X)) T) (:? (EQL :X) T (:* T)))
+				       (:CAT (:* (NOT (EQL :Y)) T) (:? (EQL :Y) T (:* T)))))
+				    (destructuring-lambda-list-to-rte '(a b c &key x y))))
   
   ;; assert an error because &optional cannot follow &key
-  (assert-error 'error (rte::destructuring-lambda-list-to-rte '(a b c &key x y &optional r)))
-  (assert-true (rte::equivalent-patterns '(:AND (:* T)
-					   (:CAT (:CAT T T T)
-					    (:CAT (:|0-1| T))
-					    (:AND (:* (MEMBER :Y :X) T)
-					     (:CAT (:* (NOT (EQL :X)) T) (:? (EQL :X) T (:* T)))
-					     (:CAT (:* (NOT (EQL :Y)) T) (:? (EQL :Y) T (:* T))))))
-					 (rte::destructuring-lambda-list-to-rte '(a b c &optional r &key x y))))
+  (assert-error 'error (destructuring-lambda-list-to-rte '(a b c &key x y &optional r)))
+  
+  (assert-true (equivalent-patterns '(:CAT (:CAT T T T)
+				      (:? T
+				       (:AND (:* (MEMBER :Y :X) T)
+					(:CAT (:* (NOT (EQL :X)) T) (:? (EQL :X) T (:* T)))
+					(:CAT (:* (NOT (EQL :Y)) T) (:? (EQL :Y) T (:* T))))))
+				    (destructuring-lambda-list-to-rte '(a b c &optional r &key x y))))
 
-  (assert-true (rte::equivalent-patterns '(:AND (:* T)
-					   (:CAT (:CAT (:AND LIST (RTE (:CAT T T))) T) (:CAT (:|0-1| T))
-					    (:AND (:* (MEMBER :Y :X) T)
-					     (:CAT (:* (NOT (EQL :X)) T) (:? (EQL :X) T (:* T)))
-					     (:CAT (:* (NOT (EQL :Y)) T) (:? (EQL :Y) T (:* T))))))
-	       (rte::destructuring-lambda-list-to-rte '((a b) c &optional r &key x y))))
+  (assert-true (equivalent-patterns '(:CAT (:CAT (:AND LIST (RTE (:CAT T T))) T)
+				      (:? T
+				       (:AND (:* (MEMBER :Y :X) T)
+					(:CAT (:* (NOT (EQL :X)) T) (:? (EQL :X) T (:* T)))
+					(:CAT (:* (NOT (EQL :Y)) T) (:? (EQL :Y) T (:* T))))))
+				    (destructuring-lambda-list-to-rte '((a b) c &optional r &key x y))))
 
   ;; test &rest
-  (assert-true (rte::equivalent-patterns '(:AND (:* T)
-					   (:CAT (:CAT (:AND LIST (RTE (:CAT T T))) T) (:CAT (:|0-1| T))
-					    (:AND (:AND LIST (RTE (:CAT T T T T)))
-					     (:AND (:* (MEMBER :Y :X) T)
-					      (:CAT (:* (NOT (EQL :X)) T) (:? (EQL :X) T (:* T)))
-					      (:CAT (:* (NOT (EQL :Y)) T) (:? (EQL :Y) T (:* T)))))))
-					 (rte::destructuring-lambda-list-to-rte '((a b) c &optional q &rest (d e f g) &key x y))))
+  (assert-true (equivalent-patterns '(:CAT (:CAT (:AND LIST (RTE (:CAT T T))) T)
+					    (:? T
+						(:AND (:AND LIST (RTE (:CAT T T T T)))
+						      (:AND (:* (MEMBER :Y :X) T)
+							    (:CAT (:* (NOT (EQL :X)) T) (:? (EQL :X) T (:* T)))
+							    (:CAT (:* (NOT (EQL :Y)) T) (:? (EQL :Y) T (:* T)))))))
+				      (destructuring-lambda-list-to-rte '((a b) c &optional q &rest (d e f g) &key x y))))
 
   ;; &aux
-  (assert-true (rte::equivalent-patterns '(:AND (:* T)
-					   (:CAT (:CAT (:AND LIST (RTE (:CAT T T))) T) (:CAT (:|0-1| T))
-					    (:AND (:AND LIST (RTE (:CAT T T T T)))
-					     (:AND (:* (MEMBER :Y :X) T)
-					      (:CAT (:* (NOT (EQL :X)) T) (:? (EQL :X) T (:* T)))
-					      (:CAT (:* (NOT (EQL :Y)) T) (:? (EQL :Y) T (:* T)))))))
-					 (rte::destructuring-lambda-list-to-rte '((a b) c &optional q &rest (d e f g) &key x y &aux u v))))
+  (assert-true (equivalent-patterns '(:CAT (:CAT (:AND LIST (RTE (:CAT T T))) T)
+				      (:? T
+				       (:AND (:AND LIST (RTE (:CAT T T T T)))
+					(:AND (:* (MEMBER :Y :X) T)
+					 (:CAT (:* (NOT (EQL :X)) T) (:? (EQL :X) T (:* T)))
+					 (:CAT (:* (NOT (EQL :Y)) T) (:? (EQL :Y) T (:* T)))))))
+				    (destructuring-lambda-list-to-rte '((a b) c &optional q &rest (d e f g) &key x y &aux u v))
+				    )
+	       )
   ;; add &allow-other-keys
   )
 
