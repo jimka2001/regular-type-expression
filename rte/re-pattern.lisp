@@ -427,7 +427,7 @@ a fixed point is found."
 							   :consequence "assuming :empty-word")
 				  :empty-word)
 				 ((smarter-subtypep single-type-pattern wrt-type)
-				  (warn "cannot calculate the derivative of ~S~%    w.r.t. ~S beause ~S is a subtype of ~S--assuming :empty-word"
+				  (warn "cannot calculate the derivative of ~S~%    w.r.t. ~S because ~S is a subtype of ~S--assuming :empty-word"
 					single-type-pattern wrt-type single-type-pattern wrt-type)
 				  :empty-word)
 				 (t
