@@ -75,7 +75,15 @@ with the given KEYVAR form"
   "BODY is the body of some destructuring-bind form.  This function, gather-type-declaration,
 examines zero, one, or more declarations in the leading position of the body to find
 type declarations.  An assoc list (car/cadr) is returned of the form
-((var1 typespec1) (var2 typespec2)...)"
+((var1 typespec1) (var2 typespec2)...)
+If the same variable is declared more than once, the resulting type is the intersection
+of the individual types.
+
+CL-SPEC> Declaration TYPE
+         ...
+CL-SPEC> If nested type declarations refer to the same variable, then the value of the
+CL-SPEC> variable must be a member of the intersection of the declared types.
+"
   (let (var-declarations)
     (loop :while (and body
 		      (car body)
@@ -94,7 +102,10 @@ type declarations.  An assoc list (car/cadr) is returned of the form
                        ;; declarations.  Need to check with the spec
                        ;; to see what the defined semantics are.
 		      (dolist (var vars)
-			(push (list var typespec) var-declarations))))
+			(if (assoc var var-declarations)
+			    (setf (cadr (assoc var var-declarations))
+				  (list 'and typespec (cadr (assoc var var-declarations))))
+			    (push (list var typespec) var-declarations)))))
 		  (pop body))))
     var-declarations))
 

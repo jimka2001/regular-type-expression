@@ -453,7 +453,15 @@
 							       (float e))
 							      (declare (ignore x y z))
 							      ()))
-				  :test #'equal)))
+				  :test #'equal))
+
+  (assert-true (member (assoc 'a (gather-type-declarations '((declare (type X a))
+							     (declare (type X b))
+							     (declare (type Y a)))))
+		       '((a (and X Y)) (a (and Y X)))
+		       :test #'equal))
+
+  )
 								 
 (define-test test/destructuring-methods
   (assert-true (= 6 (destructuring-methods '(1 2 3) (:call-next-method cnm)
