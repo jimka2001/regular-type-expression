@@ -251,6 +251,8 @@
     (assert-true (equal 3 n))))
 				  
 (define-test type/reduce-member
+  (assert-true (equal (reduce-lisp-type '(member))
+		      nil))
   (assert-true (equal (reduce-lisp-type '(and (member 1 2 3)
 					  (member 2 3 4)))
 		      '(member 2 3)))
@@ -285,8 +287,11 @@
 		      '(not (member a b))))
   )
 
+(define-test type/decompose-types-member
+  (assert-true (equal '(t) (decompose-types '(nil t))))
+  (assert-true (equal '(t) (decompose-types '((member) t)))))
 
-(define-test type/decompose-types ()
+(define-test type/decompose-types
   (let ((A '(1 2 3 4 5 6 7 8 9 10 11 12 13 14 15))
 	(B '(2 3 5 6))
 	(C '(3 4 5 7))

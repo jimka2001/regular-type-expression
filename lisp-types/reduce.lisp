@@ -189,12 +189,12 @@ repeated or contradictory type designators."
       ((atom type)
        type)
       ((member? type)
-       (if (cddr type)
-	   type
-	   (cons 'eql (cdr type))))
-      ((and (member? type)
-	    (not (cddr type))) ;; (member A) --> (eql A)
-       (cons 'eql (cdr type)))
+       (cond ((cddr type);; (member A B) --> (memberl A B)
+	      type)
+	     ((cdr type)  ;; (member A) --> (eql A)
+	      (cons 'eql (cdr type)))
+	     (t ;; (member) --> nil
+	      nil)))
       ((setq it (reducable-compound? type))
        (setf type (remove-trailing-*s type))
        ;; reduce 'type' arguments
