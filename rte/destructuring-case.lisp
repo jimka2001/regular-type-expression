@@ -278,31 +278,19 @@ Not supporting this syntax -> (wholevar reqvars optvars . var) "
 		  `(:and ,patt-1
 			 ,@patt-per-key)))))
 
-      
-      (setf tail-pattern (cond
-			   ((and optional-types rest-pattern key-pattern)
-			    ;; &optional &rest &key
-			    (stack-optional optional-types `(:and ,rest-pattern ,key-pattern)))
-			   ((and optional-types rest-pattern (not key-pattern))
-			    ;; &optional &rest
-			    (stack-optional optional-types rest-pattern))
-			   ((and optional-types (not rest-pattern) key-pattern)
-			    ;; &optional &key
-			    (stack-optional  optional-types key-pattern))
-			   ((and optional-types (not rest-pattern) (not key-pattern))
-			    ;; &optional
-			    (stack-optional optional-types :empty-word))
-			   ((and (not optional-types) rest-pattern key-pattern)
-			    ;; &rest &key
-			    `(:and ,rest-pattern ,key-pattern))
-			   ((and (not optional-types) rest-pattern (not key-pattern))
-			    ;; &rest
-			    rest-pattern)
-			   ((and (not optional-types) (not rest-pattern) key-pattern)
-			    ;; &key
-			    key-pattern)
-			   ((and (not optional-types) (not rest-pattern) (not key-pattern))
-			    ':empty-word)))
+      (let ((rest-key-pattern (cond
+				((and rest-pattern key-pattern)
+				 ;; &rest &key
+				 `(:and ,rest-pattern ,key-pattern))
+				((and rest-pattern (not key-pattern))
+				 ;; &rest
+				 rest-pattern)
+				((and (not rest-pattern) key-pattern)
+				 ;; &key
+				 key-pattern)
+				((and (not rest-pattern) (not key-pattern))
+				 ':empty-word))))
+	(setf tail-pattern (stack-optional optional-types rest-key-pattern)))
 
       (pop ll-keywords)			; pop off &key
       (pop ll-keywords)			; pop off &allow-other-keys
