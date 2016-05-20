@@ -358,47 +358,6 @@ Not supporting this syntax -> (wholevar reqvars optvars . var) "
   (expand-destructuring-case object-form clauses))
 
 
-;; (defun foo (x)
-;;   (destructuring-case x
-;;     ((arg1)
-;;      (declare (type float arg1))
-;;      (list arg1))
-;;     ((arg1)
-;;      (declare (type number arg1))
-;;      (list arg1))
-;;     ((arg1)
-;;      (declare (type string arg1))
-;;      (list arg1)))
-
-;;   (destructuring-case x
-;;     ((arg1)
-;;      (declare (type number arg1))
-;;      (list arg1))
-;;     ((arg1)
-;;      (declare (type float arg1))
-;;      (list arg1))
-;;     ((arg1)
-;;      (declare (type string arg1))
-;;      (list arg1)))
-
-;;   (destructuring-case x
-;;     ((&optional (arg1 0.0))
-;;      (declare (type float arg1))
-;;      (list arg1 43))
-;;     ((&optional (arg1 0))
-;;      (declare (type number arg1))
-;;      (list arg1 42)))
-  
-  
-;;   (destructuring-case x
-;;     ((&optional (arg1 0.0) &rest args)
-;;      (declare (type float arg1))
-;;      (list arg1 args 43))
-;;     ((&optional (arg1 0) &rest args)
-;;      (declare (type number arg1))
-;;      (list arg1 args 42))))
-
-
 (defun expand-destructuring-methods (object-form clauses call-next-method)
   (declare (type symbol call-next-method))
   (let ((object (gensym))
