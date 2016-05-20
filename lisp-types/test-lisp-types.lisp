@@ -173,6 +173,12 @@
 			t)) ;; because (and float string) is nil
     ))
 
+(define-test type/reduce-type-nil
+  (assert-true (eql nil
+		    (reduce-lisp-type 
+		     '(and (not t)
+		           (and (not keyword) (eql :a)))))))
+
 
 (define-test type/fixed-point
   
@@ -285,6 +291,15 @@
 		      '(and keyword (not (eql :x)))))
   (assert-true (equal (lisp-types::reduce-lisp-type '(or number (not (member 1 2 a b))))
 		      '(not (member a b))))
+  )
+
+(define-test type/decompose-types-t
+  (assert-false (member t (decompose-types '(KEYWORD (MEMBER :A :B) T          (NOT (EQL :A)) (EQL :A) (NOT (EQL :B)) (EQL :B)))))
+  (assert-false (member t (decompose-types '(        (MEMBER :A :B) T          (NOT (EQL :A)) (EQL :A) (NOT (EQL :B)) (EQL :B)))))
+  (assert-false (member t (decompose-types '(KEYWORD (MEMBER :A :B) T (EQL :A)                         (NOT (EQL :B)) (EQL :B)))))
+  (assert-false (member t (decompose-types '(KEYWORD (MEMBER :A :B) T                                  (NOT (EQL :B)) (EQL :B)))))
+  (assert-false (member t (decompose-types '(KEYWORD (MEMBER :A :B) T                                                 (EQL :B)))))
+  (assert-false (member t (decompose-types '(KEYWORD (MEMBER :A :B) T))))
   )
 
 (define-test type/decompose-types-member

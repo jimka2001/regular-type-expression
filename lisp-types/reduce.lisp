@@ -324,6 +324,12 @@ repeated or contradictory type designators."
 			(remove-duplicates (cdr type) :test #'equal)))
        (setf type (cons (car type)
 			(mapcar #'reduce-lisp-type-once (cdr type))))
+       ;; we might now how duplicates, in particular we might have (and nil nil), if
+       ;;  so then removing supers would result in (and) which would make t.  That woudl
+       ;;  be very bad.  So let's remove duplicates again.
+       (setf type (cons (car type)
+			(remove-duplicates (cdr type) :test #'equal)))
+
        (destructuring-bind (operator &rest operands) type
 	 (declare (type (member and or not) operator)
 		  (notinline remove-supers remove-subs reduce-absorption reduce-redundancy)
@@ -341,6 +347,7 @@ repeated or contradictory type designators."
 	    (when (member t operands)
 					; (and A t B) --> (and A B)
 	      (setf operands (remove t operands)))
+
 	    (rule-case type
 	      ((null operands)		; (and) --> t
 	       t)
