@@ -157,14 +157,20 @@ this function SMARTER-SUBTYEPP understands this."
   (or (and a (not b))
       (and (not a) b)))
 
-(defun disjoint-types-p (T1 T2)
+(defun disjoint-types-p (T1 T2 &aux X Y)
   "Two types are considered disjoint, if their interseciton is empty,
 i.e., is a subtype of nil."
-  (declare (optimize (speed 3) (compilation-speed 0)))
+  (declare (optimize (speed 3) (compilation-speed 0))
+	   (notinline subsetp))
   (multiple-value-bind (disjointp OK) (subtypep `(and ,T1 ,T2) nil)
     (cond
       (OK
        (values disjointp t))
+      ((subsetp '((t t) (t nil))
+		(list (setq X (multiple-value-list (smarter-subtypep T1 T2)))
+		      (multiple-value-list (smarter-subtypep T2 T1)))
+		 :test #'equal)
+       X)
       ((and (typep T1 '(cons (eql not)))
 	    (typep T2 '(cons (eql not))))
        (disjoint-types-p (cadr T1) (cadr T2))) 
@@ -172,21 +178,24 @@ i.e., is a subtype of nil."
       ((and (typep T1 '(cons (eql not)))
 	    (disjoint-types-p (cadr T1) T2))
        (values nil t))
-      ;; T1 ^ T2 = 0 ==>  (T1 ^ not(T2)) = 0
+      ;; T1 ^ T2 = 0 ==>  (T1 ^ not(T2)) != 0
       ((and (typep T2 '(cons (eql not)))
 	    (disjoint-types-p T1 (cadr T2)))
        (values nil t))
-      ;; T1 <: T2 && not(T2 <: T1) ==> T1 ^ not(T2) != 0
+      ;; e.g., (disjoint-types-p (not float) number) ==> (nil t)
+      ;;       (disjoint-types-p (not number) float) ==> (t t)
       ((and (typep T1 '(cons (eql not)))
-	    (xor (smarter-subtypep (cadr T1) T2)
-		 (smarter-subtypep T2 (cadr T1))))
-       (values t t))
-      ;; T2 <: T1 && not(T1 <: T2) ==> not(T1) ^ T2 != 0
+	    (setq Y (multiple-value-list (smarter-subtypep (cadr T1) T2)))
+	    (setq X (multiple-value-list (smarter-subtypep T2 (cadr T1))))
+	    (subsetp '((t t) (nil t)) (list X Y) :test #'equal))
+       (values (car X) t))
+      ;; e.g., (disjoint-types-p float (not number)) ==> (t t)
+      ;;       (disjoint-types-p number (not float)) ==> (nil t)
       ((and (typep T2 '(cons (eql not)))
-	    (xor (smarter-subtypep T1 (cadr T2))
-		 (smarter-subtypep (cadr T2) T1)))
-       (values t t))
-      ;; 
+	    (setq Y (multiple-value-list (smarter-subtypep T1 (cadr T2))))
+	    (setq X (multiple-value-list (smarter-subtypep (cadr T2) T1)))
+	    (subsetp '((t t) (nil t)) (list X Y) :test #'equal))
+       (values (car Y) t))
       ((or (smarter-subtypep T1 T2)
 	   (smarter-subtypep T2 T1))
        (values nil t))
