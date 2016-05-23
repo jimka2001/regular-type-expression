@@ -5,7 +5,6 @@ This project contains several Common Lisp sub-projects,
 ### rte
 definition of the RTE type.  A type (and supporting functions) which implement rational type expressions.
       For information about this project and related publications , see [Efficient dynamic type checking of heterogeneous sequences](https://www.lrde.epita.fr/wiki/Publications/newton.16.rte.report)
-)
 ### 2d-array
 Extensible sequence classes to represent vertical and horizontal "slices" of 2d arrays
 ### lisp-types
@@ -236,8 +235,8 @@ to-be-done
 
 ## Tests
 
-Testing is done using (https://github.com/OdonataResearchLLC/lisp-unit LispUnit).  You may load
-the system code without the tests via <file://./rte.asd>, <file://./ndfa.asd>, <file://./2d-array.asd>, or <file://./lisp-types.asd>.
+Testing is done using [LispUnit](https://github.com/OdonataResearchLLC/lisp-unit LispUnit).  You may load
+the system code without the tests via [rte.asd](file://./rte.asd), <file://./ndfa.asd>, <file://./2d-array.asd>, or <file://./lisp-types.asd>.
 But if you wish to run the tests, the starting points are respectively <file://./rte-test.asd>, <file://./ndfa-test.asd>, <file://./2d-array-test.asd>, and <file://./lisp-types-test.asd>.
 Within each corresponding subdirectory the files contining LispUnit test cases are all prefixed by "test-".
 To run the tests, you'll need to use ASDF to load the corresponding asdf system definition, e.g.,
@@ -250,7 +249,7 @@ TEST> (rte.test::test)
 
 
 ## Contributors
-The majority of the code development has been done by Jim Newton (doctoral candidate at (http://www.upmc.fr UPMC) (http://www.epita.fr EPITA) (https://www.lrde.epita.fr LRDE).
+The majority of the code development has been done by Jim Newton (doctoral candidate at [UPMC](http://www.upmc.fr UPMC) [EPITA](http://www.epita.fr EPITA) [LRDE](https://www.lrde.epita.fr LRDE).
 
 
 
