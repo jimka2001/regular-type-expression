@@ -14,6 +14,25 @@ Utilities dealing with CL types
 Implementation of non-deterministed finite automata
 
 
+## Motivation
+
+The implementation of rational type expression is the main result of this project.
+However, several intermediate results might be useful as well, so they are made
+available.
+
+## Installation
+
+This code loads via asdf.
+(./rte.asd) loads the RTE system and its dependencies.
+However, if you do not wish to use RTE, you may also use (./ndfa.asd), (./2d-array.asd), or (./lisp-types.asd)
+as starting points.
+
+
+## API Reference
+
+to-be-done
+
+
 ## Code Examples
 
 ### RTE
@@ -214,24 +233,6 @@ Implementation of non-deterministed finite automata
     (ndfa:perform-transitions sm #(1 2 3))
     )
 ```
-
-## Motivation
-
-The implementation of rational type expression is the main result of this project.
-However, several intermediate results might be useful as well, so they are made
-available.
-
-## Installation
-
-This code loads via asdf.
-(./rte.asd) loads the RTE system and its dependencies.
-However, if you do not wish to use RTE, you may also use (./ndfa.asd), (./2d-array.asd), or (./lisp-types.asd)
-as starting points.
-
-
-## API Reference
-
-Depending on the size of the project, if it is small and simple enough the reference docs can be added to the README. For medium size to larger projects it is important to at least provide a link to where the API reference docs live.
 
 ## Tests
 
