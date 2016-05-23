@@ -209,7 +209,7 @@
 	     (subtype? (t1 t2)
 	       (declare (notinline typep)
 			(type cons t1 t2))
-	       (smarter-subtyepp (car t1) (car t2)))
+	       (smarter-subtypep (car t1) (car t2)))
 	     (disjoint? (t1 t2)
 	       (declare (type cons t1 t2))
 	       (disjoint-types-p (car t1) (car t2)))

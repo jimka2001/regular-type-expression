@@ -362,16 +362,16 @@
 
 (define-test type/enter-conses ()
   (let ((hash (make-hash-table :test #'equal)))
-    (assert-test (eq (lisp-types::enter-conses hash '(a (1 2 3) b))
+    (assert-true (eq (lisp-types::enter-conses hash '(a (1 2 3) b))
 		     (lisp-types::enter-conses hash '(a (1 2 3) b))))
-    (assert-test (eq (cadr (lisp-types::enter-conses hash '(a (1 2 3) b)))
+    (assert-true (eq (cadr (lisp-types::enter-conses hash '(a (1 2 3) b)))
 		     (cadr (lisp-types::enter-conses hash '(c (1 2 3) d)))))
-    (assert-test (eq (cdr (lisp-types::enter-conses hash '(a 1 2 3 4)))
+    (assert-true (eq (cdr (lisp-types::enter-conses hash '(a 1 2 3 4)))
 		     (cdr (lisp-types::enter-conses hash '(b 1 2 3 4)))))))
 
 (define-test type/subtype
-  (assert-true (equal '(t t) (smarter-subtypep '(eql :x) 'keyword)))
-  (assert-true (equal '(t t) (smarter-subtypep '(not keyword) '(not (eql :x)))))
+  (assert-true (equal '(t t) (multiple-value-list (smarter-subtypep '(eql :x) 'keyword))))
+  (assert-true (equal '(t t) (multiple-value-list (smarter-subtypep '(not keyword) '(not (eql :x))))))
   (assert-true (equal '(nil t) (multiple-value-list (smarter-subtypep 'keyword '(eql :x)))))
   (assert-true (equal '(nil t) (multiple-value-list (smarter-subtypep '(not keyword) '(eql :x)))))
   (assert-true (equal '(nil t) (multiple-value-list (smarter-subtypep '(not (eql :x)) 'keyword)))))

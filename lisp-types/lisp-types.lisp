@@ -126,7 +126,7 @@
 ;; TODO need to update some calls to subtypep to use smarter-subtypep instead.
 (defun smarter-subtypep (t1 t2)
   "The sbcl subtypep function does not know that (eql :x) is a subtype of keyword,
-this function SMARTER-SUBTYEPP understands this."
+this function SMARTER-SUBTYPEP understands this."
   (declare (optimize (speed 3) (compilation-speed 0)))
   (multiple-value-bind (T1<=T2 OK) (subtypep t1 t2)
     (cond
