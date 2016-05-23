@@ -61,6 +61,12 @@
      (list arg1 args 42))
     ((&optional (arg1 0.0) &rest args)
      (declare (type float arg1))
-     (list arg1 args 43))))
+     (list arg1 args 43)))
+
+  (destructuring-case x
+    ((&optional (x 0) y &rest args)
+     (list x y args))
+    ((&key x)
+     (list x))))
 
 
