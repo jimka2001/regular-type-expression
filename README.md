@@ -22,8 +22,8 @@ available.
 ## Installation
 
 This code loads via asdf.
-<file://./rte.asd> loads the RTE system and its dependencies.
-However, if you do not wish to use RTE, you may also use <file://./ndfa.asd>, <file://./2d-array.asd>, or <file://./lisp-types.asd>
+rte.asd loads the RTE system and its dependencies.
+However, if you do not wish to use RTE, you may also use ndfa.asd, 2d-array.asd, or lisp-types.asd
 as starting points.
 
 
