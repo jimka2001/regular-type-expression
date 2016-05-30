@@ -3,13 +3,20 @@
 This project contains several Common Lisp sub-projects,
 
 ### rte
-definition of the RTE type.  A type (and supporting functions) which implement rational type expressions.
+
+definition of the RTE CL type.  A type (and supporting functions) which implement rational type expressions.
       For information about this project and related publications , see [Efficient dynamic type checking of heterogeneous sequences](https://www.lrde.epita.fr/wiki/Publications/newton.16.rte.report)
+
 ### 2d-array
+
 Extensible sequence classes to represent vertical and horizontal "slices" of 2d arrays
+
 ### lisp-types
+
 Utilities dealing with CL types
+
 ### ndfa
+
 Implementation of non-deterministed finite automata
 
 
@@ -38,15 +45,12 @@ to-be-done
 ```lisp
 (defun F4 (obj)
   (destructuring-case obj
-    ((name &key count)
-     (declare (type symbol name)
-              (type integer count))
+    ((name &key count) ((symbol name)
+                        (integer count))
      ...)
-    ((name data &rest strings)
-     (declare (type name symbol)
-              (type data list)
-              (type strings
-                    (rte (:* string))))
+    ((name data &rest strings) ((name symbol)
+                                (data list)
+                                (strings (rte (:* string))))
      ...)))
 ```
 

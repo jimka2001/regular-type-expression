@@ -27,7 +27,7 @@
   (let ((a '(1 2 :x 3 :y 4))
 	(n 0))
     (destructuring-case a
-      ((u v &key x y)
+      ((u v &key x y) ()
        (incf n)
        (assert-true (= u 1))
        (assert-true (= v 2))

@@ -23,67 +23,66 @@
 
 (define-test test/destructuring-case-1-a
   (assert-true
-   (equal 3 (destructuring-case '(x y z)
-	      ((a)
+   (equal 3 (destructuring-case '(x y z) 
+	      ((a) ()
 	       (declare (ignore a))
 	       1)
-	      ((a b)
+	      ((a b) ()
 	       (declare (ignore a b))
 	       2)
-	      ((a b c)
+	      ((a b c) ()
 	       (declare (ignore a b c))
 	       3)))))
-(define-test test/destructuring-case-1-b
 
+(define-test test/destructuring-case-1-b
   (assert-true
    (equal 2 (destructuring-case '(x y)
-	      ((a)
+	      ((a) ()
 	       (declare (ignore a))
 	       1)
-	      ((a b)
+	      ((a b) ()
 	       (declare (ignore a b))
 	       2)
-	      ((a b c)
+	      ((a b c) ()
 	       (declare (ignore a b c))
 	       3))))  )
 
 (define-test test/destructuring-case-1-c
   (assert-true
    (equal 1 (destructuring-case '(x)
-	      ((a)
+	      ((a) ()
 	       (declare (ignore a))
 	       1)
-	      ((a b)
+	      ((a b) ()
 	       (declare (ignore a b))
 	       2)
-	      ((a b c)
+	      ((a b c) ()
 	       (declare (ignore a b c))
 	       3)))))
 
 (define-test test/destructuring-case-2-a
   (assert-true
    (equal 3 (destructuring-case '((x) y z)
-	      ((a)
+	      ((a) ()
 	       (declare (ignore a))
 	       1)
-	      ((a b)
+	      ((a b) ()
 	       (declare (ignore a b))
 	       2)
-	      (((a) b c)
+	      (((a) b c) ()
 	       (declare (ignore a b c))
 	       3)))))
 
-(define-test test/destructuring-case-2-b
-  
+(define-test test/destructuring-case-2-b  
   (assert-true
    (equal 2 (destructuring-case '(x (y))
-	      ((a)
+	      ((a) ()
 	       (declare (ignore a))
 	       1)
-	      ((a (b))
+	      ((a (b)) ()
 	       (declare (ignore a b))
 	       2)
-	      (((a) b)
+	      (((a) b) ()
 	       (declare (ignore a b))
 	       3))))  )
 
@@ -91,13 +90,13 @@
 (define-test test/destructuring-case-2-c
   (assert-true
    (equal 3 (destructuring-case '((x) y)
-	      ((a)
+	      ((a) ()
 	       (declare (ignore a))
 	       1)
-	      ((a (b))
+	      ((a (b)) ()
 	       (declare (ignore a b))
 	       2)
-	      (((a) b)
+	      (((a) b) ()
 	       (declare (ignore a b))
 	       3))))
 )
@@ -108,14 +107,14 @@
 		 (2 (3))
 		 (1 ((2)) (3 4))))
       (destructuring-case x
-	((a)
+	((a) ()
 	 (incf n)
 	 (assert-true (= a 1)))
-	((a (b))
+	((a (b)) ()
 	 (incf n)
 	 (assert-true (= a 2))
 	 (assert-true (= b 3)))
-	((a ((b)) (c d))
+	((a ((b)) (c d)) ()
 	 (incf n)
 	 (assert-true (= a 1))
 	 (assert-true (= b 2))

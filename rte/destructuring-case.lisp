@@ -70,6 +70,25 @@ with the given KEYVAR form"
     (t
      (error "invalid &key syntax ~A in lambda-list ~A" keyvar lambda-list))))
 
+(defun swap-type-specifier-alist (constraint-alist)
+  "constraint-alist is an car/cdr alist mapping each type specifiers to a list of
+   variable names. e.g., ((number a b c) ((or string symbol) x y z))
+   RETURNS an alist mapping each variable name to its type specifier.
+   If any variable appears more than once in the given constraint-alist,
+   the corresponding types are intersected in the return alist."
+  (let (type-spec-alist)
+    (dolist (constraint constraint-alist)
+      (destructuring-bind (type-specifier &rest variable-names) constraint
+	(dolist (name variable-names)
+	  (let* ((hit (assoc name type-spec-alist))
+		 (type-spec (cadr hit)))
+	  (cond
+	    (hit
+	     (setf (cadr hit) `(and ,type-specifier ,type-spec)))
+	    (t
+	     (push (list name type-specifier) type-spec-alist)))))))
+    type-spec-alist))
+
 
 (defun gather-type-declarations (body)
   "BODY is the body of some destructuring-bind form.  This function, gather-type-declaration,
@@ -336,10 +355,16 @@ Not supporting this syntax -> (wholevar reqvars optvars . var) "
   (let ((object (gensym))
 	previous-anti-patterns)
     (flet ((transform-clause (clause)
-	     (destructuring-bind (lambda-list &rest body) clause
-	       (let* ((pattern (canonicalize-pattern (destructuring-lambda-list-to-rte
-						     lambda-list
-						     :type-specifiers (gather-type-declarations body))))
+	     (destructuring-bind (lambda-list constraints &rest body) clause
+	       (declare (type list constraints))
+	       ;; constraints is an car/cdr alist mapping each type specifiers to a list of
+	       ;;  variable names. e.g., ((number a b c) ((or string symbol) x y z))
+	       (let* ((type-specifier-alist (swap-type-specifier-alist constraints))
+		      (additional-declarations (mapcar #'(lambda (constraint)
+							   `(declare (type ,@constraint))) constraints))
+		      (pattern (canonicalize-pattern (destructuring-lambda-list-to-rte
+						      lambda-list
+						      :type-specifiers type-specifier-alist)))
 		      (derived-pattern `(:and ,pattern ,@previous-anti-patterns))
 		      (used-type (if (equivalent-patterns :empty-set
 							  derived-pattern)
@@ -347,6 +372,7 @@ Not supporting this syntax -> (wholevar reqvars optvars . var) "
 				     `(rte ,pattern))))
 		 (prog1 `(,used-type
 			  (destructuring-bind ,lambda-list ,object
+			    ,@additional-declarations
 			    ,@body))
 		   (push `(:not ,pattern) previous-anti-patterns))))))
       `(let ((,object ,object-form))
@@ -355,8 +381,19 @@ Not supporting this syntax -> (wholevar reqvars optvars . var) "
 	   ,@(mapcar #'transform-clause clauses))))))
 
 (defmacro destructuring-case (object-form &body clauses)
+  "Similar to CASE except that the object is matches against destructuring-lambda-lists and
+optional type constraints.  The first clauses matching the structure and types is evaluated.
+Each clause is of the form (destructuring-lambda-lists constraint-alist &body body)
+Where constraint-alist is an car/cdr alist mapping a type specifier to a list of variable
+names of that type.   The variables will be implicitly declare in the body.
+E.g.,
+  (destructuring-case '(1 2 :x 3)
+    ((a b c) ((integer a b) (symbol c))
+     :first)
+    ((a &optional (b 0) &key (x 0) (y 0)) ((integer a b x y))
+     :second))
+==> :second"
   (expand-destructuring-case object-form clauses))
-
 
 (defun expand-destructuring-methods (object-form clauses call-next-method)
   (declare (type symbol call-next-method))
