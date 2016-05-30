@@ -98,7 +98,8 @@ is the work-horse for REDUCED-TYPECASE."
   "Syntactically similar to TYPECASE. Expands to a call to TYPECASE but
 with cases reduced if possible.  In particular latter cases assume that previous
 cases have failed.  This macro preserves the order of the clauses, but is
-likely to change the logic of the test of each clause.
+likely to change the executable logic (preserving semantics) of the test
+of each clause.
 E.g.,
 (reduced-typecase obj
    (float 41)
@@ -213,7 +214,7 @@ E.g.,
    ((satisfies F) 41)
    ((satisfies G) 42))
 
-exands to
+expands to
 
 (typecase obj
    ((satisifies F) 41)
@@ -270,7 +271,7 @@ by increasing complexity, and finally REDUCED-TYPECASE."
 (defmacro auto-permute-typecase (obj &body clauses)
   "Syntactically similar to TYPECASE. Expands to a call to TYPECASE but
 with the types reduced and re-ordered to minimize a projected cost
-heuristic function."
+heuristic function.  Semantics of the typecase is preserved."
   (flet ((clauses-cost (clauses)
 	   (let ((buf (list nil)))
 	     (dotimes (len (length clauses))
