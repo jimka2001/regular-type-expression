@@ -209,7 +209,7 @@
   (assert-true (equal (reduce-lisp-type '(or W (and A B) X
 					  Y (and (not A) C)
 					  Z (and B C)))
-		      '(or W X Y Z
+		      '(or X Y W Z
 			(and A B)
 			(and C (not A)))))
 					
