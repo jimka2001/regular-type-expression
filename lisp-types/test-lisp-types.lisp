@@ -376,10 +376,14 @@
   (assert-true (equal '(nil t) (multiple-value-list (smarter-subtypep '(not keyword) '(eql :x)))))
   (assert-true (equal '(nil t) (multiple-value-list (smarter-subtypep '(not (eql :x)) 'keyword)))))
 
-
 ;; disjoint-types-p
 (define-test type/disjoint-types-p
+  (assert-false (disjoint-types-p 'keyword '(member :a :b)))
+  (assert-false (disjoint-types-p 'keyword '(eql :a)))
+  (assert-false (disjoint-types-p '(AND KEYWORD (NOT (MEMBER :A :B))) T))
+  (assert-false (disjoint-types-p '(and symbol (not (eql a))) t))
   (assert-true (equal '(nil t) (multiple-value-list (disjoint-types-p 'number '(not float)))))
   (assert-true (equal '(nil t) (multiple-value-list (disjoint-types-p '(not float) 'number))))
   (assert-true (equal '(t t) (multiple-value-list (disjoint-types-p '(not number) 'float))))
-  (assert-true (equal '(t t) (multiple-value-list (disjoint-types-p 'float '(not number))))))
+  (assert-true (equal '(t t) (multiple-value-list (disjoint-types-p 'float '(not number)))))
+  (assert-false (disjoint-types-p '(not float) '(not integer))))

@@ -157,6 +157,12 @@ this function SMARTER-SUBTYPEP understands this."
   (or (and a (not b))
       (and (not a) b)))
 
+(defun void-type-p (type)
+  (subtypep type nil))
+
+(defun universal-type-p (type)
+  (subtypep t type))
+
 (defun disjoint-types-p (T1 T2 &aux X Y)
   "Two types are considered disjoint, if their interseciton is empty,
 i.e., is a subtype of nil."
@@ -166,20 +172,27 @@ i.e., is a subtype of nil."
     (cond
       (OK
        (values disjointp t))
-      ((subsetp '((t t) (t nil))
+      ((subsetp '((t t) (nil t))
 		(list (setq X (multiple-value-list (smarter-subtypep T1 T2)))
 		      (multiple-value-list (smarter-subtypep T2 T1)))
-		 :test #'equal)
-       X)
+                :test #'equal)
+       ;; Is either  T1<:T2 and not T2<:T1
+       ;;    or      T2<:T1 and not T1<:T2 ?
+       ;; if so, then one is a propert subtype of the other.
+       ;; thus they are not disjoin.t
+       (values nil t))
+      ;;  T1 ^ T2 = 0 ==> !T1 ^ T2 != 0 if T1!=1 and T2 !=0
+      ;; !T1 ^ T2 = 0 ==>  T1 ^ T2 != 0 if T1!=0 and T2 !=0
       ((and (typep T1 '(cons (eql not)))
-	    (typep T2 '(cons (eql not))))
-       (disjoint-types-p (cadr T1) (cadr T2))) 
-      ;; T1 ^ T2 = 0 ==> (not(T1) ^ T2) != 0
-      ((and (typep T1 '(cons (eql not)))
+            (not (void-type-p (cadr T1)))
+            (not (void-type-p T2))
 	    (disjoint-types-p (cadr T1) T2))
        (values nil t))
-      ;; T1 ^ T2 = 0 ==>  (T1 ^ not(T2)) != 0
-      ((and (typep T2 '(cons (eql not)))
+      ;; T1 ^  T2 = 0 ==> T1 ^ !T2 != 0  if T1!=0 and T2!=1
+      ;; T1 ^ !T2 = 0 ==> T1 ^  T2 != 0  if T1!=0 and T2!=0
+      ((and (typep T2 '(cons (eql not))) 
+            (not (void-type-p T1))
+            (not (void-type-p (cadr T2)))
 	    (disjoint-types-p T1 (cadr T2)))
        (values nil t))
       ;; e.g., (disjoint-types-p (not float) number) ==> (nil t)
