@@ -20,8 +20,13 @@
 ;; WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 (defpackage :lisp-types.test
+  (:shadowing-import-from :lisp-types "TEST" "A")
   (:use :cl :lisp-types :lisp-unit))
 
+
+(do-symbols (name :lisp-types)
+  (format t "importing name=~A into  :lisp-types.test~%" name)
+  (shadowing-import name :lisp-types.test))
 
 (in-package :lisp-types.test)
 
@@ -189,12 +194,14 @@
 								  (< (abs (- a b)) 0.01)))
 		  0.01)))
 
-
 (define-test type/reduce-lisp-type2
   (assert-true (equal (reduce-lisp-type '(or A (and A B C D) E))
 		      '(or A E)))
-  (assert-true (equal (reduce-lisp-type '(or (and A B) (and A B C D) E F))
-		      '(or E F (and A B))))
+  (let ((un-interned (gensym)))
+    (assert-true (equal (reduce-lisp-type `(or (and A B) (and A B C D) E ,un-interned))
+                        `(or ,un-interned E (and A B)))))
+  (assert-true (equal (reduce-lisp-type '(or (and A B) (and A B C D) E :F))
+		      '(or :f E (and A B))))
   (assert-true (equal (reduce-lisp-type '(or A (and (not A) B)))
 		      '(or A B)))
   (assert-true (equal (reduce-lisp-type'(or (and (not A) B) A))
@@ -203,7 +210,6 @@
 		      '(or B (not A))))
   (assert-true (equal (reduce-lisp-type '(or (and A B) (not A)))
 		      '(or B (not A)))))
-  
 		      
 (define-test type/consensus-theorem
   (assert-true (equal (reduce-lisp-type '(or W (and A B) X

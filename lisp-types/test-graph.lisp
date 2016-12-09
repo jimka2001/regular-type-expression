@@ -24,20 +24,23 @@
 (define-test types/find-duplicates
   (assert-true (equal '(a b) (lisp-types::find-duplicates '(a b a b)))))
 
-(define-test types/graph2
+(defun valid-subtypes (super)
   (let (all-types)
     (do-external-symbols (sym :cl)
-      (when (valid-type-p sym)
+      (when (and (valid-type-p sym)
+                 (subtypep sym super))
 	(push sym all-types)))
-    (let ((all-numbers (set-difference (remove-if-not (lambda (type)
-							(subtypep type 'number))
-						      all-types)
-				       ;; redundante types
-				       '(nil single-float signed-byte double-float char-int))))
+    all-types))
 
-      (assert-false (set-exclusive-or (decompose-types all-numbers)
-				      (decompose-types-graph all-numbers)
-				      :test #'equivalent-types-p)))))
+(define-test types/graph2
+  (declare (notinline set-difference))
+  (let ((all-numbers (set-difference (valid-subtypes 'number)
+                                     ;; redundante types
+                                     '(nil single-float signed-byte double-float char-int))))
+    
+    (assert-false (set-exclusive-or (decompose-types all-numbers)
+                                    (decompose-types-graph all-numbers)
+                                    :test #'equivalent-types-p))))
 
 (define-test type/graph
   (assert-false (set-exclusive-or (DECOMPOSE-TYPES-GRAPH '( COMPLEX

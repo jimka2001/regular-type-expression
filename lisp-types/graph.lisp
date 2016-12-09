@@ -22,7 +22,14 @@
 (in-package   :lisp-types)
 
 (defmacro exists (obj data &body body)
-  `(member-if (lambda (,obj) ,@body) ,data))
+  (etypecase obj
+    (list
+     (let ((var (gensym "exists")))
+       `(member-if (lambda (,var)
+                     (destructuring-bind ,obj ,var
+                       ,@body)) ,data)))
+    (t
+     `(member-if (lambda (,obj) ,@body) ,data))))
 
 (defun all-type-specifiers (package)
   (let (all-types)

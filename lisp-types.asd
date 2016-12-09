@@ -30,4 +30,5 @@
      (:file "sat" :depends-on ("lisp-types"))
      (:file "typecase" :depends-on ("lisp-types"))
      (:file "graph" :depends-on ("lisp-types"))
+     (:file "bdd" :depends-on ("lisp-types"))
      ))))
