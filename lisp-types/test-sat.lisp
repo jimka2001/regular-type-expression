@@ -111,33 +111,59 @@
 				      (decompose-types-sat all-numbers)
 				      :test #'equivalent-types-p)))))
 
+(defun types/cmp-perf (types)
+  (let* ((n (length types))
+         (t1 (get-internal-run-time))
+                     
+         (s2 (bdd-decompose-types types))
+         (t2 (get-internal-run-time))
+                     
+         (s3 (decompose-types-graph types))
+         (t3 (get-internal-run-time))
+                     
+         (s4 (decompose-types types))
+         (t4 (get-internal-run-time))
+                     
+         (s5 (decompose-types-sat types))
+         (t5 (get-internal-run-time)))
+
+    (format t "   sat  =~A~%" s5)
+    (format t "   def  =~A~%" s4)
+    (format t "   graph=~A~%" s3)
+    (format t "   bdd  =~A~%" s2)
+    (format t "   n:~D bdd:~D:~F   graph:~D:~F   def:~D:~F   sat:~D:~F~%"
+            n
+            (length s2) (/ (- t2 t1) internal-time-units-per-second)
+            (length s3) (/ (- t3 t2) internal-time-units-per-second)
+            (length s4) (/ (- t4 t3) internal-time-units-per-second)
+            (length s5) (/ (- t5 t4) internal-time-units-per-second))
+
+    (list 's2-and-not-s4 (set-difference s2 s4 :test #'equivalent-types-p)
+          's4-and-not-s2 (set-difference s4 s2 :test #'equivalent-types-p)
+          's2-and-s4 (intersection s2 s4 :test #'equivalent-types-p))))
+
+
+(defun types/sanity-test ()
+  (let ((numerical-types '(array-rank array-total-size bignum bit
+                           complex fixnum float float-digits
+                           float-radix integer number ratio rational real
+                           char-code ;; char-int
+                           double-float ;; long-float
+                           ;;short-float signed-byte single-float
+                           unsigned-byte)))
+    (types/cmp-perf numerical-types)))
+                         
 
 (defun types/cmp-perf-sat ()
   (let (all-types)
     (do-external-symbols (sym :cl)
       (when (valid-type-p sym)
 	(push sym all-types)))
-    (setf all-types (set-difference all-types '(compiled-function control-error division-by-zero error)))
+    (setf all-types (set-difference all-types '(compiled-function char-code control-error division-by-zero error)))
     (setf all-types (sort all-types #'string<))
-    (let ((n 1)
-	  (testing-types (list (pop all-types))))
-      (flet ((test1 (types &aux sorted)
-	       (format t "~A~%" (car types))
-	       (let ((t1 (get-internal-run-time))
-		     (t2 (progn (setf sorted (decompose-types types))
-				(get-internal-run-time)))
-		     (t3 (progn (decompose-types-sat types)
-				(get-internal-run-time))))
-
-		 (unless (= t3 t2)
-		   (format t "   ~D ~D ~F ~F ~F~%"
-			   n
-			   (length sorted)
-			   (/ (- t2 t1) internal-time-units-per-second)
-			   (/ (- t3 t2) internal-time-units-per-second)
-			   (/ (- t2 t1) (- t3 t2))))
-		 (incf n))))
-	(loop :while testing-types
-	      :do (progn (test1 testing-types)
-			 (push (pop all-types) testing-types)))))))
+    (let ((testing-types (list (pop all-types))))
+      (loop :while testing-types
+            :do (progn (format t "~A~%" (car testing-types))
+                       (types/cmp-perf testing-types)
+                       (push (pop all-types) testing-types))))))
 		  
