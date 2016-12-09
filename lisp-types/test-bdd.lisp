@@ -47,17 +47,6 @@
                                   
                                   '(integer string))))
 
-(define-test types/bdd-equal
-  (assert-true (bdd-equal *bdd-true*
-                          *bdd-true*))
-  (assert-true (bdd-equal *bdd-false*
-                          *bdd-false*))
-  (assert-false (bdd-equal *bdd-true*
-                          *bdd-false*))
-  (assert-false (bdd-equal *bdd-false*
-                           *bdd-true*))
-  (assert-true (bdd-equal (bdd '(or integer float))
-                          (bdd '(or float integer)))))
   
 (define-test test/certain-reductions
   (assert-true (bdd '(or (and integer (not string)) (and string (not integer)))))
@@ -89,25 +78,7 @@
 
 
 (define-test type/bdd-performance-test
-  (let* ((types '(ARITHMETIC-ERROR
-                  ARRAY
-                  ARRAY-RANK
-                  ARRAY-TOTAL-SIZE
-                  ATOM
-                  BASE-CHAR
-                  BASE-STRING
-                  BIGNUM
-                  BIT
-                  BIT-VECTOR
-                  BOOLEAN
-                  BROADCAST-STREAM
-                  BUILT-IN-CLASS
-                  CELL-ERROR
-                  CHAR-INT
-                  CHARACTER
-                  CLASS
-                  COMPLEX))
-         (decomp '((AND (NOT BIT) ARRAY-RANK) BIT (AND (NOT CHAR-INT) ARRAY-TOTAL-SIZE)
+  (let* ((decomp '((AND (NOT BIT) ARRAY-RANK) BIT (AND (NOT CHAR-INT) ARRAY-TOTAL-SIZE)
                    (AND CHAR-INT (NOT ARRAY-RANK)) BASE-CHAR (AND CHARACTER (NOT BASE-CHAR))
                    (AND (NOT CELL-ERROR) BUILT-IN-CLASS ARITHMETIC-ERROR)
                    (AND (NOT CLASS) (NOT CELL-ERROR) ARITHMETIC-ERROR)
@@ -130,11 +101,9 @@
 
     (dolist (t1 decomp)
       (let ((bdd1 (bdd t1)))
-        (format t "0: ~A~%" t1)
         (dolist (f (list #'bdd-and #'bdd-and-not #'(lambda (a b) (bdd-and-not b a))))
           (let ((t5 (funcall f bdd1 t4)))
-            (format t "  ~A~%" t5)
-            (format t "    ~A~%" (if (bdd-empty-type t5) nil 'not-nil))))))))
+            (if (bdd-empty-type t5) nil 'not-nil)))))))
 
 (defun types/perf-bdd ()
   (let (all-types)
