@@ -379,6 +379,16 @@ whose test is true, otherwise return OBJECT."
   (with-open-file (stream #p"/tmp/jnewton/types/expressions-12.data" :direction :input)
     (while (not (eq EOF (setf data (read stream nil EOF))))
       (reduce-lisp-type data)))))
-      
 
+(defmacro forall (var data &body body)
+  `(every #'(lambda (,var) ,@body) ,data))
+
+(defmacro setof (var data &body body)
+  `(remove-if-not (lambda (,var) ,@body) ,data))
+
+
+(defmacro prog1-let ((var expr) &body body)
+  `(let ((,var ,expr))
+     ,@body
+     ,var))
 

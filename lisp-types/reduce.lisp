@@ -132,10 +132,6 @@ If a type is found in this list that it treated as a declaration of to things:
 Applications are free to push entries onto this list to notify REDUCE-LISP-TYPE of how
 to reduce a type defined by DEFTYPE.")
 
-
-(defmacro forall (var data &body body)
-  `(every #'(lambda (,var) ,@body) ,data))
-
 (defun reduce-lisp-type-once (type &aux it)
   "Given a lisp type designator, make one pass at reducing it, removing redundant information such as
 repeated or contradictory type designators."
@@ -532,7 +528,6 @@ repeated or contradictory type designators."
 					     :collect `(not ,operand)))))
 		  (t
 		   type)))))))))
-
 
 (defun reduce-lisp-type (type)
     "Given a common lisp type designator such as (AND A (or (not B) C)), apply some
