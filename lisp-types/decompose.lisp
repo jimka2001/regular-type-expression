@@ -24,9 +24,9 @@
 
 (defun decompose-types (type-specifiers)
   (declare (type list type-specifiers))
-  "Given a list TYPE-SPECIFIERS of lisp type names, return a list of disjoint
-type-specifiers comprising the same union, with each of the resulting type-specifiers
-being a sub-type of one of the given type-specifiers."
+  "Given a list TYPE-SPECIFIERS of lisp type names, return a list of disjoint, 
+non-nil type-specifiers comprising the same union, with each of the resulting
+type-specifiers being a sub-type of one of the given type-specifiers."
   (let (decomposition) ;; the list of disjoint type-specifiers
     (labels ((remove-disjoint ()
 	       (dolist (T1 type-specifiers)
