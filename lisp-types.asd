@@ -31,4 +31,5 @@
      (:file "typecase" :depends-on ("lisp-types"))
      (:file "graph" :depends-on ("lisp-types"))
      (:file "bdd" :depends-on ("lisp-types"))
+     (:file "bdd-graph" :depends-on ("bdd"))
      ))))
