@@ -21,7 +21,6 @@
 
 (in-package   :lisp-types)
 
-(defgeneric bdd-label (obj))
 (defgeneric bdd-serialize (bdd))
 
 (defgeneric bdd (obj))
@@ -33,8 +32,22 @@
 
 (defvar *bdd-count* 1)
 (defclass bdd ()
-  ((ident :reader bdd-ident :initarg :ident :initform (incf *bdd-count*))
-   (label :reader bdd-label :initarg :label)))
+  ((ident ;; :reader bdd-ident
+          :initarg :ident :initform (incf *bdd-count*))
+   (label ;; :reader bdd-label
+          :initarg :label)))
+
+;; reader for the label slot.  I've implemented this as a defun rather than :reader becase
+;;  it seems to be in the critical performance loop and the normal function performs marginally
+;;  faster than the method
+(defun bdd-label (bdd)
+  (slot-value bdd 'label))
+
+;; reader for the label slot.  I've implemented this as a defun rather than :reader becase
+;;  it seems to be in the critical performance loop and the normal function performs marginally
+;;  faster than the method
+(defun bdd-ident (bdd)
+  (slot-value bdd 'ident))
 
 (defun bdd-new-hash ()
   (make-hash-table :test #'equal))
@@ -66,14 +79,28 @@
   (print-unreadable-object (bdd stream :type t :identity nil)
     (when (slot-boundp bdd 'ident)
       (format stream "[~D]" (slot-value bdd 'ident)))
-    (format stream "~A=~A" (bdd-serialize bdd) (bdd-to-dnf bdd))))
+    (format stream "~S=~S" (bdd-serialize bdd) (bdd-to-dnf bdd))))
 
 (defmethod bdd ((bdd bdd))
   bdd)
 
 (defclass bdd-node (bdd)
-  ((left :type bdd :initarg :left :reader bdd-left)
-   (right :type bdd :initarg :right :reader bdd-right)))
+  ((left :type bdd :initarg :left ;;:reader bdd-left
+         )
+   (right :type bdd :initarg :right ;; :reader bdd-right
+          )))
+
+;; reader for the label slot.  I've implemented this as a defun rather than :reader becase
+;;  it seems to be in the critical performance loop and the normal function performs marginally
+;;  faster than the method
+(defun bdd-right (bdd)
+  (slot-value bdd 'right))
+
+;; reader for the label slot.  I've implemented this as a defun rather than :reader becase
+;;  it seems to be in the critical performance loop and the normal function performs marginally
+;;  faster than the method
+(defun bdd-left (bdd)
+  (slot-value bdd 'left))
 
 (defclass bdd-leaf (bdd) ())
 
@@ -150,8 +177,31 @@
 (defmethod bdd-node :around (label left (right (eql nil)))
   (bdd-node label left *bdd-false*))
 
+(defun check-table ()
+  nil
+  ;; (maphash (lambda (key1 bdd1)
+  ;;            (maphash (lambda (key2 bdd2)
+  ;;                       (cond ((eq bdd1 bdd2))
+  ;;                             ((not (equal (bdd-to-dnf bdd1)
+  ;;                                          (bdd-to-dnf bdd2))))
+  ;;                             (t
+  ;;                              (assert nil (bdd1 bdd2 key1 key2)
+  ;;                                      "two bdds have some DNF"))))
+  ;;                     *bdd-hash*))
+  ;;          *bdd-hash*)
+  )
+                               
+
+
 (defvar *bdd-hash-access-count* 0)
-(labels ((relation (r x-parity y-parity)
+(labels ((incr-hash ()
+           (incf *bdd-hash-access-count*)
+           (when (= 0 (mod *bdd-hash-access-count* 10000))
+             (format t "bdd hash = ~A wall-time=~A cpu-time=~A~%"
+                     *bdd-hash*
+                     (truncate (get-internal-run-time) internal-time-units-per-second)
+                     (truncate (get-universal-time) internal-time-units-per-second))))
+         (relation (r x-parity y-parity)
            #'(lambda (x y)
                (funcall r
                         (if x-parity
@@ -188,39 +238,33 @@
 
     (defun %bdd-node (label left-bdd right-bdd)
       (cond
-        ((eq left-bdd right-bdd)
+        ((eq left-bdd right-bdd) ;; 26%
          left-bdd)
-        ((bdd-find *bdd-hash* label left-bdd right-bdd))
-        (t
+        ((bdd-find *bdd-hash* label left-bdd right-bdd)) ;; 63%
+        (t ;; 11%
          (let ((new-left  (bdd-reduce label left-bdd  left-reductions))
                (new-right (bdd-reduce label right-bdd right-reductions)))
            (cond
-             ((eq new-left new-right)
+             ((eq new-left new-right) ;; 2.5%
               new-left)
-             ((bdd-find *bdd-hash* label new-left new-right))
+             ((bdd-find *bdd-hash* label new-left new-right)) ;;7%
              (t
               (let* ((bdd (make-instance 'bdd-node
-                                        :label label
-                                        :left  new-left
-                                        :right new-right))
+                                         :label label
+                                         :left  new-left
+                                         :right new-right))
                      (key (list label (bdd-ident new-left) (bdd-ident new-right))))
-                ;;(format t "hash=~A~%" *bdd-hash*)
-                ;;(format t "   new ~A ~A ~A~%" label new-left new-right)
-                ;;(maphash (lambda (key value)
-                ;; (format t "    ~A --> ~A~%" key value)) *bdd-hash*)
-                (incf *bdd-hash-access-count*)
-                (when (= 0 (mod *bdd-hash-access-count* 10000))
-                  (format t "bdd hash = ~A~%" *bdd-hash*))
+                (incr-hash)
                 (setf (gethash key *bdd-hash*) bdd)
                 (setf (gethash key *bdd-hash*)
                       (cond
                         ;; check (bdd-and-not bdd new-left)
                         ;;   vs  (bdd-and-not new-left bdd)
-                        ((bdd-type-equal bdd new-left)
+                        ((bdd-type-equal bdd new-left) ;; 0.006%   ;; TODO perhaps it is more interesting to check equivalance first to the 'smaller' of new-left and new-right, not sure because checking for smaller might be slow, and making a new slot to store the size might expand memory enough to also make the program slower?
                          new-left)
                         ;; check (bdd-and-not bdd new-right)
                         ;;   vs  (bdd-and-not new-right bdd)
-                        ((bdd-type-equal bdd new-right)
+                        ((bdd-type-equal bdd new-right) ;; 0.5%
                          new-right)
                         ;; the next two clauses, which use CL:SUBTYPEP are necessary
                         ;; because the CL type system contains lots of identities
@@ -232,16 +276,17 @@
                         ;;  (nil = (and user-type (not (cons string))))
                         ;;  but we can't find that out as there's no way to iterate
                         ;;  through all the user's type definitions and their expansions.
-                        ((subtypep (bdd-to-dnf bdd) nil)
+                        ((subtypep (bdd-to-dnf bdd) nil) ;; 0.03%
                          *bdd-false*)
                         ((subtypep t (bdd-to-dnf bdd))
                          *bdd-true*)
-                        (t
+                        (t ;; 1.7%
                          bdd))))))))))))
 
 (defun bdd-find-reduction (label bdd reduction-rules)
   (declare (type bdd bdd)
-           (type list reduction-rules))
+           (type list reduction-rules)
+           (optimize (speed 3) (safety 0)))
   "Apply each of the REDUCTION-RULES to BDD.  Some of the reduction rules may
 result in reducing the BDD to a simpler form.   If no reduction rule applies
 then NIL is returned, otherwise the reduced BDD is returned.
@@ -321,43 +366,58 @@ according to the LABEL which is now the label of some parent in its lineage."
             (bdd-and-not *bdd-true* (bdd-left b))
             (bdd-and-not *bdd-true* (bdd-right b))))
 
-(defgeneric bdd-cmp (t1 t1))
-(defmethod bdd-cmp :around (t1 t2)
+(defun bdd-cmp (t1 t2)
   (cond
     ((equal t1 t2)
      '=)
-    ((eql (type-of t1) (type-of t2))
-     (call-next-method))
-    ((listp t2)
+    ((null t1)
      '<)
-    ((listp t1)
+    ((null t2)
      '>)
+    ((not (eql (class-of t1) (class-of t2))) 
+     (bdd-cmp (class-name (class-of t1)) (class-name (class-of t2))))
     (t
-     (bdd-cmp (type-of t1) (type-of t2)))))
-
-(defmethod bdd-cmp ((l1 list) (l2 list))
-  "Compare two lists by finding the first corresponding elements
-which are not = (according to BDD-CMP) and comparing them with BDD-CMP."
-  (mapcar (lambda (e1 e2 &aux (c (bdd-cmp e1 e2)))
-            (case c
-              ((=)
-               nil)
+     ;; thus they are the same type, but they are not equal
+     (typecase t1
+       (list
+        (let (value)
+          (while (and t1
+                      t2
+                      (eq '= (setf value (bdd-cmp (car t1) (car t2)))))
+            (pop t1)
+            (pop t2))
+          (cond
+            ((and t1 t2)
+             value)
+            (t1    '>)
+            (t2    '<)
+            (t     '=))))
+       (symbol
+        (cond
+          ((not (eql (symbol-package t1) (symbol-package t2)))
+           ;; call bdd-cmp because symbol-package might return nil
+           ;;  don't call string= directly
+           (bdd-cmp (symbol-package t1) (symbol-package t2)))
+          ((string< t1 t2) ;; same package
+           '<)
+          (t
+           '>)))
+       (package
+        (bdd-cmp (package-name t1) (package-name t2)))
+       (string
+        ;; know they're not equal, thus not string=
+        (cond
+          ((string< t1 t2)
+           '<)
+          (t
+           '>)))
+       (number
+        (cond ((< t1 t2)
+               '<)
               (t
-               (return-from bdd-cmp c))))
-          l1 l2)
-  '=)
-
-(defmethod bdd-cmp ((s1 symbol) (s2 symbol))
-  (cond
-    ((eq s1 s2)
-     '=)
-    ((string< s1 s2)
-     '<)
-    (t
-     '>)))
-
-(defmethod bdd-cmp (t1 t2)
-  (error "cannot compare a ~A with a ~A" (class-of t1) (class-of t2)))
+               '>)))
+       (t
+        (error "cannot compare a ~A with a ~A" (class-of t1) (class-of t2)))))))
 
 (flet ((bdd-op (op b1 b2)
          (declare (type bdd b1 b2))
@@ -421,7 +481,38 @@ which are not = (according to BDD-CMP) and comparing them with BDD-CMP."
                   (recure (bdd-left bdd) (cons (bdd-label bdd) stack))
                   (recure (bdd-right bdd) (cons `(not ,(bdd-label bdd)) stack))))))
       (recure bdd nil)
-      (wrap 'or nil disjunctions))))
+      (wrap 'or nil disjunctions)
+      ;; (flet ((make-member (objects)
+      ;;          (cond ((cdr objects)
+      ;;                 (cons 'member objects))
+      ;;                (objects
+      ;;                 (cons 'eql objects))
+      ;;                (t
+      ;;                 'null))))
+                      
+      ;;   (let ((disjunctions (loop for type in disjunctions
+      ;;                             collect (typecase type
+      ;;                                       ((cons (eql and))
+      ;;                                        (let ((mem (find-if (lambda (obj)
+      ;;                                                              (typep obj '(cons (member member eql))))
+      ;;                                                            (cdr type))))
+      ;;                                          (if mem
+      ;;                                              (make-member (setof obj (cdr mem)
+      ;;                                                             (forall t2 (cdr type)
+      ;;                                                               (typep obj t2))))
+      ;;                                              type)))
+      ;;                                       (t
+      ;;                                        type)))))
+      ;;     (declare (notinline set-difference))
+      ;;     (let ((disjunctions (let* ((mems (setof type disjunctions
+      ;;                                        (typep type '(cons (member member eql)))))
+      ;;                                (non-mems (set-difference disjunctions mems)))
+      ;;                           (if mems
+      ;;                               (cons (make-member (reduce #'union (mapcar #'cdr mems) :initial-value nil))
+      ;;                                     non-mems)
+      ;;                               disjunctions))))
+      ;;       (wrap 'or nil disjunctions))))
+      )))
 
 (defun bdd-subtypep (t-sub t-super)
   (declare (type bdd t-super t-sub))
@@ -440,6 +531,21 @@ which are not = (according to BDD-CMP) and comparing them with BDD-CMP."
   (and (bdd-subtypep t1 t2)
        (bdd-subtypep t2 t1)))
 
+(defun bdd-type-p (obj bdd)
+  "Similar to TYPEP but takes a bdd rather than a type-specifier.
+Returns T if the OBJ of an element of the specified type,
+Returns NIL otherwise."
+  (etypecase bdd
+    (bdd-false
+     nil)
+    (bdd-true
+     t)
+    (bdd-node
+     (bdd-type-p obj 
+                 (if (typep obj (bdd-label bdd))
+                     (bdd-left bdd)
+                     (bdd-right bdd))))))
+
 (defun bdd-reduce-lisp-type (type)
     "Given a common lisp type designator such as (AND A (or (not B) C)), 
 convert it to DNF (disjunctive-normal-form)"
@@ -448,6 +554,7 @@ convert it to DNF (disjunctive-normal-form)"
 (defvar *bdd-slicers* (list #'bdd-and
                             #'bdd-and-not
                             #'(lambda (a b) (bdd-and-not b a))))
+
 (defun %bdd-decompose-types (type-specifiers)
   (bdd-with-new-hash
    (lambda ()
@@ -483,11 +590,12 @@ convert it to DNF (disjunctive-normal-form)"
        (let* ((bdds (mapcan (lambda (type-specifier)
                              (option-bdd (bdd type-specifier)))
                             type-specifiers))
-              (U (reduce #'bdd-or bdds :initial-value *bdd-false*)))
+              (U (reduce #'bdd-or bdds :initial-value *bdd-false*))
+              (init (list (bdd-and U (car bdds))
+                          (bdd-and-not U (car bdds)))))
          (remove-supers
           (reduce #'slice (cdr bdds)
-                  :initial-value (list (bdd-and U (car bdds))
-                                       (bdd-and-not U (car bdds))))))))))
+                  :initial-value (remove *bdd-false* init))))))))
 
 (defun bdd-collect-terms (bdd)
   (declare (type bdd bdd))
@@ -511,8 +619,9 @@ of min-terms, this function returns a list of the min-terms."
     (recure bdd)))
 
 (defun bdd-decompose-types (type-specifiers)
-  (mapcar #'bdd-to-dnf
-          (%bdd-decompose-types type-specifiers)))
+  (when type-specifiers
+    (mapcar #'bdd-to-dnf
+            (%bdd-decompose-types type-specifiers))))
 
 (defun bdd-find-dup-bdds (bdds)
   "A debugging function.  It can be used to find whether two (or more) bdds
