@@ -106,11 +106,13 @@
             (if (bdd-empty-type t5) nil 'not-nil)))))))
 
 (defun types/perf-bdd ()
+  (declare (notinline sort))
   (let (all-types)
     (do-external-symbols (sym :cl)
       (when (valid-type-p sym)
 	(push sym all-types)))
-    (setf all-types (set-difference all-types '(compiled-function control-error division-by-zero error)))
+    (setf all-types (set-difference all-types '(compiled-function control-error division-by-zero error
+                                                char-code base-char)))
     (setf all-types (sort all-types #'string<))
     (bdd-with-new-hash
      (lambda ()
@@ -189,40 +191,45 @@
                                  (bdd-node 'number t nil)))
                       '(non-integer nil t))))
 
+(define-test test/bdd-numbers
+  (assert-true (bdd-type-equal
+                (types/cmp-perfs :limit 15 :decompose   #'lisp-types::bdd-decompose-types :types (valid-subtypes 'number)))))
 
-(defun find-decomposition-discrepancy (&optional (type-specs '(array-rank array-total-size bignum bit
-                                                               complex fixnum float float-digits
-                                                               float-radix integer number ratio rational real
-                                                               char-code ;; char-int
-                                                               double-float ;; long-float
-                                                               unsigned-byte)))
-  (labels ((recure ( type-specs)
-             (when (cdr type-specs)
-               (recure (cdr type-specs)))
-             (format t "~%~%~%n = ~D~%~%~%~%" (length type-specs))
-             (let* ((bdd-types (bdd-decompose-types type-specs))
-                    (def-types (decompose-types type-specs))
-                    (common (intersection bdd-types def-types :test #'equivalent-types-p))
-                    (bdd-left-over (set-difference bdd-types common :test #'equivalent-types-p))
-                    (def-left-over (set-difference def-types common :test #'equivalent-types-p)))
-               (unless (= (length def-types)
-                          (length bdd-types))
-                 (format t "n=~D bdd=~D  def=~D~%" (length type-specs) (length bdd-types) (length def-types))
-                 (format t " given  :~A~%" type-specs)
-                 (format t " common :~A~%" common)
-                 (format t "    bdd :~A~%" bdd-left-over)
-                 (format t "    def :~A~%" def-left-over)
-                 (dolist (com common)
-                   (dolist (types (list bdd-left-over def-left-over))
-                     (dolist (spec types)
-                       (when (subtypep spec com)
-                         (format t " ~A <: ~A~%" spec com))
-                       (when (subtypep com spec)
-                         (format t " ~A <: ~A~%" com spec)))))
-                 (format t "checking calculated bdd types~%")
-                 (lisp-types::check-decomposition type-specs bdd-types)
-                 (format t "checking calculated def types~%")
-                 (lisp-types::check-decomposition type-specs def-types)
-                 (return-from find-decomposition-discrepancy nil)
-                 ))))
-    (recure type-specs)))
+
+(define-test test/bdd-cmp
+  ;; =
+  (assert-true (eq '= (bdd-cmp 'a 'a)))
+  (assert-true (eq '= (bdd-cmp "a" "a")))
+  (assert-true (eq '= (bdd-cmp 1 1)))
+  (assert-true (eq '= (bdd-cmp 1.0 1.0)))
+  (assert-true (eq '= (bdd-cmp 1/2 1/2)))
+  (assert-true (eq '= (bdd-cmp nil nil)))
+  (assert-true (eq '= (bdd-cmp '(a 1 1.0) '(a 1 1.0))))
+
+  ;; <
+  (assert-true (eq '< (bdd-cmp "CL-USER" "KEYWORD")))
+  (assert-true (eq '< (bdd-cmp 'CL-USER::x :x)))
+  (assert-true (eq '< (bdd-cmp '(a b c) '(a b c d))))
+  (assert-true (eq '< (bdd-cmp '(a 1 c) '(a 2 c d))))
+  (assert-true (eq '< (bdd-cmp '(a 1 c d) '(a 2 c))))
+  (assert-true (eq '< (bdd-cmp 'string 'symbol)))
+  ;; (assert-true (eq '< (bdd-cmp "string" 'symbol)))
+  (assert-true (eq '< (bdd-cmp 'cons 'null)))
+  (assert-true (eq '< (bdd-cmp nil '(a))))
+  (assert-true (eq '< (bdd-cmp 1/3 1/2)))
+
+  ;; >
+  (assert-true (eq '> (bdd-cmp "KEYWORD" "CL-USER")))
+  (assert-true (eq '> (bdd-cmp :x 'CL-USER::x)))
+  (assert-true (eq '> (bdd-cmp '(a b c d) '(a b c))))
+  (assert-true (eq '> (bdd-cmp '(a 2 c d) '(a 1 c))))
+  (assert-true (eq '> (bdd-cmp '(a 2 c) '(a 1 c d))))
+  (assert-true (eq '> (bdd-cmp 'symbol 'string)))
+  ;; (assert-true (eq '> (bdd-cmp 'symbol "string")))
+  (assert-true (eq '> (bdd-cmp 'null 'cons)))
+  (assert-true (eq '> (bdd-cmp '(a) nil)))
+  (assert-true (eq '> (bdd-cmp 1/2 1/3)))
+  )
+
+  
+                   

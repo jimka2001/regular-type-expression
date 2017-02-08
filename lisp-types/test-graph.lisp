@@ -21,16 +21,63 @@
 
 (in-package :lisp-types.test)
 
+(do-symbols (name :lisp-types)
+  (shadowing-import name :lisp-types.test))
+
+
+
+(defun perf-decompose-types-graph (&key (max 18))
+  (declare (notinline string< sort))
+  (let (all-types)
+    (do-external-symbols (sym :cl)
+      (when (valid-type-p sym)
+	(push sym all-types)))
+    (setf all-types (set-difference all-types '(compiled-function ; see https://groups.google.com/forum/#!topic/comp.lang.lisp/S-O94JzjlFw
+						char-code ; same as char-int
+						)))
+    (setf all-types (sort all-types #'string<))
+    (let ( data)
+      (flet ((test1 (types &aux sorted)
+	       (format t "~A~%" (car types))
+	       ;;(format t "  types=~A~%" types)
+	       (dolist (algo (list (list :algorithm 'decompose-types-graph
+					 :function (lambda (types)
+						     (decompose-types-graph types :reduce t)))
+				   (list :algorithm 'decompose-types-sat
+					 :function #'decompose-types-sat)
+				   (list :algorithm 'decompose-types
+					 :function #'decompose-types)))
+		 (let ((t1 (get-internal-run-time))
+		       (t2 (progn (setf sorted (funcall (getf algo :function) types))
+				  (get-internal-run-time))))
+		   (unless (= t1 t2)
+		     (push (list
+			    :algorithm (getf algo :algorithm)
+			    :time (/ (- t2 t1) internal-time-units-per-second)
+			    :input-length (length types)
+			    :output-length (length sorted))
+			   data)
+		     (format t "  ~A ~D ~D ~F~%"
+			     (getf algo :algorithm)
+			     (length types)
+			     (length sorted)
+			     (/ (- t2 t1) internal-time-units-per-second)))))))
+	(dotimes (r 10)
+	  (let ((rnd-all-types (shuffle-list (copy-list all-types)))
+		(testing-types nil))
+	    (while (and rnd-all-types
+			(>= max (length testing-types)))
+	      (push (pop rnd-all-types) testing-types)
+	      (test1 testing-types)))))
+      (values data
+	      (length data)))))
+
+
+
+
 (define-test types/find-duplicates
   (assert-true (equal '(a b) (lisp-types::find-duplicates '(a b a b)))))
 
-(defun valid-subtypes (super)
-  (let (all-types)
-    (do-external-symbols (sym :cl)
-      (when (and (valid-type-p sym)
-                 (subtypep sym super))
-	(push sym all-types)))
-    all-types))
 
 (define-test types/graph2
   (declare (notinline set-difference))
