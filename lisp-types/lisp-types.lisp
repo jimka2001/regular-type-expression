@@ -380,13 +380,6 @@ whose test is true, otherwise return OBJECT."
 		     (setf result (funcall function arg))))
     result))
 
-(defun perf-reduce ()
-  (let ((EOF (list nil))
-	data)
-  (with-open-file (stream #p"/tmp/jnewton/types/expressions-12.data" :direction :input)
-    (while (not (eq EOF (setf data (read stream nil EOF))))
-      (reduce-lisp-type data)))))
-
 (defmacro forall (var data &body body)
   `(every #'(lambda (,var) ,@body) ,data))
 

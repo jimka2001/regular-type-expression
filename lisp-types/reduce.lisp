@@ -185,7 +185,7 @@ repeated or contradictory type designators."
       ((atom type)
        type)
       ((member? type)
-       (cond ((cddr type);; (member A B) --> (memberl A B)
+       (cond ((cddr type);; (member A B) --> (member A B)
 	      type)
 	     ((cdr type)  ;; (member A) --> (eql A)
 	      (cons 'eql (cdr type)))
@@ -351,7 +351,7 @@ repeated or contradictory type designators."
 	       (car operands))
 	      ((member nil operands)	; (and A nil B) --> nil
 	       nil)
-	      ((some #'or? operands) 
+	      ((some #'or? operands)    ; (and A (or x y) B) --> (or (and A B x) (and A B y))
 	       (let* ((match (find-if #'or? operands))
 		      (and-operands (remove match operands :test #'eq)))
 		 (cons 'or
@@ -472,7 +472,7 @@ repeated or contradictory type designators."
 				 other))))
 	      ((and (some #'eql-or-member? operands)
 		    (cdr operands))
-	       ;; (or fixnum string (member 1 2 "hello" a b)))
+	       ;; (or fixnum string (member 1 2 "hello" a b))
 	       ;; --> (or fixnum string (member a b))
 	       (multiple-value-destructuring-bind (((_member &rest old-elements)) others)
 		   (partition-by-predicate #'eql-or-member? operands)

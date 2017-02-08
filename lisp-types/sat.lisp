@@ -88,12 +88,15 @@ There are three cases of constraints generated.
 		    t2-tn))
 	  types))
 
-(defun decompose-types-sat (types)
+(defun decompose-types-sat (types &key (reduce t))
   "Return a list of decomposed types"
   (let (disjoint
 	(constraints (generate-constraints types)))
     (visit-min-terms (lambda (min-term)
 		       (unless (some (lambda (constraint)
+                                       ;; if constraint = (A (not B) C)
+                                       ;; and min-term = (A X (not B) Y C)
+                                       ;; so every element of the constraint is also an element of min-term
 				       (every (lambda (term)
 						(member term min-term :test #'equal))
 					      constraint))
@@ -103,4 +106,7 @@ There are three cases of constraints generated.
 			     (push  new-type
 				    disjoint)))))
 		     types)
-     disjoint))
+    (cond
+      (reduce (mapcar #'reduce-lisp-type disjoint))
+      (t
+       disjoint))))
