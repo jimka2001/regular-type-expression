@@ -22,12 +22,14 @@
 
 (asdf:defsystem :lisp-types-test
   :depends-on (:lisp-types
+               :bordeaux-threads
 	       (:version :lisp-unit "0.9.0"))
   :components
   ((:module "lisp-types"
     :components
     ((:file "test-lisp-types")
+     (:file "test-perf")
      (:file "test-typecase" :depends-on ("test-lisp-types"))
-     (:file "test-sat" :depends-on ("test-lisp-types"))
-     (:file "test-graph" :depends-on ("test-lisp-types"))
-     (:file "test-bdd" :depends-on ("test-lisp-types"))))))
+     (:file "test-sat" :depends-on ("test-lisp-types" "test-perf"))
+     (:file "test-graph" :depends-on ("test-lisp-types" "test-perf"))
+     (:file "test-bdd" :depends-on ("test-lisp-types" "test-perf"))))))

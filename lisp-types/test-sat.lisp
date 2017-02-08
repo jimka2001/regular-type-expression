@@ -21,6 +21,9 @@
 
 (in-package :lisp-types.test)
 
+(do-symbols (name :lisp-types)
+  (shadowing-import name :lisp-types.test))
+
 
 
 (define-test type/sat
@@ -100,47 +103,11 @@
 )
 
 (define-test types/sat2
-  (let (all-types)
-    (do-external-symbols (sym :cl)
-      (when (valid-type-p sym)
-	(push sym all-types)))
-    (let ((all-numbers (remove-if-not (lambda (type)
-					(subtypep type 'number))
-				      all-types)))
-      (assert-false (set-exclusive-or (decompose-types all-numbers)
-				      (decompose-types-sat all-numbers)
-				      :test #'equivalent-types-p)))))
+  (let ((all-numbers (valid-subtypes 'number)))
+    (assert-false (set-exclusive-or (decompose-types all-numbers)
+                                    (decompose-types-sat all-numbers)
+                                    :test #'equivalent-types-p))))
 
-(defun types/cmp-perf (types)
-  (let* ((n (length types))
-         (t1 (get-internal-run-time))
-                     
-         (s2 (bdd-decompose-types types))
-         (t2 (get-internal-run-time))
-                     
-         (s3 (decompose-types-graph types))
-         (t3 (get-internal-run-time))
-                     
-         (s4 (decompose-types types))
-         (t4 (get-internal-run-time))
-                     
-         (s5 (decompose-types-sat types))
-         (t5 (get-internal-run-time)))
-
-    (format t "   sat  =~A~%" s5)
-    (format t "   def  =~A~%" s4)
-    (format t "   graph=~A~%" s3)
-    (format t "   bdd  =~A~%" s2)
-    (format t "   n:~D bdd:~D:~F   graph:~D:~F   def:~D:~F   sat:~D:~F~%"
-            n
-            (length s2) (/ (- t2 t1) internal-time-units-per-second)
-            (length s3) (/ (- t3 t2) internal-time-units-per-second)
-            (length s4) (/ (- t4 t3) internal-time-units-per-second)
-            (length s5) (/ (- t5 t4) internal-time-units-per-second))
-
-    (list 's2-and-not-s4 (set-difference s2 s4 :test #'equivalent-types-p)
-          's4-and-not-s2 (set-difference s4 s2 :test #'equivalent-types-p)
-          's2-and-s4 (intersection s2 s4 :test #'equivalent-types-p))))
 
 
 (defun types/sanity-test ()
@@ -155,6 +122,7 @@
                          
 
 (defun types/cmp-perf-sat ()
+  (declare (notinline sort))
   (let (all-types)
     (do-external-symbols (sym :cl)
       (when (valid-type-p sym)
@@ -164,6 +132,6 @@
     (let ((testing-types (list (pop all-types))))
       (loop :while testing-types
             :do (progn (format t "~A~%" (car testing-types))
-                       (types/cmp-perf testing-types)
+                       (types/cmp-perf :types testing-types )
                        (push (pop all-types) testing-types))))))
 		  
