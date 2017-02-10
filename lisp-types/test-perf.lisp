@@ -328,7 +328,8 @@
              (print-latex file-name
                           :time-out time-out)))
          ;;(compare/results results)
-         )))))
+         ))))
+  t)
 
 (define-test disjoint-cmp-1
   (setf *perf-results* nil)
@@ -346,7 +347,8 @@
                             sb-pcl::SPECIALIZER
                             sb-pcl::EQL-SPECIALIZER
                             sb-pcl::DIRECT-SLOT-DEFINITION
-                            sb-pcl::SLOT-DEFINITION)))
+                            sb-pcl::SLOT-DEFINITION)
+                   :time-out 5))
 
 (define-test disjoint-cmp-3
   (setf *perf-results* nil)
@@ -365,7 +367,8 @@
                             SB-MOP:STANDARD-ACCESSOR-METHOD
                             SB-MOP:STANDARD-READER-METHOD
                             SB-MOP:FUNCALLABLE-STANDARD-CLASS
-                            SB-MOP:FUNCALLABLE-STANDARD-OBJECT)))
+                            SB-MOP:FUNCALLABLE-STANDARD-OBJECT)
+                   :time-out 8))
 
 (define-test disjoint-cmp-5
   (setf *perf-results* nil)
