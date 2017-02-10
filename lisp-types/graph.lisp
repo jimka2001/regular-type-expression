@@ -290,6 +290,8 @@
     (sb-ext:run-program "dot" (list "-Tpng" dot-file
                                     "-o" out)
                         :search t)
+    (sb-ext:run-program "cp" (list "-f" "/tmp/jnewton/graph/graph.png" "/tmp/jnewton/graph/graph-previous.png")
+                        :search t)
     (sb-ext:run-program "cp" (list "-f" out "/tmp/jnewton/graph/graph.png")
                         :search t)
     (format t "created ~A~%" out)
@@ -518,13 +520,30 @@
                        ;;   incorrect for other subclasses of the superclass in the
                        ;;   case that subtype-node touches them.
                        ;;   if so change that sub->super relation to touch
-                       (dolist (disturbed-option (sub-type-options super-node))
-                         (cond ((eq disturbed-option (type-option subtype-node)))
-                               ((member disturbed-option (touch-options subtype-node) :test #'eq)
-                                (let ((disturbed-node (find-node disturbed-option graph)))
-                                  (nodes-no-sub-super! disturbed-node super-node)
-                                  (nodes-touch! disturbed-node super-node)))))
-                         
+                       (dolist (sibling-option (sub-type-options super-node))
+                         (cond ((eq sibling-option (type-option subtype-node)))
+                               ((member sibling-option (touch-options subtype-node) :test #'eq)
+                                (let ((sibling-node (find-node sibling-option graph)))
+                                  (nodes-no-sub-super! sibling-node super-node)
+                                  (nodes-touch! sibling-node super-node)
+                                  ;; if sibling-node has sub-classes, then those subclasses
+                                  ;; are actually subclasses of super-node, yet there is no link
+                                  ;; because this algorithm is depending on transitivity of the subtype relation.
+                                  ;; thus we need to explicitly make those subtypes of sibling-node touch super-node.
+                                  (dolist (sub-sibling-option (sub-type-options sibling-node))
+                                    (let ((sub-sibling-node (find-node sub-sibling-option graph)))
+                                      ;; we know sub-sibling-node IS NOT a subtype of subtype-node
+                                      ;; because subtype-node HAS NO subtypes,
+                                      ;; but they might touch.
+                                      (cond
+                                        ((member sub-sibling-option (touch-options subtype-node) :test #'eq)
+                                         (nodes-no-sub-super! sub-sibling-node super-node)
+                                         (nodes-touch! sub-sibling-node super-node))
+                                        (t
+                                         (nodes-no-touch! sub-sibling-node super-node)
+                                         (nodes-sub-super! sub-sibling-node super-node))))
+                                  )))))
+                       
 		       (let ((new-type (type-intersection (type-specifier super-node)
 							  (list 'not (type-specifier subtype-node)))))
 			 (cond
