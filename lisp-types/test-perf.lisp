@@ -121,6 +121,9 @@
 
 (defvar *perf-results* nil)
 (defun types/cmp-perf (&key types sample (decompose 'bdd-decompose-types) (time-out 15) &aux (f (symbol-function decompose)))
+  (declare (type list types)
+           (type symbol decompose)
+           (type function f))
   (setf types (remove nil types))
   (cond
     ((null types)
@@ -137,7 +140,10 @@
                                         (funcall f types)))))
        (assert (or (typep (getf result :time) 'number )
                    (getf result :time-out)) (result))
-       (destructuring-bind (&key time-out time value) result
+       (destructuring-bind (&key time-out (time 0) value) result
+         (declare (type (or null fixnum) time-out)
+                  (type list value)
+                  (type number time))
          (push
           (cond
             (time-out
@@ -298,6 +304,7 @@
         (compare (car good-results) res)))))
 
 (defun types/cmp-perfs (&rest args &key (file-name "/dev/null") (types (valid-subtypes 'number)) (limit 15) (time-out nil) tag sample (decompose *decomposition-functions*))
+  (declare (type (or list (and symbol (satisfies symbol-function))) decompose))
   (let ((*package* (find-package "KEYWORD")))
     (cond
       ((null types))
@@ -309,6 +316,7 @@
          (dolist (f (if (listp decompose)
                         decompose
                         (list decompose)))
+           (declare (type symbol f))
            (when (or (not (eq f 'decompose-types))
                      (> 10 (length types)))
              (format t "function:  ~A~%" f)

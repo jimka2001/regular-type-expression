@@ -192,8 +192,7 @@
                       '(non-integer nil t))))
 
 (define-test test/bdd-numbers
-  (assert-true (bdd-type-equal
-                (types/cmp-perfs :limit 15 :decompose   #'lisp-types::bdd-decompose-types :types (valid-subtypes 'number)))))
+  (assert-true (types/cmp-perfs :limit 15 :decompose 'lisp-types::bdd-decompose-types :types (valid-subtypes 'number))))
 
 
 (define-test test/bdd-cmp
