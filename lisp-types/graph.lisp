@@ -61,6 +61,8 @@
    (sub-type-options :initarg :sub-type-options :accessor sub-type-options :initform nil)
    (touch-options :initarg :touch-options :accessor touch-options :initform nil)))
 
+(defgeneric type-specifier (node))
+(defgeneric (setf type-specifier) (value node))
 
 (defmethod type-specifier ((node graph-node))
   (car (type-option node)))
