@@ -24,9 +24,11 @@
   (:use :cl :lisp-types :lisp-unit))
 
 
-(do-symbols (name :lisp-types)
-  (format t "importing name=~A into  :lisp-types.test~%" name)
-  (shadowing-import name :lisp-types.test))
+(let ((lisp-types (find-package  :lisp-types)))
+  (do-symbols (name :lisp-types)
+    (when (eq lisp-types (symbol-package name))
+      (format t "importing name=~A into  :lisp-types.test~%" name)
+      (shadowing-import name :lisp-types.test))))
 
 (in-package :lisp-types.test)
 
