@@ -65,11 +65,13 @@
     ;;                   (and (not bignum) (not fixnum) unsigned-byte)))))
     (funcall thunk)))
   
+(defun bdd-make-key (label left right)
+  (list label left right))
+
 (defun bdd-find-int-int (hash label left right)
   (declare (type fixnum left right)
            (optimize (speed 3) (safety 0)))
-  ((lambda (&rest key)
-     (gethash key hash)) label left right))
+  (gethash (bdd-make-key label left right) hash))
 
 (defun bdd-find (hash label left-bdd right-bdd)
   (declare (type bdd left-bdd right-bdd))
@@ -253,7 +255,7 @@
                                          :label label
                                          :left  new-left
                                          :right new-right))
-                     (key (list label (bdd-ident new-left) (bdd-ident new-right))))
+                     (key (bdd-make-key label (bdd-ident new-left) (bdd-ident new-right))))
                 (incr-hash)
                 (setf (gethash key *bdd-hash*) bdd)
                 (setf (gethash key *bdd-hash*)
