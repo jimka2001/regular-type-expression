@@ -86,17 +86,38 @@
        (print-sub-super)
        (print-foot)))))
 
-(defun %decompose-types-bdd-graph (type-specifiers)
-  (declare (notinline sort)
-           (optimize (speed 3) (compilation-speed 0) (debug 0) (space 0)))
+(defun %decompose-types-bdd-graph (type-specifiers &rest options
+                                   &key
+                                     (sort-nodes #'identity)
+                                     (sort-strategy "default")
+                                     (inner-loop :node)
+                                     (do-disjoint t)
+                                     (do-break-sub :relaxed)
+                                     (do-break-touch t)
+                                     (do-break-loop nil))
+  (declare (notinline sort +)
+           ;;(ignore sort-strategy)
+           (type (member :node :operation) inner-loop)
+           (type (member :strict :relaxed) do-break-sub)
+           (type (function (list) list) sort-nodes)
+           (type list type-specifiers)
+           ;;(optimize (speed 3) (compilation-speed 0) (debug 0) (space 0))
+           (optimize (speed 0) (compilation-speed 0) (debug 3) )
+           )
+
+  (when (eq :strict do-break-sub)
+    (assert do-break-loop (do-break-sub do-break-loop)
+            "Unsupported combination do-break-loop=~A do-break-sub=~A" do-break-loop do-break-loop))
+
   (let* ((node-id 0)
          (bdds (remove-duplicates
                 (sort (mapcar #'bdd type-specifiers)
                       #'>
                       :key #'(lambda (bdd)
+                               (declare (notinline length))
                                (length (bdd-collect-atomic-types bdd))))
                 :test #'bdd-type-equal))
-         #+:bdd-debug (bdd-type-orig (bdd `(or ,@type-specifiers)))
+         (bdd-type-orig (bdd `(or ,@type-specifiers)))
          (graph (loop :for bdd :in bdds
                       :collect (list :bdd bdd
                                      :super-types nil
@@ -104,87 +125,107 @@
                                      :touches nil
                                      :id (incf node-id)))))
 
-
-
     (let ((changed nil)
-          #+:bdd-debug (c 1000)
-          #+:bdd-debug (html-file "/tmp/jnewton/graph.html")
+          (c 1000)
+          (html-file "/tmp/jnewton/graph.html")
           disjoint-bdds)
       (labels ((disjoint! (node)
-                 (setf changed t)
-                 (setf graph (remove node graph :test #'eq))
-                 (unless (eq (getf node :bdd) *bdd-false*)
-                   (pushnew (getf node :bdd) disjoint-bdds :test #'bdd-type-equal)))
+                 (when (member node graph :test #'eq)
+                   (setf changed t)
+                   (setf graph (remove node graph :test #'eq))
+                   (unless (eq (getf node :bdd) *bdd-false*)
+                     (pushnew (getf node :bdd) disjoint-bdds :test #'bdd-type-equal))))
                (node-to-dnf (node)
                  (declare (type cons node))
                  (bdd-to-dnf (getf node :bdd)))
-               #+:bdd-debug (getter (prop)
-                              (lambda (plist)
-                                (getf plist prop)))
-               #+:bdd-debug (dot (comment &rest nodes)
-                              (let ((*print-case* :downcase)
-                                    (png-file (format nil "/tmp/jnewton/graph-~D.png" (incf c)))
-                                    (graph-bdd (reduce #'bdd-or (mapcar (getter :bdd) graph)
-                                                       :initial-value (reduce #'bdd-or disjoint-bdds
-                                                                              :initial-value *bdd-false*))))
-                                (with-open-file (html html-file :direction :output
-                                                                :if-exists :append
-                                                                :if-does-not-exist :create)
-                                  (format html "<hr><br>~A<br>~%" comment)
-                                  (format html "<ul>~%")
-                                  (dolist (node nodes)
-                                    (format html "<li> ~D ~A~%" (getf node :id) (node-to-dnf node)))
-                                  (format html "</ul>~%")
-                                  (format html "<p><img src=~S><p>~%" png-file)
-                                  (bdd-graph-to-dot graph png-file)
-                                  (format html "expression: <pre>~A</pre>~%<p>" (bdd-to-dnf graph-bdd))
-                                  (when graph
-                                    (format html "Graph Nodes:<br><ul>~%")
-                                    (dolist (node graph)
-                                      (format html "<li>~D ~A<br>~%" (getf node :id) (node-to-dnf node)))
-                                    (format html "</ul>~%"))
-                                  (when disjoint-bdds
-                                    (format html "Disjoint types:<br><ul>~%")
-                                    (dolist (bdd disjoint-bdds)
-                                      (format html "<li>~A<br>~%" (bdd-to-dnf bdd)))
-                                    (format html "</ul>~%"))
-                                  (cond
-                                    ((eq bdd-type-orig graph-bdd)
-                                     (format html "graph is consistent:<br>~%"))
-                                    (t
-                                     (let ((a-not-b (bdd-and-not bdd-type-orig graph-bdd))
-                                           (b-not-a (bdd-and-not graph-bdd bdd-type-orig)))
-                                       (cond
-                                         ((and (eq a-not-b *bdd-false*)
-                                               (eq b-not-a *bdd-false*))
-                                          (format html "equal BDDs which are not EQ:<br>~%")
-                                          (if (equal (bdd-to-dnf bdd-type-orig)
-                                                     (bdd-to-dnf graph-bdd))
-                                              (format html "same DNF:<br>~%")
-                                              (format html "different DNF:<br>~%"))
-                                          (format html "<ul>~%")
-                                          (format html "<li> <pre>original = ~S</pre>~%" (bdd-to-dnf bdd-type-orig))
-                                          (format html "<li> <pre>graph    = ~S</pre>~%" (bdd-to-dnf graph-bdd))
-                                          (format html "<li> <pre>original = ~S</pre>~%" (bdd-serialize bdd-type-orig))
-                                          (format html "<li> <pre>graph    = ~S</pre>~%" (bdd-serialize graph-bdd))
-                                          (format html "</ul>~%"))
-                                         (t
-                                          (format html "ERROR in graph:<br>~%")
-                                          (format html "<ul>~%")
-                                          (format html "<li>original - graph = ~S<br>~%" (bdd-to-dnf a-not-b))
-                                          (format html "<li>original - graph = ~S<br>~%" (reduce-lisp-type (bdd-to-dnf a-not-b)))
-                                          (format html "<li>graph - original = ~S<br>~%" (bdd-to-dnf b-not-a))
-                                          (format html "<li>graph - original = ~S<br>~%" (reduce-lisp-type (bdd-to-dnf b-not-a)))
-                                          (format html "</ul>~%")
-                                          )))))
-                                  )))
-               (print-graph ()
-                 (format t "the graph~%")
+               (getter (prop)
+                 (lambda (plist)
+                   (getf plist prop)))
+               (dot (comment &rest nodes)
+                 (let ((*print-case* :downcase)
+                       (png-file (format nil "/tmp/jnewton/graph-~D.png" (incf c)))
+                       (graph-bdd (reduce #'bdd-or (mapcar (getter :bdd) graph)
+                                          :initial-value (reduce #'bdd-or disjoint-bdds
+                                                                 :initial-value *bdd-false*))))
+                   (with-open-file (html html-file :direction :output
+                                                   :if-exists :append
+                                                   :if-does-not-exist :create)
+                     (format t "writing graph to ~A~%" html-file)
+                     (format html "<hr><br>~A<br>~%" comment)
+                     (format html "<ul>~%")
+                     (dolist (node nodes)
+                       (format html "<li> ~D ~A~%" (getf node :id) (node-to-dnf node)))
+                     (format html "</ul>~%")
+                     (format html "<p><img src=~S><p>~%" png-file)
+                     (bdd-graph-to-dot graph png-file)
+                     (format html "expression: <pre>~A</pre>~%<p>" (bdd-to-dnf graph-bdd))
+                     (when graph
+                       (format html "Graph Nodes:<br><ul>~%")
+                       (dolist (node graph)
+                         (format html "<li>~D ~A<br>~%" (getf node :id) (node-to-dnf node)))
+                       (format html "</ul>~%"))
+                     (when disjoint-bdds
+                       (format html "Disjoint types:<br><ul>~%")
+                       (dolist (bdd disjoint-bdds)
+                         (format html "<li>~A<br>~%" (bdd-to-dnf bdd)))
+                       (format html "</ul>~%"))
+                     (cond
+                       ((eq bdd-type-orig graph-bdd)
+                        (format html "graph is consistent:<br>~%"))
+                       (t
+                        (let ((a-not-b (bdd-and-not bdd-type-orig graph-bdd))
+                              (b-not-a (bdd-and-not graph-bdd bdd-type-orig)))
+                          (cond
+                            ((and (eq a-not-b *bdd-false*)
+                                  (eq b-not-a *bdd-false*))
+                             (format html "equal BDDs which are not EQ:<br>~%")
+                             (if (equal (bdd-to-dnf bdd-type-orig)
+                                        (bdd-to-dnf graph-bdd))
+                                 (format html "same DNF:<br>~%")
+                                 (format html "different DNF:<br>~%"))
+                             (format html "<ul>~%")
+                             (format html "<li> <pre>DNF of original = ~S</pre>~%" (bdd-to-dnf bdd-type-orig))
+                             (format html "<li> <pre>DNF of graph    = ~S</pre>~%" (bdd-to-dnf graph-bdd))
+                             (format html "<li> <pre>BDD of original = ~S</pre>~%" (bdd-serialize bdd-type-orig))
+                             (format html "<li> <pre>BDD of graph    = ~S</pre>~%" (bdd-serialize graph-bdd))
+                             (format html "</ul>~%"))
+                            (t
+                             (format html "ERROR in graph:<br>~%")
+                             (format html "<ul>~%")
+                             (format html "<li>original - graph = ~S<br>~%" (bdd-to-dnf a-not-b))
+                             (format html "<li>original - graph = ~S<br>~%" (reduce-lisp-type (bdd-to-dnf a-not-b)))
+                             (format html "<li>graph - original = ~S<br>~%" (bdd-to-dnf b-not-a))
+                             (format html "<li>graph - original = ~S<br>~%" (reduce-lisp-type (bdd-to-dnf b-not-a)))
+                             (format html "</ul>~%")
+                             )))))
+                     )))
+               (node-id (node)
+                 (getf node :id))
+               (print-graph (comment)
+                 (cl-user::print-vals type-specifiers
+                                      options
+                                      sort-nodes
+                                      sort-strategy
+                                      inner-loop
+                                      do-disjoint
+                                      do-break-sub
+                                      do-break-touch
+                                      do-break-loop)
+                 (dot comment)
+                 (format t "the graph  ~D nodes~%" (length graph))
+                 (format t "graph nodes: ~A~%"
+                         (mapcar #'node-id graph))
                  (dolist (node graph)
-                   (format t "graph node=~A~%" (node-to-dnf node))
-                   (format t "  sub-types=~A~%" (mapcar #'node-to-dnf (getf node :sub-types)))
-                   (format t "  super-types=~A~%" (mapcar #'node-to-dnf (getf node :super-types)))
-                   (format t "  touches=~A~%" (mapcar #'node-to-dnf (getf node :touches))))
+                   (format t "graph node[~A]=~A~%" (node-id node) (node-to-dnf node))
+                   (format t "  sub-types=~A~%  ~A~%"
+                           (mapcar #'node-id (getf node :sub-types))
+                           (mapcar #'node-to-dnf (getf node :sub-types)))
+                   (format t "  super-types=~A~%  ~A~%"
+                           (mapcar #'node-id (getf node :super-types))
+                           (mapcar #'node-to-dnf (getf node :super-types)))
+                   (format t "  touches=~A~%  ~A~%"
+                           (mapcar #'node-id (getf node :touches))
+                           (mapcar #'node-to-dnf (getf node :touches))))
                  (format t "---~%")
                  (dolist (node disjoint-bdds)
                    (format t "disjoint ~A~%" (bdd-to-dnf node)))
@@ -193,16 +234,12 @@
                  (null (or (getf node :touches)
                            (getf node :sub-types)
                            (getf node :super-types))))
-               (subset-condition (sub)
-                 (null (getf sub :sub-types)))
                (break-sub! (sub super)
                  (setf (getf super :bdd) (bdd-and-not (getf super :bdd)
                                                       (getf sub :bdd))
                        changed t)
                  (no-sub-super! sub super)
                  (remove-nil! super))
-               (touching-condition (node)
-                 (null (getf node :sub-types)))
                (touch! (n1 n2)
                  (unless (eq n1 n2)
                    (pushnew n1 (getf n2 :touches) :test #'eq)
@@ -232,6 +269,7 @@
                    ;;(mapc #'remove-nil! (getf node :sub-types))
                    ))
                (break-touch! (node-x node-y)
+                 (declare (notinline union +))
                  (setf changed t)
                  (no-touch! node-x node-y)
                  (let* ((bdd-x (getf node-x :bdd))
@@ -259,7 +297,13 @@
                      (remove-nil! node-y))))
                (break-loop! (D)
                  (when D
-                   (let* ((B (car (getf D :touches)))
+                   (let* ((neighbors (sort (setof touch (getf D :touches)
+                                             (getf touch :sub-types))
+                                           #'< :key (lambda (node)
+                                                      (length (getf node :super-types)))))
+                          ;; of all the neighbors of D with sub-types, select the one with the
+                          ;; least number of super-types, hopefully with 0 supertypes.
+                          (B (car neighbors)) 
                           (D-bdd (getf D :bdd))
                           (B-bdd (getf B :bdd))
                           (BD (list :bdd (bdd-and B-bdd D-bdd)
@@ -267,18 +311,55 @@
                                     :sub-types nil
                                     :touches nil ;; to fill in below
                                     :id (incf node-id))))
+                     (assert B () "break-loop! called to break a loop which does not exist")
                      (no-touch! B D)
                      (unless (eq (getf BD :bdd) *bdd-false*)
                        (dolist (touch (getf D :touches))
                          (touch! BD touch))
-                       (dolist (super (getf D :super-types))
-                         (sub-super! BD super))
                        (sub-super! BD B)
                        (sub-super! BD D)
+                       (dolist (super (getf BD :super-types))
+                         (dolist (super-super (getf super :super-types))
+                           (sub-super! BD super-super)))
                        (push BD graph))
                      (setf (getf D :bdd) (bdd-and-not D-bdd B-bdd))
                      (remove-nil! D))
-                   (setf changed t))))
+                   (setf changed t)))
+               (do-disjoint (node)
+                 (when (disjoint-condition node)
+                   (disjoint! node)
+                   #+:bdd-debug (dot "disjoint!" node)))
+               (do-break-sub-strict (node)
+                 (when (and (null (getf node :sub-types))
+                            (null (getf node :touches)))
+                   (dolist (super (getf node :super-types))
+                     (break-sub! node super)
+                     #+:bdd-debug (dot "break-sub!" node super))))
+               (do-break-sub-relaxed (node)
+                 ;; break child -> parent if child touches nothing and has no sub-types
+                 ;; -- subset condition
+                 (when (null (getf node :sub-types))
+                   (dolist (super (getf node :super-types))
+                     (break-sub! node super)
+                     #+:bdd-debug (dot "break-sub!" node super)
+                     (dolist (sibling (getf super :sub-types))
+                       (cond ((eq node sibling))
+                             ((member sibling (getf node :touches) :test #'eq)
+                              (no-sub-super! sibling super)
+                              (touch! sibling super)))))))
+               (do-break-touch (node)
+                 ;; touching connections
+                 (when (null (getf node :sub-types))
+                   (dolist (neighbor (getf node :touches))
+                     (when (null (getf neighbor :sub-types))
+                       (break-touch! node neighbor)
+                       #+:bdd-debug (dot "break-touch!" node neighbor)))))
+               (do-break-loop (node)
+                 (when (and (null (getf node :sub-types))
+                            (exists touch (getf node :touches)
+                              (getf touch :sub-types)))
+                   (break-loop! node)))
+               )
 
         ;; setup all the :super-types, :sub-types, and :touches lists
         (loop :for tail :on graph
@@ -295,65 +376,119 @@
                                 (sub-super! node2 node1))
                                (t ;; touching
                                 (touch! node1 node2))))))
-
+        
+        (setq graph (funcall sort-nodes graph))
+        
         (setf changed t)
         #+:bdd-debug (dot "given")
-        (while changed
-          (setf changed nil)
-          (dolist (node graph)
-            (when (disjoint-condition node)
-              (disjoint! node)
-              #+:bdd-debug (dot "disjoint!" node)))
+        (let ((operations (nconc (when do-disjoint
+                                   (list #'do-disjoint))
+                                 (ecase do-break-sub
+                                   ((:strict)
+                                    (list #'do-break-sub-strict))
+                                   ((:relaxed)
+                                    (list #'do-break-sub-relaxed)))
+                                 (when do-break-touch
+                                   (list #'do-break-touch))
+                                 (when do-break-loop
+                                   (list #'do-break-loop)))))
+          (while changed
+            (setf changed nil)
+            (ecase inner-loop
+              ((:node)
+               (dolist (operation operations)
+                 (declare (type function operation))
+                 (dolist (node graph)
+                   (funcall operation node))))
+              ((:operation)
+               (dolist (node graph)
+                 (dolist (operation operations)
+                   (declare (type function operation))
+                   (funcall operation node)))))))
 
-          ;; ;; first break touches which don't have super-types nor sub-types
-          ;; (while (exists node graph
-          ;;          (and (null (getf node :sub-types))
-          ;;               (null (getf node :super-types))
-          ;;               (exists touch (getf node :touches)
-          ;;                 (and (null (getf touch :sub-types))
-          ;;                      (null (getf touch :super-types))))))
-          ;;   (dolist (node graph)
-          ;;     (unless (or (getf node :sub-types)
-          ;;                 (getf node :super-types))
-          ;;       (dolist (touch (getf node :touches))
-          ;;         (unless (or (getf touch :sub-types)
-          ;;                     (getf touch :super-types))
-          ;;           (break-touch! node touch)
-          ;;           #+:bdd-debug (dot "break-touch! no hierarchy" node touch))))))
-
-          ;; next break child -> parent if child touches nothing and has no sub-types
-          (dolist (node graph)
-            ;; subset condition
-            (when (subset-condition node)
-              (dolist (super (getf node :super-types))
-                (break-sub! node super)
-                #+:bdd-debug (dot "break-sub!" node super)
-                (dolist (sibling (getf super :sub-types))
-                  (cond ((eq node sibling))
-                        ((member sibling (getf node :touches) :test #'eq)
-                         (no-sub-super! sibling super)
-                         (touch! sibling super)))))))
-          (dolist (node graph)
-            ;; touching connections
-            (when (touching-condition node)
-              (dolist (neighbor (getf node :touches))
-                (when (touching-condition neighbor)
-                  (break-touch! node neighbor)
-                  #+:bdd-debug (dot "break-touch!" node neighbor)))))
-          (unless changed
-            (let ((problematic (find-if (lambda (n) (and (null (getf n :sub-types))
-                                                         (getf n :touches)))
-                                        graph)))
-              (break-loop! problematic)
-              #+:bdd-debug (when problematic
-                             (dot "break-loop!" problematic)))))
-        
         (when graph
-          (print-graph)
-          (error "graph nodes remain~%"))
+          (print-graph "nodes remain" )
+          (error "~D graph nodes remain~%" (length graph)))
 
         (mapcar #'bdd-to-dnf disjoint-bdds)))))
+
+
+(defun count-connections-per-node (node)
+  (+ (length (getf node :touches))
+     (length (getf node :sub-types))
+     (length (getf node :super-types))))
+
+(defun count-parents-per-node (node)
+  (length (getf node :super-types)))
+
+
 
 (defun decompose-types-bdd-graph (type-specifiers)
   (bdd-with-new-hash (lambda ()
                        (%decompose-types-bdd-graph type-specifiers))))
+
+
+(defmacro make-decompose-fun-combos ()
+  (let (fun-defs
+        fun-names
+        ( *operation-combos* '((:do-break-sub :strict
+                                 :do-break-loop t)
+                               (:do-break-sub :relaxed
+                                 :do-break-loop nil)
+                               (:do-break-sub :relaxed
+                                 :do-break-loop t)))
+        ( *inner-loops* '((:inner-loop :node)
+                          (:inner-loop :operation)))
+        ( *sort-nodes* '((:sort-nodes (lambda (graph)
+                                        (shuffle-list graph))
+                          :sort-strategy "SHUFFLE")
+                         (:sort-nodes (lambda (graph)
+                                        (declare (notinline sort))
+                                        (sort graph #'< :key #'count-connections-per-node))
+                          :sort-strategy "INCREASING-CONNECTIONS")
+                         (:sort-nodes (lambda (graph)
+                                        (declare (notinline sort))
+                                        (sort graph #'> :key #'count-connections-per-node))
+                          :sort-strategy "DECREASING-CONNECTIONS")
+                         (:sort-nodes (lambda (graph)
+                                        (declare (notinline sort))
+                                        (sort graph #'> :key #'count-parents-per-node))
+                          :sort-strategy "BOTTOM-TO-TOP")
+                         (:sort-nodes (lambda (graph)
+                                        (declare (notinline sort))
+                                        (sort graph #'< :key #'count-parents-per-node))
+                          :sort-strategy "TOP-TO-BOTTOM")))
+
+        )
+    (dolist (sort-nodes-args *sort-nodes*)
+      (destructuring-bind (&key sort-nodes sort-strategy) sort-nodes-args
+        (declare (ignore sort-nodes))
+        (dolist (inner-loop-args *inner-loops*)
+          (destructuring-bind (&key inner-loop) inner-loop-args
+            (dolist (operation-combo-args *operation-combos*)
+              (destructuring-bind (&key do-break-sub do-break-loop) operation-combo-args
+                (let ((fun-name (concatenate 'string
+                                             "DECOMPOSE-TYPES-BDD-GRAPH-"
+                                             (symbol-name do-break-sub)
+                                             "-"
+                                             "BREAK-LOOP-"
+                                             (if do-break-loop "YES" "NO")
+                                             "-"
+                                             (symbol-name inner-loop)
+                                             "-"
+                                             sort-strategy)))
+
+                  (push `(defun ,(intern fun-name (find-package "LISP-TYPES")) (type-specifiers)
+                           (bdd-with-new-hash (lambda ()
+                                                (%decompose-types-bdd-graph type-specifiers
+                                                                            ,@sort-nodes-args
+                                                                            ,@inner-loop-args
+                                                                            ,@operation-combo-args))))
+                        fun-defs))))))))
+    (setf fun-names (mapcar #'cadr fun-defs))
+    `(progn
+       (defvar *decompose-fun-names* ',fun-names)
+       ,@fun-defs)))
+
+
+(make-decompose-fun-combos)

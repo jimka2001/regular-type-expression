@@ -179,11 +179,12 @@
 
 
 (defvar *decomposition-functions*
-  '(decompose-types
+  `(decompose-types
     decompose-types-sat
     decompose-types-graph
     bdd-decompose-types
-    decompose-types-bdd-graph))
+    decompose-types-bdd-graph
+    ,@*decompose-fun-names*))
 
 (defun compare/results (all-results &aux (good-results (setof res all-results
                                                          (and res
@@ -303,7 +304,7 @@
       (dolist (res (cdr good-results))
         (compare (car good-results) res)))))
 
-(defun types/cmp-perfs (&rest args &key (file-name "/dev/null") (types (valid-subtypes 'number)) (limit 15) (time-out nil) tag sample (decompose *decomposition-functions*))
+(defun types/cmp-perfs (&rest args &key (summary nil) (json-name "/dev/null") (file-name "/dev/null") (types (valid-subtypes 'number)) (limit 15) (time-out nil) tag sample (decompose *decomposition-functions*))
   (declare (type (or list (and symbol (satisfies symbol-function))) decompose))
   (let ((*package* (find-package "KEYWORD")))
     (cond
@@ -319,6 +320,7 @@
            (declare (type symbol f))
            (when (or (not (eq f 'decompose-types))
                      (> 10 (length types)))
+             (format t "    date:  ~A~%" (multiple-value-list (get-decoded-time)))
              (format t "function:  ~A~%" f)
              (format t "   tag:    ~A~%" tag)
              (format t "   limit:  ~D~%" (min limit (length types)))
@@ -326,6 +328,8 @@
              (push (types/cmp-perf :types types :decompose f :sample sample :time-out time-out)
                    results)
              (print-latex file-name
+                          :json-name json-name
+                          :summary summary
                           :time-out time-out)))
          ;;(compare/results results)
          ))))
@@ -506,15 +510,60 @@
   (types/cmp-perfs :types '(STRING STANDARD-GENERIC-FUNCTION ATOM METHOD SIMPLE-BASE-STRING
                             SEQUENCE COMPLEX STANDARD-OBJECT STANDARD-METHOD)))
 
-(defun shuffle-list (data)
-  (labels ((rnd-element (data n &aux (r (random n)) (tail (nthcdr r data)))
-             (list (car tail) (nconc (ldiff data tail) (cdr tail))))
-           (recure (data n collected)
-             (if data
-                 (destructuring-bind (elt remaining) (rnd-element data n)
-                   (recure remaining (1- n) (cons elt collected)))
-                 collected)))
-    (recure data (length data) nil)))
+(define-test disjoint-cmp-j
+  (setf *perf-results* nil)
+  (types/cmp-perf :types '((MEMBER 0 1 2 4 5 6 8 9 10) (MEMBER 1 2 4 6 8)
+                           (MEMBER 1 2 3 5 6 7 8 10) (MEMBER 1 5 6 7 9 10) (MEMBER 0 1 6 7 8 10)
+                           (MEMBER 0 1 2 3 5 6 10) (MEMBER 0 1 3 4 5 6 8 9 10)
+                           (MEMBER 0 3 5 6 8) (MEMBER 0 1 2 3 6 7 9) (MEMBER 0 2 4 8 10)
+                           (MEMBER 0 1 5 9) (MEMBER 0 1 2 4 8) (MEMBER 1 3 5 6 8 9 10)
+                           (MEMBER 3 5 7 9) (MEMBER 5 6 7 8 9 10) (MEMBER 0 4 6 7 8 9)
+                           (MEMBER 1 4 7 9) (MEMBER 0 3 4 7 8 10) (MEMBER 0 1 4 5 7 8)
+                           (MEMBER 0 2 4 5 7 9 10) (MEMBER 0 9 10))))
+
+(define-test disjoint-cmp-k
+  (let ((type-specifiers
+          '((and arithmetic-error reader-error structure-class (not style-warning))
+            (and arithmetic-error reader-error (not structure-class) (not style-warning))
+            (and arithmetic-error (not reader-error) (not structure-class) style-warning)
+            (and arithmetic-error (not reader-error) structure-class style-warning)
+            (and (not arithmetic-error) condition (not reader-error) structure-class (not style-warning))
+            (and (not arithmetic-error) reader-error structure-class (not style-warning))
+            (and arithmetic-error (not reader-error) structure-class (not style-warning))
+            (and (not arithmetic-error) (not reader-error) structure-class style-warning)
+            (or (and condition (not reader-error)) (and reader-error (not style-warning)))
+            (and (not condition) structure-class (not style-warning))
+            (and arithmetic-error (not reader-error) (not structure-class) (not style-warning))
+            (or (and (not reader-error) warning) (and reader-error (not style-warning) warning))
+            (or (and (not reader-error) stream-error) (and reader-error (not style-warning)))
+            (and (not arithmetic-error) reader-error (not structure-class) (not style-warning))
+            (and (not arithmetic-error) (not reader-error) (not structure-class) style-warning))))
+    (%decompose-types-bdd-graph type-specifiers 
+                                :sort-nodes #'(lambda (graph)
+                                                (declare (notinline sort))
+                                                (sort graph #'< :key #'count-parents-per-node))
+                                :sort-strategy "TOP-TO-BOTTOM"
+                                :inner-loop :operation
+                                :do-break-sub :strict
+                                :do-break-loop t)))
+
+
+
+(define-test disjoint-cmp-l
+  (let ((type-specifiers
+          '(CONDITION RESTART RATIONAL CONS RATIO READER-ERROR STRUCTURE-CLASS
+            SYNONYM-STREAM ARITHMETIC-ERROR CHAR-CODE WARNING FLOAT-RADIX
+            SIMPLE-BIT-VECTOR STREAM-ERROR ARRAY STYLE-WARNING)))
+    (%decompose-types-bdd-graph type-specifiers 
+                                :sort-nodes #'(lambda (graph)
+                                                (declare (notinline sort))
+                                                (sort graph #'< :key #'count-parents-per-node))
+                                :sort-strategy "TOP-TO-BOTTOM"
+                                :inner-loop :operation
+                                :do-break-sub :strict
+                                :do-break-loop t)))
+                                
+
 
 (defun find-decomposition-discrepancy (&optional (type-specs '(array-rank array-total-size bignum bit
                                                                complex fixnum float float-digits
@@ -563,11 +612,50 @@
                           (incf c))))
     c))
 
-(defun print-latex (stream &key (include-decompose *decomposition-functions*) (time-out 15))
+(defun group-by (data &key key (test #'eql))
+  (declare (type list data)
+           (type (function (t) t) key)
+           (type (function (t t) t) test))
+  (let ((hash (make-hash-table :test test)))
+    (dolist (item data)
+      (push item (gethash (funcall key item) hash nil)))
+    (loop for key being the hash-keys of hash
+          collect (list key (gethash key hash)))))
+
+(defun print-json (stream summary)
+  (let ((groups (group-by (cdr *perf-results*) :key (lambda (item) (getf item :decompose)))))
+    (format stream "{")
+    (when summary
+      (format stream " SUMMARY : ~A~%" summary))
+    (format stream "DATA : [")
+    (flet ((print-group (group)
+             (destructuring-bind (decompose data) group
+               (format stream "{ DECOMPOSE : ~A" (symbol-name decompose))
+               (let ((no-time-out (setof item data
+                                    (null (getf item :time-out)))))
+                 (dolist (tag `(:given :calculated :time))
+                   (format stream "~%~A : [" (symbol-name tag))
+                   (when no-time-out
+                     (format stream "~A" (getf (car no-time-out) tag)))
+                   (dolist (item (cdr no-time-out))
+                     (format stream ", ~A" (getf item tag)))
+                   (format stream "]")))
+               (format stream "}~%"))))
+      (when (car groups)
+        (print-group (car groups)))
+      (dolist (group (cdr groups))
+        (format stream ", ")
+        (print-group group)))
+    (format stream "]}~%"))
+  nil)
+
+(defun print-latex (stream &key (summary nil) (json-name "/dev/null") (include-decompose *decomposition-functions*) (time-out 15))
   (etypecase stream
     ((or stream
          (eql t)
          (eql nil))
+     (with-open-file (json-name stream :direction :output :if-exists :supersede)
+       (print-json stream summary))
      (format stream "given calculated sum product touching disjoint disjoint*given touching*given new time decompose~%")
      (let ((domain (remove-duplicates *perf-results*
                                       :test #'equal
@@ -593,7 +681,7 @@
                     (num-disjoint (count-pairs types #'disjoint-types-p))
                     (num-touching (count-pairs types #'(lambda (x y)
                                                          (not (disjoint-types-p x y))))))
-                (format stream "~D ~D ~D ~D ~D ~D ~D ~D ~D ~S ~S~%"
+                (format stream "~D ~D ~D ~D ~D ~D ~D ~D ~D ~S ~A~%"
                         given calculated
                         (+ given calculated) ;; sum
                         (* given calculated) ;; product
@@ -605,7 +693,7 @@
                         time decompose))))))))
     ((or pathname string)
      (with-open-file (str stream :direction :output :if-exists :supersede)
-       (print-latex str :time-out time-out :include-decompose include-decompose)))))
+       (print-latex str :summary summary :json-name json-name :time-out time-out :include-decompose include-decompose)))))
 
 
 (defun test-report (&key types file-name (limit 15) tag (time-out 15))
@@ -618,6 +706,8 @@
                        :tag tag
                        :sample sample
                        :file-name (format nil "/Users/jnewton/newton.16.edtchs/src/~A.dat" file-name)
+                       :json-name (format nil "/Users/jnewton/newton.16.edtchs/src/~A.json" file-name)
+                       :summary file-name
                        :time-out time-out
                        :decompose  *decomposition-functions*)))
   )

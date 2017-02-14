@@ -454,6 +454,7 @@ according to the LABEL which is now the label of some parent in its lineage."
 
 (defun bdd-to-dnf (bdd)
   "Convert a BDD to logical expression in DNF (disjunctive normal form), i.e. an OR of ANDs."
+  (declare (type bdd bdd))
   (let (disjunctions)
     (labels ((wrap (op zero forms)
                (cond ((cdr forms)
@@ -587,15 +588,16 @@ convert it to DNF (disjunctive-normal-form)"
                              (exists bdd2 bdds
                                (and (not (eq bdd1 bdd2))
                                     (bdd-subtypep bdd2 bdd1)))) bdds)))
-       (let* ((bdds (mapcan (lambda (type-specifier)
+       (let ((bdds (mapcan (lambda (type-specifier)
                              (option-bdd (bdd type-specifier)))
-                            type-specifiers))
-              (U (reduce #'bdd-or bdds :initial-value *bdd-false*))
-              (init (list (bdd-and U (car bdds))
-                          (bdd-and-not U (car bdds)))))
-         (remove-supers
-          (reduce #'slice (cdr bdds)
-                  :initial-value (remove *bdd-false* init))))))))
+                           type-specifiers)))
+         (when bdds
+           (let* ((U (reduce #'bdd-or bdds :initial-value *bdd-false*))
+                  (init (list (bdd-and U (car bdds))
+                              (bdd-and-not U (car bdds)))))
+             (remove-supers
+              (reduce #'slice (cdr bdds)
+                      :initial-value (remove *bdd-false* init))))))))))
 
 (defun bdd-collect-terms (bdd)
   (declare (type bdd bdd))

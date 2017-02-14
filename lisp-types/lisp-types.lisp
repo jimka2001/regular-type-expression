@@ -88,30 +88,15 @@
   `(loop :while ,test
 	 :do (progn ,@body)))
 
-(defun shuffle-list (data)
-  (labels ((split (data)
-	     (let (l1 l2)
-	       (while data
-		 (if (zerop (random 2))
-			     (push (pop data) l1)
-			     (push (pop data) l2)))
-	       (values l1 l2)))
-	   (fold (l1 l2 &aux data)
-	     (loop :while (or l1 l2)
-		   :do (cond
-			 ((null l1)
-			  (push (pop l2) data))
-			 ((null l2)
-			  (push (pop l1) data))
-			 ((zerop (random 2))
-			  (push (pop l2) data))
-			 (t
-			  (push (pop l1) data))))
-	     data))
-    (dotimes (n 15)
-      (multiple-value-bind (l1 l2) (split data)
-	(setq data (fold l1 l2))))
-    data))
+(defun shuffle-list (data &aux shuffled (n (length data)))
+  (flet ((rnd-element (data n &aux (r (random n)) (tail (nthcdr r data)))
+           (list (car tail) (nconc (ldiff data tail) (cdr tail)))))
+    (while data
+      (destructuring-bind (elt remaining) (rnd-element data n)
+        (push elt shuffled)
+        (decf n)
+        (setf data remaining)))
+    shuffled))
     
 (defun valid-type-p (type-designator)
   #+sbcl (and (SB-EXT:VALID-TYPE-SPECIFIER-P type-designator)

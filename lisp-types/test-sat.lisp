@@ -118,7 +118,7 @@
                            double-float ;; long-float
                            ;;short-float signed-byte single-float
                            unsigned-byte)))
-    (types/cmp-perf numerical-types)))
+    (types/cmp-perf :types numerical-types)))
                          
 
 (defun types/cmp-perf-sat ()

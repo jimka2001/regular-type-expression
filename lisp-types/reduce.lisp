@@ -541,3 +541,23 @@ be even simpler in cases such as (OR A B), or (AND A B).  A few restrictions app
   (alphabetize-type
    (fixed-point #'reduce-lisp-type-once
 		type :test #'equal)))
+
+(defun derive-constraints (types)
+  (loop for tail on types
+        nconc (loop for t2 in (cdr tail)
+                 with t1 = (car tail)
+                 when (subtypep t1 t2)
+                   collect (list :subtype t1 t2)
+                 when (subtypep t2 t1)
+                   collect (list :subtype t2 t1)
+                 when (and (subtypep t1 t2)
+                           (subtypep t2 t1))
+                   collect (list :equal t1 t2)
+                 when (null (nth-value 1 (subtypep t1 t2)))
+                   collect (list :unknown-subtype t1 t2)
+                 when (null (nth-value 1 (subtypep t2 t1)))
+                   collect (list :unknown-subtype t2 t1)
+                 when (subtypep `(and ,t1 t2) nil)
+                   collect (list :disjoint t1 t2)
+                 when (null (nth-value 1 (subtypep `(and ,t1 t2) nil)))
+                   collect (list :unknown-disjoint t1 t2))))
