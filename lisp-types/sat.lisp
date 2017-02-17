@@ -77,8 +77,8 @@ There are three cases of constraints generated.
 		      (cond
 			((null (and (nth-value 1 (subtypep t1 t2))
 				    (nth-value 1 (subtypep t2 t1))))
-			 (warn "cannot determine relationship of ~A vs ~A, assuming disjoint" t1 t2)
-			 (list (list t1 t2)))
+			 (warn "cannot determine relationship of ~A vs ~A, assuming touching" t1 t2)
+			 nil)
 			((subtypep t1 t2)
 			 (list `(,t1 (not ,t2))))
 			((subtypep t2 t1)
