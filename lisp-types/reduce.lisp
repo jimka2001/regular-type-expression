@@ -82,15 +82,6 @@
 			      operands)))
   operands)
 
-(defmacro exists-tail (var list &body body)
-  (let ((name (gensym)))
-    `(block ,name
-       (mapl #'(lambda (,var)
-		 (when (progn ,@body)
-		   (return-from ,name ,var)))
-	     ,list)
-       nil)))
-
 (defvar *compound-type-specifier-names*
   '(
     (array :type dimension-spec)

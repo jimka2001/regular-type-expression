@@ -24,12 +24,13 @@
   :components
   ((:module "lisp-types"
     :components
-    ((:file "lisp-types")
-     (:file "reduce" :depends-on ("lisp-types"))
+    ((:file "macros")
+     (:file "lisp-types" :depends-on ("macros"))
+     (:file "reduce" :depends-on ("macros" "lisp-types"))
      (:file "decompose" :depends-on ("reduce"))
-     (:file "sat" :depends-on ("lisp-types"))
+     (:file "sat" :depends-on ("macros" "lisp-types"))
      (:file "typecase" :depends-on ("lisp-types"))
-     (:file "graph" :depends-on ("lisp-types"))
-     (:file "bdd" :depends-on ("lisp-types"))
-     (:file "bdd-graph" :depends-on ("bdd"))
+     (:file "graph" :depends-on ("macros" "lisp-types"))
+     (:file "bdd" :depends-on ("macros" "lisp-types"))
+     (:file "bdd-graph" :depends-on ("macros" "bdd" ))
      ))))

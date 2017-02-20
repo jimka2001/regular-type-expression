@@ -19,23 +19,6 @@
 ;; OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 ;; WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-(cl:defpackage :lisp-types
-  (:use :cl)
-  (:export
-   "DECOMPOSE-TYPES"
-   "DECOMPOSE-TYPES-GRAPH"
-   "DECOMPOSE-TYPES-SAT"
-   "VALID-TYPE-P"
-   "REDUCE-LISP-TYPE"
-   "REDUCED-TYPECASE"
-   "OPTIMIZED-TYPECASE"
-   "DISJOINT-TYPES-P"
-   "SMARTER-SUBTYPEP"
-   "EQUIVALENT-TYPES-P"
-   "AMBIGUOUS-SUBTYPE"
-   "AUTO-PERMUTE-TYPECASE"
-   ))
-
 (in-package   :lisp-types)
 
 (define-condition ambiguous-subtype (style-warning)
@@ -83,10 +66,6 @@
 (defmacro multiple-value-destructuring-bind (destructuring-lambda-list form &body body)
   `(destructuring-bind ,destructuring-lambda-list (multiple-value-list ,form)
      ,@body))
-
-(defmacro while (test &body body)
-  `(loop :while ,test
-	 :do (progn ,@body)))
 
 (defun shuffle-list (data &aux shuffled (n (length data)))
   (flet ((rnd-element (data n &aux (r (random n)) (tail (nthcdr r data)))
@@ -376,15 +355,5 @@ whose test is true, otherwise return OBJECT."
 		     (setf result (funcall function arg))))
     result))
 
-(defmacro forall (var data &body body)
-  `(every #'(lambda (,var) ,@body) ,data))
 
-(defmacro setof (var data &body body)
-  `(remove-if-not (lambda (,var) ,@body) ,data))
-
-
-(defmacro prog1-let ((var expr) &body body)
-  `(let ((,var ,expr))
-     ,@body
-     ,var))
 
