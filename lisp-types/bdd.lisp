@@ -55,7 +55,8 @@
 (defvar *bdd-hash* (bdd-new-hash))
 
 (defun bdd-with-new-hash (thunk)
-  (let ((*bdd-hash* (bdd-new-hash)))
+  (let ((*bdd-hash* (bdd-new-hash))
+        (*unknown-hash* (new-subtype-hash)))
     ;; (setf (gethash :type-system *bdd-hash*)
     ;;       (bdd '(not (or
     ;;                   (and (not integer) (not ratio) rational)

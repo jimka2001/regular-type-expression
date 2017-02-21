@@ -101,6 +101,61 @@ If N > (length of data) then a permutation of DATA is returned"
 (assert (not (valid-type-p (gensym))))
 (assert (valid-type-p 'bignum))
 
+(defun new-subtype-hash ()
+  (make-hash-table :test #'equal))
+
+;; A performance analysis of decompose-types-bdd-graph shows that a HUGE portion of the time
+;; is being spent in subtypep, and a major source of calls to subtypep is smarter-subtypep.
+;; It seems that runs containing lots of type specifiers for which subtypep returns nil,nil
+;; is a source of bad performance.  So *unknown-hash* is introduced to cache some of these
+;; cases.  If smarter-subtypep returns nil,nil, then we remember this case in *unknown-hash*
+;; in order to avoid recursive calls to smarter-subtypep and subtypep in future calls
+;; with the same arguments.
+(defvar *unknown-hash* (new-subtype-hash))
+
+(defun %smarter-subtypep (t1 t2 &aux (t12 (list t1 t2)))
+  (declare (optimize (speed 3) (compilation-speed 0)))
+  (multiple-value-bind (T1<=T2 OK) (cond
+                                     ((nth-value 1 (gethash t12 *unknown-hash*))
+                                      (values nil nil))
+                                     ((typep t1 '(cons (member eql member))) ; (eql obj) or (member obj1 ...)
+                                      (values (every #'(lambda (obj)
+                                                         (declare (notinline typep))
+                                                         (typep obj t2))
+                                                     (cdr t1))
+                                              t))
+                                     ;; T1 <: T2 <==> not(T2) <: not(T1)
+                                     ((and (typep t1 '(cons (eql not)))
+                                           (typep t2 '(cons (eql not))))
+                                      (smarter-subtypep (cadr t2) (cadr t1)))
+                                     ;; T1 <: T2 <==> not( T1 <= not(T2))
+                                     ((and (typep t2 '(cons (eql not)))
+                                           (smarter-subtypep t1 (cadr t2)))
+                                      (values nil t))
+                                     ;; T1 <: T2 <==> not( not(T1) <= T2)
+                                     ((and (typep t1 '(cons (eql not)))
+                                           (smarter-subtypep (cadr t1) t2))
+                                      (values nil t))
+                                     ;; (subtypep '(and cell-error type-error) 'cell-error)
+                                     ((and (typep t1 '(cons (eql and)))
+                                           (exists t3 (cdr t1)
+                                             (smarter-subtypep t3 t2)))
+                                      (values t t))
+                                     ;; this is the dual of the previous clause, but it appears sbcl gets this one right
+                                     ;;   so we comment it out
+                                     ;; ((and (typep t2 '(cons (eql or)))
+                                     ;;       (exists t3 (cdr t2)
+                                     ;;         (smarter-subtypep t1 t3)))
+                                     ;;  (values t t))
+                                     (t
+                                      (setf (gethash t12 *unknown-hash*) nil)
+                                      (values nil nil)))
+    (cond
+      (OK
+       (values T1<=T2 t))
+      (t
+       (values nil nil)))))
+
 ;; TODO need to update some calls to subtypep to use smarter-subtypep instead.
 (defun smarter-subtypep (t1 t2)
   "The sbcl subtypep function does not know that (eql :x) is a subtype of keyword,
@@ -110,37 +165,8 @@ this function SMARTER-SUBTYPEP understands this."
     (cond
       (OK
        (values T1<=T2 t))
-      ((typep t1 '(cons (member eql member))) ; (eql obj) or (member obj1 ...)
-       (values (every #'(lambda (obj)
-                          (declare (notinline typep))
-                          (typep obj t2))
-                      (cdr t1))
-               t))
-      ;; T1 <: T2 <==> not(T2) <: not(T1)
-      ((and (typep t1 '(cons (eql not)))
-            (typep t2 '(cons (eql not))))
-       (smarter-subtypep (cadr t2) (cadr t1)))
-      ;; T1 <: T2 <==> not( T1 <= not(T2))
-      ((and (typep t2 '(cons (eql not)))
-            (smarter-subtypep t1 (cadr t2)))
-       (values nil t))
-      ;; T1 <: T2 <==> not( not(T1) <= T2)
-      ((and (typep t1 '(cons (eql not)))
-            (smarter-subtypep (cadr t1) t2))
-       (values nil t))
-      ;; (subtypep '(and cell-error type-error) 'cell-error)
-      ((and (typep t1 '(cons (eql and)))
-            (exists t3 (cdr t1)
-              (smarter-subtypep t3 t2)))
-       (values t t))
-      ;; this is the dual of the previous clause, but it appears sbcl gets this one right
-      ;;   so we comment it out
-      ;; ((and (typep t2 '(cons (eql or)))
-      ;;       (exists t3 (cdr t2)
-      ;;         (smarter-subtypep t1 t3)))
-      ;;  (values t t))
       (t
-       (values nil nil)))))
+       (%smarter-subtypep t1 t2)))))
 
 (defun xor (a b)
   (or (and a (not b))
