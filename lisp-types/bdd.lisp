@@ -66,7 +66,7 @@
     (funcall thunk)))
   
 (defun bdd-make-key (label left right)
-  (list label left right))
+  (list left right label))
 
 (defun bdd-find-int-int (hash label left right)
   (declare (type fixnum left right)
