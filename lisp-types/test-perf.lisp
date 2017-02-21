@@ -996,6 +996,22 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
                                                'null))))
                         :test #'equal))
 
+(defun perf-test-1 (&key (size 11))
+  (bdd-with-new-hash
+   (lambda (&aux (type-specifiers (lisp-types::choose-randomly (loop :for name being the external-symbols in "SB-PCL"
+                                                                     :when (find-class name nil)
+                                                                       :collect name) size)))
+     (%decompose-types-bdd-graph type-specifiers
+                                 :sort-nodes (lambda (graph)
+                                               (declare (notinline sort))
+                                               (sort graph #'< :key
+                                                     #'count-connections-per-node))
+                                 :sort-strategy  "INCREASING-CONNECTIONS"
+                                 :inner-loop :node
+                                 :do-break-sub :relaxed
+                                 :do-break-loop nil))))
+
+
 (defun big-test-report (&key (suite-time-out (* 60 40)) (time-out 45)  )
   (let ((*decomposition-functions* ;; *decomposition-functions*
           *decompose-fun-names*))
