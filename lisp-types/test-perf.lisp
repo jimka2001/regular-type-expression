@@ -321,6 +321,8 @@ returns a plist, one of the following:
         (compare (car good-results) res)))))
 
 (defun types/cmp-perfs (&key
+                          (re-run t)
+                          (verify nil)
                           (suite-time-out (* 60 10))
                           (randomize nil)
                           (summary nil)
@@ -374,18 +376,19 @@ returns a plist, one of the following:
                          (format t "function:  ~A~%" f)
                          (format t "   tag:    ~A~%" tag)
                          (format t "   limit:  ~D~%" (min limit (length types)))
-                         (push (types/cmp-perf :types types :decompose f :time-out time-out)
-                               results)
-                         ;;(compare/results results)
-                         ))))))))
-      (run types)
-      (when randomize
-        (let* ((c (length delayed))
-               (len c))
-          (setf delayed (shuffle-list delayed))
-          (while delayed
-            (format t "countdown ~D/~D  ~D~%" (decf c) len (- time-out-time (get-universal-time)))
-            (funcall (pop delayed)))))
+                         (let ((result (types/cmp-perf :types types :decompose f :time-out time-out)))
+                           (when verify
+                             (push result results)
+                             (compare/results results)))))))))))
+      (when re-run
+        (run types)
+        (when randomize
+          (let* ((c (length delayed))
+                 (len c))
+            (setf delayed (shuffle-list delayed))
+            (while delayed
+              (format t "countdown ~D/~D  ~D/~D~%" (decf c) len (- time-out-time (get-universal-time)) suite-time-out)
+              (funcall (pop delayed))))))
       (log-data)))
   t)
 
@@ -684,19 +687,19 @@ returns a plist, one of the following:
   (let ((content (with-open-file (stream sexp-file :direction :input)
                    (read stream nil nil))))
     (with-open-file (stream gnuplot-file :direction :output :if-exists :supersede)
-      (destructuring-bind (&key summary data) content
+      (destructuring-bind (&key summary data &allow-other-keys) content
         (format stream "# summary ~A~%" summary)
         (format stream "set term png~%")
         (format stream "set logscale xy~%")
         (format stream "set output ~S~%" png-filename)
         (format stream "plot \"-\" using 1:2 with lines~%")
         (dolist (item data)
-          (destructuring-bind (&key decompose given calculated time) item
+          (destructuring-bind (&key decompose given calculated run-time &allow-other-keys) item
             (declare (notinline sort))
             (format stream "# ~A~%" decompose)
             (dolist (pair (sort (mapcar (lambda (given calculated time)
                                           (list (* given calculated) time))
-                                        given calculated time)
+                                        given calculated run-time)
                                 #'< :key #'car))
               (destructuring-bind (x y) pair
                 (format stream "~A ~A~%" x y)))
@@ -733,7 +736,7 @@ the list of xys need not be already ordered."
 
 ;; (reduce (lambda (string num) (format nil "~D~S" num string)) '(1 2 3) :initial-value "")
 (defun statistics (data)
-  (destructuring-bind (&key summary sorted) data
+  (destructuring-bind (&key summary sorted &allow-other-keys) data
     (let ((integrals (mapcar (getter :integral) sorted)))
       (destructuring-bind (&key count sum) (reduce (lambda (accum this)
                                                      (destructuring-bind (&key count sum) accum
@@ -746,22 +749,21 @@ the list of xys need not be already ordered."
                                     data :initial-value 0.0)
                             count))))
           (let* ((mean (/ sum count))
-                 (sigma (stdev count mean integrals)))
+                 (sigma (stdev count mean integrals))
+                 previous)
             (list :summary summary
                   :sigma sigma
-                  :data (mapcar (lambda (plist)
-                                  (destructuring-bind (&key integral samples decompose) plist
+                  :sorted (mapcar (lambda (plist)
+                                    (destructuring-bind (&key integral samples decompose &allow-other-keys
+                                                         &aux (score (/ (- integral mean) sigma))) plist
                                     (list :integral integral
-                                          :score (/ (- integral mean) sigma)
+                                          :score score
+                                          :delta (prog1 (when previous
+                                                          (- previous score))
+                                                   (setf previous score))
                                           :samples samples
                                           :decompose decompose)))
                                 sorted))))))))
-  (destructuring-bind (&key summary sorted) data
-    (list :summary summary
-          :sorted (mapcar (lambda (plist)
-                            (destructuring-bind (&key integral samples decompose) plist
-                              ()))
-                          sorted))))
 
 (defun sort-results (in out &rest options)
   (declare (notinline sort))
@@ -774,7 +776,7 @@ the list of xys need not be already ordered."
        (apply #'sort-results in stream options)))
     ((eq out :return)
      ;; (reduce (lambda (num string) (format nil "~D~S" num string)) '(1 2 3) :initial-value "")
-     (destructuring-bind (&key summary data) (read in nil nil)
+     (destructuring-bind (&key summary data time-out-count run-count time-out-run-time run-time wall-time) (read in nil nil)
        (let (observed-max-time observed-min-time observed-min-prod observed-max-prod)
          (dolist (plist data)
            (mapc (lambda (given calculated time)
@@ -793,6 +795,11 @@ the list of xys need not be already ordered."
                  (getf plist :given) (getf plist :calculated) (getf plist :time)))
          (statistics
           (list :summary summary
+                :time-out-count time-out-count
+                :run-count run-count
+                :time-out-run-time time-out-run-time
+                :run-time run-time
+                :wall-time wall-time
                 :sorted (sort 
                          (loop for plist in data
                                collect (destructuring-bind (&key decompose given calculated time &allow-other-keys) plist
@@ -842,17 +849,47 @@ the list of xys need not be already ordered."
   nil)
 
 (defun print-sexp (stream summary)
-  (let ((groups (group-by (cdr *perf-results*) :key (lambda (item) (getf item :decompose)))))
+  (let ((groups (group-by (cdr *perf-results*) :key (getter :decompose))))
     (format stream "(")
     (when summary
       (format stream " :SUMMARY ~S~%" summary))
+    (format stream "  :TIME-OUT-COUNT ~D~%" (count-if (getter :time-out) *perf-results*))
+    (format stream "  :RUN-COUNT ~D~%" (count-if (getter :calculated) *perf-results*))
+    (format stream "  :TIME-OUT-RUN-TIME ~A~%" (reduce (lambda (total next)
+                                                         (if (getf next :time-out)
+                                                             (+ total (getf next :run-time))
+                                                             total)) *perf-results*
+                                                             :initial-value 0))
+    (format stream "  :RUN-TIME ~A~%" (reduce (lambda (total next)
+                                            (if (getf next :calculated)
+                                                (+ total (getf next :run-time))
+                                                total))
+                                              *perf-results*
+                                              :initial-value 0))
+    (format stream "  :WALL-TIME ~A~%" (reduce (lambda (total next)
+                                            (if (getf next :calculated)
+                                                (+ total (getf next :wall-time))
+                                                total))
+                                               *perf-results*
+                                               :initial-value 0))
     (format stream " :DATA  (")
     (flet ((print-group (group)
              (destructuring-bind (decompose data) group
                (format stream "( :DECOMPOSE ~S" (symbol-name decompose))
-               (let ((no-time-out (setof item data
+               (when (get decompose 'lisp-types::decompose-properties)
+                 (let ((*package* (find-package "KEYWORD")))
+                   (format stream "~%:OPTIONS ~S" (get decompose 'lisp-types::decompose-properties))))
+               (let ((time-outs (setof item data
+                                  (getf item :time-out)))
+                     (no-time-out (setof item data
                                     (null (getf item :time-out)))))
-                 (dolist (tag `(:given :calculated :time))
+                 (when time-outs
+                   (format stream "~%:TIME-OUT (:TIME ~D :COUNT ~D~%"
+                           (getf (car time-outs) :time-out) 
+                           (length time-outs))
+                   (format stream ":GIVEN ~A)"
+                           (mapcar (getter :given) time-outs)))
+               (dolist (tag `(:given :calculated :run-time :wall-time))
                    (format stream "~%~S (" tag)
                    (when no-time-out
                      (format stream "~S" (getf (car no-time-out) tag)))
@@ -873,8 +910,8 @@ the list of xys need not be already ordered."
     ((or stream
          (eql t)
          (eql nil))
-     (with-open-file (stream json-name :direction :output :if-exists :supersede)
-       (print-json stream summary))
+     ;; (with-open-file (stream json-name :direction :output :if-exists :supersede)
+     ;;   (print-json stream summary))
      (with-open-file (stream sexp-name :direction :output :if-exists :supersede)
        (print-sexp stream summary))
      (sort-results sexp-name sorted-name)
@@ -919,12 +956,14 @@ the list of xys need not be already ordered."
        (apply #'print-latex str args)))))
 
 
-(defun test-report (&key types file-name (limit 15) tag (time-out 15) (suite-time-out (* 60 10)))
+(defun test-report (&key (re-run t) types file-name (limit 15) tag (time-out 15) (suite-time-out (* 60 10)))
   "TIME-OUT is the number of seconds to allow for one call to a single decompose function.
 SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
-  (setf *perf-results* nil)
+  (when re-run
+    (setf *perf-results* nil))
   (let ((type-specifiers (shuffle-list types)))
-    (apply #'types/cmp-perfs :types type-specifiers
+    (apply #'types/cmp-perfs :re-run re-run
+                             :types type-specifiers
                              :suite-time-out suite-time-out
                              :randomize t
                              :limit limit
@@ -940,8 +979,6 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
                                 :json-name (format nil "/Users/jnewton/newton.16.edtchs/src/~A.json" file-name)
                                 :sexp-name (format nil "/Users/jnewton/newton.16.edtchs/src/~A.sexp" file-name)
                                 :sorted-name (format nil "/Users/jnewton/newton.16.edtchs/src/~A.sorted" file-name))))))
-
-
 
 (defun random-subset-of-range (min max)
   (loop for i from min to max
@@ -959,43 +996,44 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
                                                'null))))
                         :test #'equal))
 
-
 (defun big-test-report (&key (suite-time-out (* 60 40)) (time-out 45)  )
-  (test-report :limit 22
-               :suite-time-out suite-time-out
-               :tag "member" :time-out time-out
-               :types *member-types*
-               :file-name "member")
-  (test-report :limit 12 :tag "conditions"
-               :time-out time-out
-               :suite-time-out suite-time-out
-               :types (valid-subtypes 'condition) :file-name "subtypes-of-condition")
+  (let ((*decomposition-functions* ;; *decomposition-functions*
+          *decompose-fun-names*))
+    (test-report :limit 22
+                 :suite-time-out suite-time-out
+                 :tag "member" :time-out time-out
+                 :types *member-types*
+                 :file-name "member")
+    (test-report :limit 12 :tag "conditions"
+                 :time-out time-out
+                 :suite-time-out suite-time-out
+                 :types (valid-subtypes 'condition) :file-name "subtypes-of-condition")
 
-  (test-report :limit 23 :tag "numbers" :time-out time-out
-               :suite-time-out suite-time-out
-               :types (valid-subtypes 'number) :file-name "subtypes-of-number")
+    (test-report :limit 23 :tag "numbers" :time-out time-out
+                 :suite-time-out suite-time-out
+                 :types (valid-subtypes 'number) :file-name "subtypes-of-number")
 
-  (test-report :limit 13 :tag "numbers and conditions" :time-out time-out
-               :suite-time-out suite-time-out
-               :types (union (valid-subtypes 'number) (valid-subtypes 'condition))
-               :file-name "subtypes-of-number-or-condition")
+    (test-report :limit 13 :tag "numbers and conditions" :time-out time-out
+                 :suite-time-out suite-time-out
+                 :types (union (valid-subtypes 'number) (valid-subtypes 'condition))
+                 :file-name "subtypes-of-number-or-condition")
 
-  (test-report :limit 22 :tag "subtypes of t" :time-out time-out
-               :suite-time-out suite-time-out
-               :types (valid-subtypes t) :file-name "subtypes-of-t")
+    (test-report :limit 22 :tag "subtypes of t" :time-out time-out
+                 :suite-time-out suite-time-out
+                 :types (valid-subtypes t) :file-name "subtypes-of-t")
 
-  (test-report :limit 18 :tag "SB-PCL types" :time-out time-out
-               :suite-time-out suite-time-out
-               :types (loop :for name being the external-symbols in "SB-PCL"
-                            :when (find-class name nil)
-                              :collect name)
-               :file-name "pcl-types")
-  (test-report :limit 18 :tag "cl-types" :time-out time-out
-               :suite-time-out suite-time-out
-               :types *cl-types* :file-name "cl-types")
-  (test-report :limit 23
-               :suite-time-out suite-time-out
-               :tag "cl-combos"
-               :time-out time-out
-               :types (subseq (shuffle-list *cl-type-combos*) 13850) :file-name "cl-combos")
-  )
+    (test-report :limit 18 :tag "SB-PCL types" :time-out time-out
+                 :suite-time-out suite-time-out
+                 :types (loop :for name being the external-symbols in "SB-PCL"
+                              :when (find-class name nil)
+                                :collect name)
+                 :file-name "pcl-types")
+    (test-report :limit 18 :tag "cl-types" :time-out time-out
+                 :suite-time-out suite-time-out
+                 :types *cl-types* :file-name "cl-types")
+    (test-report :limit 23
+                 :suite-time-out suite-time-out
+                 :tag "cl-combos"
+                 :time-out time-out
+                 :types (subseq (shuffle-list *cl-type-combos*) 13850) :file-name "cl-combos")
+    ))
