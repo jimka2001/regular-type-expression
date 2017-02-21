@@ -233,10 +233,11 @@
                        (:case 10 :child :left  :relation ,(sub t nil)        :reduction ,#'bdd-right)
                        (:case 11 :child :right :relation ,(sub nil t)        :reduction ,#'bdd-left)
                        (:case 12 :child :right :relation ,(sub nil nil)      :reduction ,#'bdd-right)))
-         (left-reductions  (setof r reductions
-                             (eq :left (getf r :child))))
-         (right-reductions (setof r reductions
-                             (eq :right (getf r :child)))))
+         ;; :relation ... :reduction 
+         (left-reductions  (mapcar #'cddddr (setof r reductions
+                                              (eq :left (getf r :child)))))
+         (right-reductions (mapcar #'cddddr (setof r reductions
+                                              (eq :right (getf r :child))))))
 
     (defun %bdd-node (label left-bdd right-bdd)
       (cond
@@ -296,21 +297,14 @@ Each element of REDUCTION-RULES is a plist having at least the keys
   :RELATION - a relation between two type specifiers, eg., #'SMARTER-SUBTYPEP
   :REDUCTION - a function from BDD->BDD, which normally returns either 
              the left or right child E.g., #'BDD-LEFT or #'BDD-RIGHT"
-  (let ((reduced (reduce (lambda (bdd reduction-rule)
-                           (destructuring-bind (&key
-                                                  (relation (lambda (a b)
-                                                              (declare (ignore a b))
-                                                              nil))
-                                                  (reduction #'identity) &allow-other-keys) reduction-rule
-                             (declare (type (function (t t) t) relation)
-                                      (type (function (bdd) bdd) reduction))
-                             (cond
-                               ((typep bdd 'bdd-leaf)
-                                bdd)
-                               ((funcall relation label (bdd-label bdd))
-                                (funcall reduction bdd))
-                               (t
-                                 bdd))))
+  (let ((reduced (reduce (lambda (bdd reduction-rule-plist)
+                           (cond
+                             ((typep bdd 'bdd-leaf)
+                              bdd)
+                             ((funcall (the function (getf reduction-rule-plist :relation)) label (bdd-label bdd))
+                              (funcall (the function (getf reduction-rule-plist :reduction)) bdd))
+                             (t
+                              bdd)))
                          reduction-rules
                          :initial-value bdd)))
     (if (eq bdd reduced)
