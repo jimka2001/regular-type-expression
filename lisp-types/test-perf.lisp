@@ -88,11 +88,12 @@ returns a plist, one of the following:
                                      (when th-observer
                                        (warn "killing thread ~A because of error ~A" th-observer e)
                                        (ignore-errors (bordeaux-threads:destroy-thread th-observer))))))
-               (let* ((t1 (get-internal-run-time))
+               (let* ((run-time-t1 (get-internal-run-time))
                       (s2 (funcall thunk))
-                      (t2 (get-internal-run-time)))
+                      (run-time-t2 (get-internal-run-time)))
                  (setf result1
-                       (list :time (/ (- t2 t1) internal-time-units-per-second)
+                       (list :wall-time (/ (- (get-internal-real-time) start-real-time) internal-time-units-per-second)
+                             :run-time (/ (- run-time-t2 run-time-t1) internal-time-units-per-second)
                              :value s2))
                  (when th-observer
                    (setf th-worker-destroyed-observer
@@ -101,16 +102,18 @@ returns a plist, one of the following:
         (time-out
          (setf th-observer
                (bordeaux-threads:make-thread
-                (lambda (&aux elapsed)
+                (lambda (&aux elapsed (real-time (get-internal-real-time)) (run-time (get-internal-run-time)))
                   (block waiting
                     (dotimes (i time-out)
-                      (when (plusp (setf elapsed (/ (- (get-internal-real-time) start-time) internal-time-units-per-second)))
-                        ;; (format t "~A ~D waited ~F seconds~%" th-observer i elapsed)
-                        ;; (finish-output t)
+                      (setf run-time (get-internal-run-time))
+                      (setf real-time (get-internal-real-time))
+                      (when (plusp (setf elapsed (/ (- real-time start-real-time) internal-time-units-per-second)))
                         (when (> elapsed time-out)
                           (return-from waiting)))
                       (sleep 2)))
-                  (setf result2 (list :time-out time-out))
+                  (setf result2 (list :wall-time (/ (- real-time start-real-time) internal-time-units-per-second)
+                                      :run-time  (/ (- run-time start-run-time) internal-time-units-per-second)
+                                      :time-out time-out))
                   (format t "killing thread ~A~%" th-worker)
                   (bordeaux-threads:destroy-thread th-worker))
                 :name "th-observer stop-watch"))
@@ -148,27 +151,33 @@ returns a plist, one of the following:
      (let ((result (call-with-timeout time-out
                                       (lambda ()
                                         (funcall f types)))))
-       (assert (or (typep (getf result :time) 'number )
+       (assert (or (typep (getf result :run-time) 'number )
                    (getf result :time-out)) (result))
-       (destructuring-bind (&key time-out (time 0) value) result
+       (destructuring-bind (&key time-out (run-time 0) (wall-time 0) value) result
          (declare (type (or null fixnum) time-out)
                   (type list value)
-                  (type number time))
+                  (type number run-time wall-time))
          (push
           (cond
             (time-out
+             (format t "timed-out: ~D~%" time-out)
+             (format t "given: ~D~%~%" (length types))
              (list :given (length types)
                    :types types
                    :decompose decompose
-                   :time (/ time-out 1.0)
+                   :wall-time (/ wall-time 1.0)
+                   :run-time (/ run-time 1.0)
                    :time-out time-out))
             (t
              (list :given (length types)
                    :types types
                    :decompose decompose
-                   :time (/ time 1.0)
+                   :time (/ run-time 1.0)
+                   :wall-time (/ wall-time 1.0)
+                   :run-time (/ run-time 1.0)
                    :calculated (length value)
-                   :value value)))
+                   ;; :value value
+                   )))
           *perf-results*))
        (car *perf-results*)))))
 
