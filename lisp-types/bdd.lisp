@@ -324,16 +324,16 @@ until we reach a leaf, we call BDD-FIND-REDUCTION to see if the BDD can be reduc
 according to the LABEL which is now the label of some parent in its lineage."
   (declare (type bdd bdd)
            (type list search))
-  (labels ((recure (bdd parents)
+  (labels ((recure (bdd)
              (cond
                ((typep bdd 'bdd-leaf)
                 bdd)
                ((bdd-find-reduction label bdd search))
                (t
                 (%bdd-node (bdd-label bdd)
-                           (recure (bdd-left bdd) (cons bdd parents))
-                           (recure (bdd-right bdd) (cons bdd parents)))))))
-    (recure bdd nil)))
+                           (recure (bdd-left bdd))
+                           (recure (bdd-right bdd)))))))
+    (recure bdd)))
 
 (defmethod bdd-node (label (left bdd) (right bdd))
   (%bdd-node label left right))
