@@ -430,16 +430,17 @@
 
 (defmacro make-decompose-fun-combos ()
   (let (fun-defs
+        prop-defs
         fun-names
-        ( *operation-combos* '((:do-break-sub :strict
+        ( operation-combos '((:do-break-sub :strict
                                  :do-break-loop t)
                                (:do-break-sub :relaxed
                                  :do-break-loop nil)
                                (:do-break-sub :relaxed
                                  :do-break-loop t)))
-        ( *inner-loops* '((:inner-loop :node)
+        ( inner-loops '((:inner-loop :node)
                           (:inner-loop :operation)))
-        ( *sort-nodes* '((:sort-nodes (lambda (graph)
+        ( sort-nodes '((:sort-nodes (lambda (graph)
                                         (shuffle-list graph))
                           :sort-strategy "SHUFFLE")
                          (:sort-nodes (lambda (graph)
@@ -460,14 +461,14 @@
                           :sort-strategy "TOP-TO-BOTTOM")))
 
         )
-    (dolist (sort-nodes-args *sort-nodes*)
+    (dolist (sort-nodes-args sort-nodes)
       (destructuring-bind (&key sort-nodes sort-strategy) sort-nodes-args
         (declare (ignore sort-nodes))
-        (dolist (inner-loop-args *inner-loops*)
+        (dolist (inner-loop-args inner-loops)
           (destructuring-bind (&key inner-loop) inner-loop-args
-            (dolist (operation-combo-args *operation-combos*)
+            (dolist (operation-combo-args operation-combos)
               (destructuring-bind (&key do-break-sub do-break-loop) operation-combo-args
-                (let ((fun-name (concatenate 'string
+                (let* ((symbol (concatenate 'string
                                              "DECOMPOSE-TYPES-BDD-GRAPH-"
                                              (symbol-name do-break-sub)
                                              "-"
@@ -476,18 +477,21 @@
                                              "-"
                                              (symbol-name inner-loop)
                                              "-"
-                                             sort-strategy)))
+                                             sort-strategy))
+                       (fun-name (intern symbol (find-package "LISP-TYPES")))
+                       (props `(,@sort-nodes-args
+                                ,@inner-loop-args
+                                ,@operation-combo-args)))
 
-                  (push `(defun ,(intern fun-name (find-package "LISP-TYPES")) (type-specifiers)
+                  (push `(setf (get ',fun-name 'decompose-properties) ',props) prop-defs)
+                  (push `(defun ,fun-name (type-specifiers)
                            (bdd-with-new-hash (lambda ()
-                                                (%decompose-types-bdd-graph type-specifiers
-                                                                            ,@sort-nodes-args
-                                                                            ,@inner-loop-args
-                                                                            ,@operation-combo-args))))
+                                                (%decompose-types-bdd-graph type-specifiers ,@props))))
                         fun-defs))))))))
     (setf fun-names (mapcar #'cadr fun-defs))
     `(progn
        (defvar *decompose-fun-names* ',fun-names)
+       ,@prop-defs
        ,@fun-defs)))
 
 
