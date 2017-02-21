@@ -66,7 +66,17 @@
                  nconc (list t1 `(and ,t1 ,t2) `(or ,t1, t2)))))
 
 (defun call-with-timeout (time-out thunk)
-  (let (th-worker th-observer th-worker-join-failed th-observer-join-failed th-worker-destroyed-observer time-it-error result1 result2 (start-time (get-internal-real-time)))
+  "TIME-OUT, integer, the wall-time allowed to cal the function THUNK.
+THUNK is a 0-ary function returning some type X.
+Call the function THUNK, in one thread, and start a 2nd observer thread.  The 2nd thread
+is responsible for monitoring the wall time and killing the 1st thread if the TIME-OUT has
+passed.
+returns a plist, one of the following:
+(:wall-time rational :run-time rational :time-out integer) or
+(:wall-time rational :run-time rational :value X)"
+  (let (th-worker th-observer th-worker-join-failed th-observer-join-failed th-worker-destroyed-observer time-it-error result1 result2
+                  (start-run-time (get-internal-run-time))
+                  (start-real-time (get-internal-real-time)))
     (flet ((time-it ()
              (handler-bind ((error (lambda (e)
                                      ;; this handler explicitly declines to handle the error
