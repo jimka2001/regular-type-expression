@@ -131,7 +131,7 @@
           disjoint-bdds)
       (labels ((disjoint! (node)
                  (when (member node graph :test #'eq)
-                   (setf changed t)
+                   (incf changed)
                    (setf graph (remove node graph :test #'eq))
                    (unless (eq (getf node :bdd) *bdd-false*)
                      (pushnew (getf node :bdd) disjoint-bdds :test #'bdd-type-equal))))
@@ -236,8 +236,8 @@
                            (getf node :super-types))))
                (break-sub! (sub super)
                  (setf (getf super :bdd) (bdd-and-not (getf super :bdd)
-                                                      (getf sub :bdd))
-                       changed t)
+                                                      (getf sub :bdd)))
+                 (incf changed)
                  (no-sub-super! sub super)
                  (remove-nil! super))
                (touch! (n1 n2)
@@ -270,7 +270,7 @@
                    ))
                (break-touch! (node-x node-y)
                  (declare (notinline union +))
-                 (setf changed t)
+                 (incf changed)
                  (no-touch! node-x node-y)
                  (let* ((bdd-x (getf node-x :bdd))
                         (bdd-y (getf node-y :bdd))
@@ -324,7 +324,7 @@
                        (push BD graph))
                      (setf (getf D :bdd) (bdd-and-not D-bdd B-bdd))
                      (remove-nil! D))
-                   (setf changed t)))
+                   (incf changed)))
                (do-disjoint (node)
                  (when (disjoint-condition node)
                    (disjoint! node)
@@ -379,7 +379,7 @@
         
         (setq graph (funcall sort-nodes graph))
         
-        (setf changed t)
+        (incf changed)
         #+:bdd-debug (dot "given")
         (let ((operations (nconc (when do-disjoint
                                    (list #'do-disjoint))
@@ -392,8 +392,8 @@
                                    (list #'do-break-touch))
                                  (when do-break-loop
                                    (list #'do-break-loop)))))
-          (while changed
-            (setf changed nil)
+          (while (plusp changed)
+            (setf changed 0)
             (ecase inner-loop
               ((:node)
                (dolist (operation operations)
