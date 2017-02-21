@@ -125,7 +125,7 @@
                                      :touches nil
                                      :id (incf node-id)))))
 
-    (let ((changed nil)
+    (let ((changed 0)
           (c 1000)
           (html-file "/tmp/jnewton/graph.html")
           disjoint-bdds)
