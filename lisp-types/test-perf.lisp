@@ -150,7 +150,17 @@ returns a plist, one of the following:
      (sb-ext:gc :full t)
      (let ((result (call-with-timeout time-out
                                       (lambda ()
-                                        (funcall f types)))))
+                                        (funcall f types))))
+           (num-unknown 0)
+           (num-known 0))
+       (declare (type (and unsigned-byte fixnum) num-known num-unknown))
+       (dolist (t1 types)
+         (dolist (t2 types)
+           (dolist (t3 (list t1 `(not t1)))
+             (dolist (t4 (list t2 `(not t2)))
+               (if (nth-value 1 (subtypep t3 t4))
+                   (incf num-unknown)
+                   (incf num-known))))))
        (assert (or (typep (getf result :run-time) 'number )
                    (getf result :time-out)) (result))
        (destructuring-bind (&key time-out (run-time 0) (wall-time 0) value) result
@@ -165,6 +175,8 @@ returns a plist, one of the following:
              (list :given (length types)
                    :types types
                    :decompose decompose
+                   :known num-known
+                   :unknown num-unknown
                    :wall-time (/ wall-time 1.0)
                    :run-time (/ run-time 1.0)
                    :time-out time-out))
@@ -172,6 +184,8 @@ returns a plist, one of the following:
              (list :given (length types)
                    :types types
                    :decompose decompose
+                   :known num-known
+                   :unknown num-unknown
                    :time (/ run-time 1.0)
                    :wall-time (/ wall-time 1.0)
                    :run-time (/ run-time 1.0)
@@ -748,19 +762,24 @@ the list of xys need not be already ordered."
                                       (+ sum (sqr (- this mean))))
                                     data :initial-value 0.0)
                             count))))
-          (let* ((mean (/ sum count))
-                 (sigma (stdev count mean integrals))
+          (let* ((mean (unless (zerop count)
+                         (/ sum count)))
+                 (sigma (when mean
+                          (stdev count mean integrals)))
                  previous)
             (list :summary summary
                   :sigma sigma
                   :sorted (mapcar (lambda (plist)
                                     (destructuring-bind (&key integral samples decompose &allow-other-keys
-                                                         &aux (score (/ (- integral mean) sigma))) plist
+                                                         &aux (score (unless (member sigma '(0 0.0 nil))
+                                                                       (/ (- integral mean) sigma)))) plist
                                     (list :integral integral
                                           :score score
-                                          :delta (prog1 (when previous
-                                                          (- previous score))
-                                                   (setf previous score))
+                                          :mean mean
+                                          :delta (when score
+                                                   (prog1 (when previous
+                                                            (- previous score))
+                                                     (setf previous score)))
                                           :samples samples
                                           :decompose decompose)))
                                 sorted))))))))
@@ -776,7 +795,7 @@ the list of xys need not be already ordered."
        (apply #'sort-results in stream options)))
     ((eq out :return)
      ;; (reduce (lambda (num string) (format nil "~D~S" num string)) '(1 2 3) :initial-value "")
-     (destructuring-bind (&key summary data time-out-count run-count time-out-run-time run-time wall-time) (read in nil nil)
+     (destructuring-bind (&key summary data time-out-count run-count time-out-run-time run-time wall-time unknown known) (read in nil nil)
        (let (observed-max-time observed-min-time observed-min-prod observed-max-prod)
          (dolist (plist data)
            (mapc (lambda (given calculated time)
@@ -792,7 +811,7 @@ the list of xys need not be already ordered."
                    (setf observed-min-time (if observed-min-time
                                                (min observed-min-time time)
                                                time)))
-                 (getf plist :given) (getf plist :calculated) (getf plist :time)))
+                 (getf plist :given) (getf plist :calculated) (getf plist :run-time)))
          (statistics
           (list :summary summary
                 :time-out-count time-out-count
@@ -800,11 +819,15 @@ the list of xys need not be already ordered."
                 :time-out-run-time time-out-run-time
                 :run-time run-time
                 :wall-time wall-time
+                :unknown unknown
+                :known known
                 :sorted (sort 
                          (loop for plist in data
-                               collect (destructuring-bind (&key decompose given calculated time &allow-other-keys) plist
-                                         (let ((xys (mapcar (lambda (given calculated time)
-                                                              (list (* given calculated) time)) given calculated time)))
+                               collect (destructuring-bind (&key decompose given calculated run-time &allow-other-keys) plist
+                                         (let ((xys (mapcar (lambda (given calculated run-time)
+                                                              (declare (type fixnum given calculated)
+                                                                       (type number run-time))
+                                                              (list (* given calculated) run-time)) given calculated run-time)))
                                            (unless (find observed-min-prod xys :key #'car)
                                              (push (list observed-min-prod observed-min-time) xys))
                                            (unless (find observed-max-prod xys :key #'car)
@@ -889,7 +912,7 @@ the list of xys need not be already ordered."
                            (length time-outs))
                    (format stream ":GIVEN ~A)"
                            (mapcar (getter :given) time-outs)))
-               (dolist (tag `(:given :calculated :run-time :wall-time))
+               (dolist (tag `(:given :calculated :run-time :wall-time :known :unknown))
                    (format stream "~%~S (" tag)
                    (when no-time-out
                      (format stream "~S" (getf (car no-time-out) tag)))
@@ -1013,8 +1036,9 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
 
 
 (defun big-test-report (&key (suite-time-out (* 60 40)) (time-out 45)  )
-  (let ((*decomposition-functions* ;; *decomposition-functions*
-          *decompose-fun-names*))
+  (let ((*decomposition-functions*  *decomposition-functions*
+                                    ;;*decompose-fun-names*
+                                    ))
     (test-report :limit 22
                  :suite-time-out suite-time-out
                  :tag "member" :time-out time-out
@@ -1038,7 +1062,7 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
                  :suite-time-out suite-time-out
                  :types (valid-subtypes t) :file-name "subtypes-of-t")
 
-    (test-report :limit 18 :tag "SB-PCL types" :time-out time-out
+    (test-report :limit 15 :tag "SB-PCL types" :time-out time-out
                  :suite-time-out suite-time-out
                  :types (loop :for name being the external-symbols in "SB-PCL"
                               :when (find-class name nil)
@@ -1047,9 +1071,9 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
     (test-report :limit 18 :tag "cl-types" :time-out time-out
                  :suite-time-out suite-time-out
                  :types *cl-types* :file-name "cl-types")
-    (test-report :limit 23
+    (test-report :limit 22
                  :suite-time-out suite-time-out
                  :tag "cl-combos"
                  :time-out time-out
-                 :types (subseq (shuffle-list *cl-type-combos*) 13850) :file-name "cl-combos")
+                 :types (choose-randomly  *cl-type-combos* 13850) :file-name "cl-combos")
     ))
