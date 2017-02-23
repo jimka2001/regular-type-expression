@@ -111,48 +111,57 @@ If N > (length of data) then a permutation of DATA is returned"
 ;; cases.  If smarter-subtypep returns nil,nil, then we remember this case in *unknown-hash*
 ;; in order to avoid recursive calls to smarter-subtypep and subtypep in future calls
 ;; with the same arguments.
-(defvar *unknown-hash* (new-subtype-hash))
+(defvar *unknown-hash* nil)
+
+(defun with-unknown-hash (thunk)
+  (let ((*unknown-hash* (new-subtype-hash)))
+    (funcall thunk)))
+
+(defun %%smarter-subtypep (t1 t2)
+  (declare (optimize (speed 3) (compilation-speed 0)))
+  (cond
+    ((typep t1 '(cons (member eql member))) ; (eql obj) or (member obj1 ...)
+     (list (every #'(lambda (obj)
+                      (declare (notinline typep))
+                      (typep obj t2))
+                  (cdr t1))
+           t))
+    ;; T1 <: T2 <==> not(T2) <: not(T1)
+    ((and (typep t1 '(cons (eql not)))
+          (typep t2 '(cons (eql not))))
+     (multiple-value-list (smarter-subtypep (cadr t2) (cadr t1))))
+    ;; T1 <: T2 <==> not( T1 <= not(T2))
+    ((and (typep t2 '(cons (eql not)))
+          (smarter-subtypep t1 (cadr t2)))
+     '(nil t))
+    ;; T1 <: T2 <==> not( not(T1) <= T2)
+    ((and (typep t1 '(cons (eql not)))
+          (smarter-subtypep (cadr t1) t2))
+     '(nil t))
+    ;; (subtypep '(and cell-error type-error) 'cell-error)
+    ((and (typep t1 '(cons (eql and)))
+          (exists t3 (cdr t1)
+                  (smarter-subtypep t3 t2)))
+     '(t t))
+    ;; this is the dual of the previous clause, but it appears sbcl gets this one right
+    ;;   so we comment it out
+    ;; ((and (typep t2 '(cons (eql or)))
+    ;;       (exists t3 (cdr t2)
+    ;;         (smarter-subtypep t1 t3)))
+    ;;  (values t t))
+    (t
+     '(nil nil))))
 
 (defun %smarter-subtypep (t1 t2 &aux (t12 (list t1 t2)))
   (declare (optimize (speed 3) (compilation-speed 0)))
   (cond
+    ((null *unknown-hash*)
+     (%%smarter-subtypep t1 t2))
     ((nth-value 1 (gethash t12 *unknown-hash*))
      (gethash t12 *unknown-hash*))
     (t
      (setf (gethash t12 *unknown-hash*)
-           (cond
-             ((typep t1 '(cons (member eql member))) ; (eql obj) or (member obj1 ...)
-              (list (every #'(lambda (obj)
-                               (declare (notinline typep))
-                               (typep obj t2))
-                           (cdr t1))
-                    t))
-             ;; T1 <: T2 <==> not(T2) <: not(T1)
-             ((and (typep t1 '(cons (eql not)))
-                   (typep t2 '(cons (eql not))))
-              (multiple-value-list (smarter-subtypep (cadr t2) (cadr t1))))
-             ;; T1 <: T2 <==> not( T1 <= not(T2))
-             ((and (typep t2 '(cons (eql not)))
-                   (smarter-subtypep t1 (cadr t2)))
-              '(nil t))
-             ;; T1 <: T2 <==> not( not(T1) <= T2)
-             ((and (typep t1 '(cons (eql not)))
-                   (smarter-subtypep (cadr t1) t2))
-              '(nil t))
-             ;; (subtypep '(and cell-error type-error) 'cell-error)
-             ((and (typep t1 '(cons (eql and)))
-                   (exists t3 (cdr t1)
-                           (smarter-subtypep t3 t2)))
-              '(t t))
-             ;; this is the dual of the previous clause, but it appears sbcl gets this one right
-             ;;   so we comment it out
-             ;; ((and (typep t2 '(cons (eql or)))
-             ;;       (exists t3 (cdr t2)
-             ;;         (smarter-subtypep t1 t3)))
-             ;;  (values t t))
-             (t
-              '(nil nil)))))))
-     
+           (%%smarter-subtypep t1 t2)))))
 
 ;; TODO need to update some calls to subtypep to use smarter-subtypep instead.
 (defun smarter-subtypep (t1 t2)
