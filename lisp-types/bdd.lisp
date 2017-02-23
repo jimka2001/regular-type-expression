@@ -35,7 +35,8 @@
   ((ident ;; :reader bdd-ident
           :initarg :ident :initform (incf *bdd-count*))
    (label ;; :reader bdd-label
-          :initarg :label)))
+    :initarg :label)
+   (dnf)))
 
 ;; reader for the label slot.  I've implemented this as a defun rather than :reader becase
 ;;  it seems to be in the critical performance loop and the normal function performs marginally
@@ -64,7 +65,8 @@
     ;;                   (and array sequence (not vector))
     ;;                   (and (not float) (not integer) (not ratio) real)
     ;;                   (and (not bignum) (not fixnum) unsigned-byte)))))
-    (funcall thunk)))
+    (prog1 (funcall thunk)
+      (format t "finished with ~A and ~A~%" *bdd-hash* *unknown-hash*))))
   
 (defun bdd-make-key (label left right)
   (list left right label))
@@ -112,11 +114,13 @@
 
 (defclass bdd-true (bdd-leaf)
   ((ident :initform 1)
-   (label :initform t)))
+   (label :initform t)
+   (dnf :initform t)))
 
 (defclass bdd-false (bdd-leaf)
   ((ident :initform 0)
-   (label :initform nil)))
+   (label :initform nil)
+   (dnf :initform nil)))
 
 (defvar *bdd-true* (make-instance 'bdd-true))
 (defvar *bdd-false* (make-instance 'bdd-false))
@@ -450,6 +454,13 @@ according to the LABEL which is now the label of some parent in its lineage."
   (error "bdd-and-not not implemented for ~A and ~A" b1 b2))
 
 (defun bdd-to-dnf (bdd)
+  (slot-value bdd 'dnf))
+
+(defmethod slot-unbound (class (bdd bdd-node) (slot-name (eql 'dnf)))
+  (setf (slot-value bdd 'dnf)
+        (%bdd-to-dnf bdd)))
+
+(defun x%bdd-to-dnf (bdd)
   "Convert a BDD to logical expression in DNF (disjunctive normal form), i.e. an OR of ANDs."
   (declare (type bdd bdd))
   (let (disjunctions)
@@ -511,6 +522,79 @@ according to the LABEL which is now the label of some parent in its lineage."
       ;;                               disjunctions))))
       ;;       (wrap 'or nil disjunctions))))
       )))
+
+
+(defun remove-super-types (type-specs)
+  (cond
+    ((null type-specs)
+     nil)
+    ((null (cdr type-specs))
+     type-specs)
+    (t
+     (let ((new (reduce (lambda (t1 specs)
+                          (cond
+                            ((exists t2 specs
+                               (subtypep t2 t1))
+                             specs)
+                            (t
+                             (cons t1 (setof t2 specs
+                                        (not (subtypep t1 t2)))))))
+                        type-specs :initial-value nil :from-end t)))
+       ;; if there were no supers to remove, then return the original list
+       ;; allowing the newly allocated one to be GC-ed.
+       (if (equal new type-specs)
+           type-specs
+           new)))))
+
+(defun %bdd-to-dnf (bdd)
+  "Convert a BDD to logical expression in DNF (disjunctive normal form), i.e. an OR of ANDs.
+The construction attempts re-use cons cells in order to reduce the memory footprint of a large
+set of BDDs."
+  (declare (type bdd bdd))
+  (labels (
+           (wrap (op zero forms)
+             (cond ((cdr forms)
+                    (cons op forms))
+                   (forms
+                    (car forms))
+                   (t
+                    zero)))
+           (prepend (head dnf)
+             (typecase dnf
+               ((cons (eql or))
+                (wrap
+                 'or nil
+                 (mapcar (lambda (tail)
+                           (prepend head tail))
+                         (cdr dnf))))
+               ((cons (eql and))
+                (wrap 'and t (remove-super-types (cons head (cdr dnf)))))
+               ((eql t)
+                head)
+               ((eql nil)
+                nil)
+               (t
+                (cons 'and (remove-supers (list head dnf))))))
+           (disjunction (left right)
+             (cond
+               ((null left)
+                right)
+               ((null right)
+                left)
+               ((and (typep left '(cons (eql or)))
+                     (typep right '(cons (eql or))))
+                (cons 'or (nconc (copy-list (cdr left)) (cdr right))))
+               ((typep left '(cons (eql or)))
+                (wrap 'or nil (cons right (cdr left))))
+               ((typep right '(cons (eql or)))
+                (wrap 'or nil (cons left (cdr right))))
+               (t
+                (wrap 'or nil (list left right))))))
+    
+    (let ((left-terms  (prepend (bdd-label bdd) (bdd-to-dnf (bdd-left bdd))))
+          (right-terms (prepend `(not ,(bdd-label bdd)) (bdd-to-dnf (bdd-right bdd)))))
+      (disjunction left-terms
+                   right-terms))))
 
 (defun bdd-subtypep (t-sub t-super)
   (declare (type bdd t-super t-sub))
