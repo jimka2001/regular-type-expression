@@ -369,33 +369,33 @@ returns a plist, one of the following:
                             :summary summary
                             :time-out time-out))
              (run (types)
-               (cond
-                 ((null types))
-                 ((> (length types) limit)
-                  (run (cdr types)))
-                 (types
-                  (run (cdr types))
-                  (dolist (f (if (listp decompose)
-                                 decompose
-                                 (list decompose)))
-                    (declare (type symbol f))
-                    (handle 
-                     (lambda (&aux (f f) results)
-                       (when (> (get-universal-time) time-out-time)
-                         (log-data)
-                         (return-from types/cmp-perfs 'timed-out))
-                       (when (or (not (eq f 'decompose-types))
-                                 (> 10 (length types)))
-                         (format t "    date:  ~A~%" (multiple-value-list (get-decoded-time)))
-                         (format t "function:  ~A~%" f)
-                         (format t "   tag:    ~A~%" tag)
-                         (format t "   limit:  ~D~%" (min limit (length types)))
-                         (let ((result (types/cmp-perf :types types :decompose f :time-out time-out)))
-                           (when verify
-                             (push result results)
-                             (compare/results results)))))))))))
+               (dolist (f (if (listp decompose)
+                              decompose
+                              (list decompose)))
+                 (declare (type symbol f))
+                 (loop :for len :from 2 :to limit
+                       :do (handle
+                            (let ((f f)
+                                  (descr (find-decomposition-function-descriptor f))
+                                  (len len))
+                              (lambda (&aux results)
+                                (when (> (get-universal-time) time-out-time)
+                                  (log-data)
+                                  (return-from types/cmp-perfs 'timed-out))
+                                (when (or (null (getf descr :max-num-types))
+                                          (>= (getf descr :max-num-types) (length types)))
+                                  (format t "    date:  ~A~%" (multiple-value-list (get-decoded-time)))
+                                  (format t "function:  ~A~%" f)
+                                  (format t "   tag:    ~A~%" tag)
+                                  (format t "   length:  ~D~%" len)
+                                  (let ((result (types/cmp-perf :types (choose-randomly types len)
+                                                                :decompose f
+                                                                :time-out time-out)))
+                                    (when verify
+                                      (push result results)
+                                      (compare/results results)))))))))))
       (when re-run
-        (run types)
+        (run (choose-randomly types limit))
         (when randomize
           (let* ((c (length delayed))
                  (len c))
