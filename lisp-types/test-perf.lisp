@@ -208,13 +208,30 @@ returns a plist, one of the following:
     all-types))
 
 
+(defvar *decomposition-function-descriptors*
+  `((:names (decompose-types) :max-num-types 12 :color "blue")
+    (:names (decompose-types-sat) :color "gold")
+    (:names (decompose-types-graph) :color "green")
+    (:names (bdd-decompose-types) :color "orange")
+    (:names (decompose-types-bdd-graph) :color "violet")
+    (:names ,*decompose-fun-names* :color "violet")))
+
+(defun find-decomposition-function-descriptor (name)
+  (typecase name
+    (symbol
+     (find-if (lambda (plist)
+                (member name (getf plist :names))) 
+              *decomposition-function-descriptors*))
+    (string
+     (find-if (lambda (plist)
+                (exists f (getf plist :names)
+                  ;; case independent search
+                  (string-equal name (symbol-name f))))
+              *decomposition-function-descriptors*))))
+
 (defvar *decomposition-functions*
-  `(decompose-types
-    decompose-types-sat
-    decompose-types-graph
-    bdd-decompose-types
-    decompose-types-bdd-graph
-    ,@*decompose-fun-names*))
+  (mapcan (copy-list (getter :names)) *decomposition-function-descriptors*))
+
 
 (defun compare/results (all-results &aux (good-results (setof res all-results
                                                          (and res
@@ -340,8 +357,8 @@ returns a plist, one of the following:
                           (suite-time-out (* 60 10))
                           (randomize nil)
                           (summary nil)
-                          (types (valid-subtypes 'number))
                           (limit 15)
+                          (types (choose-randomly (valid-subtypes 'number) limit))
                           (time-out nil)
                           tag
                           (decompose *decomposition-functions*)
@@ -693,9 +710,19 @@ returns a plist, one of the following:
     (loop for key being the hash-keys of hash
           collect (list key (gethash key hash)))))
 
-;; (create-gnuplot "/Users/jnewton/newton.16.edtchs/src/cl-types.sexp"
-;;                 "/Users/jnewton/newton.16.edtchs/src/cl-types.gnu"
-;;                 "/Users/jnewton/newton.16.edtchs/src/cl-types.png")
+;; (create-gnuplot "/Users/jnewton/newton.16.edtchs/src/member.sexp"
+;;                  "/Users/jnewton/newton.16.edtchs/src/member.gnu"
+;;                  "/Users/jnewton/newton.16.edtchs/src/member.png")
+
+(defun build-string (delimiter data)
+  (cond
+    ((null data)
+     "")
+    (t
+     (with-output-to-string (str)
+       (format str "~A" (car data))
+       (dolist (next (cdr data))
+         (format str "~A~A" delimiter next))))))
 
 (defun create-gnuplot (sexp-file gnuplot-file png-filename)
   (let ((content (with-open-file (stream sexp-file :direction :input)
@@ -706,20 +733,46 @@ returns a plist, one of the following:
         (format stream "set term png~%")
         (format stream "set logscale xy~%")
         (format stream "set output ~S~%" png-filename)
-        (format stream "plot \"-\" using 1:2 with lines~%")
-        (dolist (item data)
-          (destructuring-bind (&key decompose given calculated run-time &allow-other-keys) item
-            (declare (notinline sort))
-            (format stream "# ~A~%" decompose)
-            (dolist (pair (sort (mapcar (lambda (given calculated time)
-                                          (list (* given calculated) time))
-                                        given calculated run-time)
-                                #'< :key #'car))
-              (destructuring-bind (x y) pair
-                (format stream "~A ~A~%" x y)))
-            (format stream "~%~%")))
-            
-        (format stream "end~%")))
+        (let* ((line-style 0)
+               (mapping (mapcar (lambda (descr)
+                                  (incf line-style)
+                                  (format stream "set style line ~D linecolor rgb ~S~%" line-style
+                                          (getf descr :color))
+                                  ;; collect
+                                  `(:line-style ,line-style ,@descr))
+                                *decomposition-function-descriptors*)))
+          (format stream "plot ~A~%"
+                  (build-string (format nil ",\\~%")
+                                (mapcar (lambda (data-plist &aux (decompose (getf data-plist :decompose)))
+                                          (let ((mapping-plist (find-if (lambda (mapping-plist)
+                                                                          (exists name (getf mapping-plist :names)
+                                                                            (string= decompose
+                                                                                     (symbol-name name))))
+                                                                        mapping)))
+                                          (format nil "   \"-\" using 1:2 notitle with lines ls ~D"
+                                                  (getf mapping-plist :line-style))))
+                                        data)))        
+
+          (dolist (item data)
+            (destructuring-bind (&key decompose given calculated run-time
+                                 &allow-other-keys
+                                 &aux (color (getf (find-decomposition-function-descriptor decompose) :color)))
+                item
+              (declare (notinline sort))
+              (format stream "# ~A ~A~%" color decompose)
+              (dolist (pair (remove-duplicates (sort (mapcar (lambda (given calculated time)
+                                                               (list (* given calculated) time))
+                                                             given calculated run-time)
+                                                     (lambda (a b)
+                                                       (if (= (car a) (car b))
+                                                           (< (cadr a) (cadr b))
+                                                           (< (car a) (car b)))))
+                                               :test #'equal))
+                                
+                (destructuring-bind (x y) pair
+                  (unless (zerop y)
+                    (format stream "~A ~A~%" x y))))
+              (format stream "end~%"))))))
     (sb-ext:run-program "gnuplot" (list gnuplot-file)
                         :search t)))
 
@@ -1033,6 +1086,7 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
                                  :inner-loop :node
                                  :do-break-sub :relaxed
                                  :do-break-loop nil))))
+
 
 
 (defun big-test-report (&key (suite-time-out (* 60 40)) (time-out 45)  )
