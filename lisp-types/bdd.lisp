@@ -36,7 +36,8 @@
           :initarg :ident :initform (incf *bdd-count*))
    (label ;; :reader bdd-label
     :initarg :label)
-   (dnf)))
+   (dnf)
+   (expr)))
 
 ;; reader for the label slot.  I've implemented this as a defun rather than :reader becase
 ;;  it seems to be in the critical performance loop and the normal function performs marginally
@@ -57,7 +58,8 @@
 
 (defun bdd-with-new-hash (thunk)
   (let ((*bdd-hash* (bdd-new-hash))
-        (*unknown-hash* (new-subtype-hash)))
+        (*disjoint-hash* (new-disjoint-hash))
+        (*subtype-hash* (new-subtype-hash)))
     ;; (setf (gethash :type-system *bdd-hash*)
     ;;       (bdd '(not (or
     ;;                   (and (not integer) (not ratio) rational)
@@ -66,7 +68,7 @@
     ;;                   (and (not float) (not integer) (not ratio) real)
     ;;                   (and (not bignum) (not fixnum) unsigned-byte)))))
     (prog1 (funcall thunk)
-      (format t "finished with ~A and ~A~%" *bdd-hash* *unknown-hash*))))
+      (format t "finished with ~A and ~A~%" *bdd-hash* *subtype-hash*))))
   
 (defun bdd-make-key (label left right)
   (list left right label))
@@ -115,12 +117,14 @@
 (defclass bdd-true (bdd-leaf)
   ((ident :initform 1)
    (label :initform t)
-   (dnf :initform t)))
+   (dnf :initform t)
+   (expr :initform t)))
 
 (defclass bdd-false (bdd-leaf)
   ((ident :initform 0)
    (label :initform nil)
-   (dnf :initform nil)))
+   (dnf :initform nil)
+   (expr :initform nil)))
 
 (defvar *bdd-true* (make-instance 'bdd-true))
 (defvar *bdd-false* (make-instance 'bdd-false))
@@ -284,9 +288,9 @@
                         ;;  (nil = (and user-type (not (cons string))))
                         ;;  but we can't find that out as there's no way to iterate
                         ;;  through all the user's type definitions and their expansions.
-                        ((subtypep (bdd-to-dnf bdd) nil) ;; 0.03%
+                        ((smarter-subtypep (bdd-to-expr bdd) nil) ;; 0.03%
                          *bdd-false*)
-                        ((subtypep t (bdd-to-dnf bdd))
+                        ((smarter-subtypep t (bdd-to-expr bdd))
                          *bdd-true*)
                         (t ;; 1.7%
                          bdd))))))))))))
@@ -456,9 +460,35 @@ according to the LABEL which is now the label of some parent in its lineage."
 (defun bdd-to-dnf (bdd)
   (slot-value bdd 'dnf))
 
+(defun bdd-to-expr (bdd)
+  (slot-value bdd 'expr))
+
 (defmethod slot-unbound (class (bdd bdd-node) (slot-name (eql 'dnf)))
   (setf (slot-value bdd 'dnf)
         (%bdd-to-dnf bdd)))
+
+(defmethod slot-unbound (class (bdd bdd-node) (slot-name (eql 'expr)))
+  (setf (slot-value bdd 'expr)
+        (cond
+          ((and (eq *bdd-false* (bdd-left bdd))
+                (eq *bdd-true* (bdd-right bdd)))
+           `(not ,(bdd-label bdd)))
+          ((and (eq *bdd-false* (bdd-right bdd))
+                (eq *bdd-true* (bdd-left bdd)))
+           (bdd-label bdd))
+          ((eq *bdd-false* (bdd-left bdd))
+           `(and (not ,(bdd-label bdd)) ,(bdd-to-expr (bdd-right bdd))))
+          ((eq *bdd-false* (bdd-right bdd))
+           `(and ,(bdd-label bdd) ,(bdd-to-expr (bdd-left bdd))))
+          ((eq *bdd-true* (bdd-left bdd))
+           `(or ,(bdd-label bdd)
+                (and (not ,(bdd-label bdd)) ,(bdd-to-expr (bdd-right bdd)))))
+          ((eq *bdd-true* (bdd-right bdd))
+           `(or (and ,(bdd-label bdd) ,(bdd-to-expr (bdd-left bdd)))
+                (not ,(bdd-label bdd))))
+          (t
+           `(or (and ,(bdd-label bdd) ,(bdd-to-expr (bdd-left bdd)))
+                (and (not ,(bdd-label bdd)) ,(bdd-to-expr (bdd-right bdd))))))))
 
 (defun x%bdd-to-dnf (bdd)
   "Convert a BDD to logical expression in DNF (disjunctive normal form), i.e. an OR of ANDs."
@@ -703,8 +733,12 @@ of min-terms, this function returns a list of the min-terms."
 
 (defun bdd-decompose-types (type-specifiers)
   (when type-specifiers
-    (mapcar #'bdd-to-dnf
-            (%bdd-decompose-types type-specifiers))))
+    (with-disjoint-hash
+        (lambda ()
+          (with-subtype-hash
+              (lambda ()
+                (mapcar #'bdd-to-dnf
+                        (%bdd-decompose-types type-specifiers))))))))
 
 (defun bdd-find-dup-bdds (bdds)
   "A debugging function.  It can be used to find whether two (or more) bdds
