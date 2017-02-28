@@ -91,6 +91,7 @@
                                      (sort-nodes #'identity)
                                      (sort-strategy "default")
                                      (inner-loop :node)
+                                     (recursive nil)
                                      (do-disjoint t)
                                      (do-break-sub :relaxed)
                                      (do-break-touch t)
@@ -108,7 +109,9 @@
   (when (eq :strict do-break-sub)
     (assert do-break-loop (do-break-sub do-break-loop)
             "Unsupported combination do-break-loop=~A do-break-sub=~A" do-break-loop do-break-loop))
-
+  (when (eq :node inner-loop)
+    (assert (not recursive) (recursive inner-loop)
+            "Unsupported combination recursive=~A inner-loop=~A" recursive inner-loop))
   (let* ((node-id 0)
          (bdds (remove-duplicates
                 (sort (mapcar #'bdd type-specifiers)
@@ -123,18 +126,25 @@
                                      :super-types nil
                                      :sub-types nil
                                      :touches nil
-                                     :id (incf node-id)))))
+                                     :id (incf node-id)
+                                     :removed nil))))
 
     (let ((changed 0)
           (c 1000)
           (html-file "/tmp/jnewton/graph.html")
           disjoint-bdds)
-      (labels ((disjoint! (node)
+      (labels ((while-changed (thunk)
+                 (while (plusp changed)
+                   (setf changed 0)
+                   (funcall thunk)))
+               (disjoint! (node)
                  (when (member node graph :test #'eq)
                    (incf changed)
                    (setf graph (remove node graph :test #'eq))
+                   (setf (getf node :removed) t)
                    (unless (eq (getf node :bdd) *bdd-false*)
-                     (pushnew (getf node :bdd) disjoint-bdds :test #'bdd-type-equal))))
+                     (pushnew (getf node :bdd) disjoint-bdds :test #'bdd-type-equal))
+                   t))
                (node-to-dnf (node)
                  (declare (type cons node))
                  (bdd-to-dnf (getf node :bdd)))
@@ -334,7 +344,8 @@
                             (null (getf node :touches)))
                    (dolist (super (getf node :super-types))
                      (break-sub! node super)
-                     #+:bdd-debug (dot "break-sub!" node super))))
+                     #+:bdd-debug (dot "break-sub!" node super))
+                   (do-disjoint node)))
                (do-break-sub-relaxed (node)
                  ;; break child -> parent if child touches nothing and has no sub-types
                  ;; -- subset condition
@@ -346,20 +357,23 @@
                        (cond ((eq node sibling))
                              ((member sibling (getf node :touches) :test #'eq)
                               (no-sub-super! sibling super)
-                              (touch! sibling super)))))))
+                              (touch! sibling super)))))
+                   (do-disjoint node)))
+               
                (do-break-touch (node)
                  ;; touching connections
                  (when (null (getf node :sub-types))
                    (dolist (neighbor (getf node :touches))
                      (when (null (getf neighbor :sub-types))
                        (break-touch! node neighbor)
-                       #+:bdd-debug (dot "break-touch!" node neighbor)))))
+                       #+:bdd-debug (dot "break-touch!" node neighbor)))
+                   (do-disjoint node)))
                (do-break-loop (node)
-                 (when (and (null (getf node :sub-types))
-                            (exists touch (getf node :touches)
-                              (getf touch :sub-types)))
-                   (break-loop! node)))
-               )
+                 (when (null (getf node :sub-types))
+                   (while (exists touch (getf node :touches)
+                            (getf touch :sub-types))
+                     (break-loop! node))
+                   (do-disjoint node))))
 
         ;; setup all the :super-types, :sub-types, and :touches lists
         (loop :for tail :on graph
@@ -392,19 +406,25 @@
                                    (list #'do-break-touch))
                                  (when do-break-loop
                                    (list #'do-break-loop)))))
-          (while (plusp changed)
-            (setf changed 0)
-            (ecase inner-loop
-              ((:node)
-               (dolist (operation operations)
-                 (declare (type function operation))
-                 (dolist (node graph)
-                   (funcall operation node))))
-              ((:operation)
-               (dolist (node graph)
-                 (dolist (operation operations)
-                   (declare (type function operation))
-                   (funcall operation node)))))))
+
+          (ecase inner-loop
+            ((:node)
+             (while-changed (lambda ()
+                              (dolist (operation operations)
+                                (declare (type function operation))
+                                (dolist (node graph)
+                                  (funcall operation node))))))
+            ((:operation)
+             (labels ((do-operations (node &key (level 0) lineage)
+                        (unless (getf node :removed)
+                          (when recursive
+                            (dolist (sub (getf node :sub-types))
+                              (do-operations sub :level (1+ level) :lineage (cons node lineage))))
+                          (dolist (operation operations)
+                            (declare (type function operation))
+                            (funcall operation node)))))
+               (while-changed (lambda ()
+                                (mapc #'do-operations graph)))))))
 
         (when graph
           (print-graph "nodes remain" )
@@ -428,6 +448,15 @@
                        (%decompose-types-bdd-graph type-specifiers))))
 
 
+(defun decompose-types-bdd-graph-recursive-increasing-connections (type-specifiers)
+  (bdd-with-new-hash (lambda ()
+                       (%decompose-types-bdd-graph type-specifiers
+                                                   :sort-nodes (lambda (graph)
+                                                                 (declare (notinline sort))
+                                                                 (sort graph #'< :key #'count-connections-per-node))
+                                                   :sort-strategy "INCREASING-CONNECTIONS"
+                                                   :inner-loop :recursive))))
+
 (defmacro make-decompose-fun-combos ()
   (let (fun-defs
         prop-defs
@@ -439,7 +468,8 @@
                                (:do-break-sub :relaxed
                                  :do-break-loop t)))
         ( inner-loops '((:inner-loop :node)
-                          (:inner-loop :operation)))
+                        (:inner-loop :operation :recursive t)
+                        (:inner-loop :operation :recursive nil)))
         ( sort-nodes '((:sort-nodes (lambda (graph)
                                         (shuffle-list graph))
                           :sort-strategy "SHUFFLE")
@@ -465,18 +495,21 @@
       (destructuring-bind (&key sort-nodes sort-strategy) sort-nodes-args
         (declare (ignore sort-nodes))
         (dolist (inner-loop-args inner-loops)
-          (destructuring-bind (&key inner-loop) inner-loop-args
+          (destructuring-bind (&key inner-loop recursive) inner-loop-args
             (dolist (operation-combo-args operation-combos)
               (destructuring-bind (&key do-break-sub do-break-loop) operation-combo-args
                 (let* ((symbol (concatenate 'string
                                              "DECOMPOSE-TYPES-BDD-GRAPH-"
                                              (symbol-name do-break-sub)
-                                             "-"
-                                             "BREAK-LOOP-"
+                                             "/"
+                                             "BREAK-LOOP="
                                              (if do-break-loop "YES" "NO")
-                                             "-"
+                                             "/"
                                              (symbol-name inner-loop)
-                                             "-"
+                                             "/"
+                                             "RECURSIVE="
+                                             (if recursive "YES" "NO")
+                                             "/"
                                              sort-strategy))
                        (fun-name (intern symbol (find-package "LISP-TYPES")))
                        (props `(,@sort-nodes-args
@@ -493,6 +526,5 @@
        (defvar *decompose-fun-names* ',fun-names)
        ,@prop-defs
        ,@fun-defs)))
-
 
 (make-decompose-fun-combos)
