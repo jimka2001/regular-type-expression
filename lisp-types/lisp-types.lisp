@@ -442,3 +442,6 @@ whose test is true, otherwise return OBJECT."
 
 
 
+(defun getter (field)
+  (lambda (obj) (getf obj field)))
+
