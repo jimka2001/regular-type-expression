@@ -107,15 +107,16 @@ If N > (length of data) then a permutation of DATA is returned"
 ;; A performance analysis of decompose-types-bdd-graph shows that a HUGE portion of the time
 ;; is being spent in subtypep, and a major source of calls to subtypep is smarter-subtypep.
 ;; It seems that runs containing lots of type specifiers for which subtypep returns nil,nil
-;; is a source of bad performance.  So *unknown-hash* is introduced to cache some of these
-;; cases.  If smarter-subtypep returns nil,nil, then we remember this case in *unknown-hash*
+;; is a source of bad performance.  So *subtype-hash* is introduced to cache some of these
+;; cases.  If smarter-subtypep returns nil,nil, then we remember this case in *subtype-hash*
 ;; in order to avoid recursive calls to smarter-subtypep and subtypep in future calls
 ;; with the same arguments.
-(defvar *unknown-hash* nil)
+(defvar *subtype-hash* nil)
 
-(defun with-unknown-hash (thunk)
-  (let ((*unknown-hash* (new-subtype-hash)))
-    (funcall thunk)))
+(defun with-subtype-hash (thunk)
+  (let ((*subtype-hash* (new-subtype-hash)))
+    (prog1 (funcall thunk)
+      (format t "finished with *subtype-hash*=~A~%" *subtype-hash*))))
 
 (defun %%smarter-subtypep (t1 t2)
   (declare (optimize (speed 3) (compilation-speed 0)))
@@ -155,12 +156,12 @@ If N > (length of data) then a permutation of DATA is returned"
 (defun %smarter-subtypep (t1 t2 &aux (t12 (list t1 t2)))
   (declare (optimize (speed 3) (compilation-speed 0)))
   (cond
-    ((null *unknown-hash*)
+    ((null *subtype-hash*)
      (%%smarter-subtypep t1 t2))
-    ((nth-value 1 (gethash t12 *unknown-hash*))
-     (gethash t12 *unknown-hash*))
+    ((nth-value 1 (gethash t12 *subtype-hash*))
+     (gethash t12 *subtype-hash*))
     (t
-     (setf (gethash t12 *unknown-hash*)
+     (setf (gethash t12 *subtype-hash*)
            (%%smarter-subtypep t1 t2)))))
 
 ;; TODO need to update some calls to subtypep to use smarter-subtypep instead.
@@ -185,57 +186,94 @@ this function SMARTER-SUBTYPEP understands this."
 (defun universal-type-p (type)
   (subtypep t type))
 
-(defun disjoint-types-p (T1 T2 &aux X Y)
+(defvar *disjoint-hash* nil)
+
+(defun new-disjoint-hash ()
+  (make-hash-table :test #'equal))
+
+(defun with-disjoint-hash (thunk)
+  (let ((*disjoint-hash* (new-disjoint-hash)))
+    (prog1 (funcall thunk)
+      (format t "finished with *disjoint-hash*=~A~%" *disjoint-hash*))))
+
+
+(defun disjoint-types-p (T1 T2 &aux X Y (t12 (list T1 T2)))
   "Two types are considered disjoint, if their interseciton is empty,
 i.e., is a subtype of nil."
-  (declare (optimize (speed 3) (compilation-speed 0))
-	   (notinline subsetp))
-  (multiple-value-bind (disjointp OK) (subtypep `(and ,T1 ,T2) nil)
-    (cond
-      (OK
-       (values disjointp t))
-      ((subsetp '((t t) (nil t))
-		(list (setq X (multiple-value-list (smarter-subtypep T1 T2)))
-		      (multiple-value-list (smarter-subtypep T2 T1)))
-                :test #'equal)
-       ;; Is either  T1<:T2 and not T2<:T1
-       ;;    or      T2<:T1 and not T1<:T2 ?
-       ;; if so, then one is a propert subtype of the other.
-       ;; thus they are not disjoin.t
-       (values nil t))
-      ;;  T1 ^ T2 = 0 ==> !T1 ^ T2 != 0 if T1!=1 and T2 !=0
-      ;; !T1 ^ T2 = 0 ==>  T1 ^ T2 != 0 if T1!=0 and T2 !=0
-      ((and (typep T1 '(cons (eql not)))
-            (not (void-type-p (cadr T1)))
-            (not (void-type-p T2))
-	    (disjoint-types-p (cadr T1) T2))
-       (values nil t))
-      ;; T1 ^  T2 = 0 ==> T1 ^ !T2 != 0  if T1!=0 and T2!=1
-      ;; T1 ^ !T2 = 0 ==> T1 ^  T2 != 0  if T1!=0 and T2!=0
-      ((and (typep T2 '(cons (eql not))) 
-            (not (void-type-p T1))
-            (not (void-type-p (cadr T2)))
-	    (disjoint-types-p T1 (cadr T2)))
-       (values nil t))
-      ;; e.g., (disjoint-types-p (not float) number) ==> (nil t)
-      ;;       (disjoint-types-p (not number) float) ==> (t t)
-      ((and (typep T1 '(cons (eql not)))
-	    (setq Y (multiple-value-list (smarter-subtypep (cadr T1) T2)))
-	    (setq X (multiple-value-list (smarter-subtypep T2 (cadr T1))))
-	    (subsetp '((t t) (nil t)) (list X Y) :test #'equal))
-       (values (car X) t))
-      ;; e.g., (disjoint-types-p float (not number)) ==> (t t)
-      ;;       (disjoint-types-p number (not float)) ==> (nil t)
-      ((and (typep T2 '(cons (eql not)))
-	    (setq Y (multiple-value-list (smarter-subtypep T1 (cadr T2))))
-	    (setq X (multiple-value-list (smarter-subtypep (cadr T2) T1)))
-	    (subsetp '((t t) (nil t)) (list X Y) :test #'equal))
-       (values (car Y) t))
-      ((or (smarter-subtypep T1 T2)
-	   (smarter-subtypep T2 T1))
-       (values nil t))
-      (t
-       (values nil nil)))))
+  (declare (notinline subsetp))
+  (flet ((calculate ()
+           (multiple-value-bind (disjointp OK) (subtypep (cons 'and t12) nil)
+             (cond
+               (OK
+                (list disjointp t))
+               ((and (symbolp T1)
+                     (symbolp T2)
+                     (find-class T1 nil)
+                     (find-class T2 nil))
+                (list (not (dispatch:specializer-intersections (find-class T1) (find-class T2)))
+                      t))
+               ((subsetp '((t t) (nil t))
+                         (list (setq X (multiple-value-list (smarter-subtypep T1 T2)))
+                               (multiple-value-list (smarter-subtypep T2 T1)))
+                         :test #'equal)
+                ;; Is either  T1<:T2 and not T2<:T1
+                ;;    or      T2<:T1 and not T1<:T2 ?
+                ;; if so, then one is a propert subtype of the other.
+                ;; thus they are not disjoin.t
+                (list nil t))
+               
+               ((and (typep T1 '(cons (eql not)))
+                     (typep T2 '(cons (eql not)))
+                     (smarter-subtypep t (list 'and (cadr T1) (cadr T2)))
+                     ;; (not (void-type-p (cadr T1)))
+                     ;; (not (void-type-p (cadr T2)))
+                     (disjoint-types-p (cadr T1) (cadr T2)))
+                (list nil t))
+
+               ;;  T1 ^ T2 = 0 ==> !T1 ^ T2 != 0 if T1!=1 and T2 !=0
+               ;; !T1 ^ T2 = 0 ==>  T1 ^ T2 != 0 if T1!=0 and T2 !=0
+               ((and (typep T1 '(cons (eql not)))
+                     (not (void-type-p (cadr T1)))
+                     (not (void-type-p T2))
+                     (disjoint-types-p (cadr T1) T2))
+                (list nil t))
+               ;; T1 ^  T2 = 0 ==> T1 ^ !T2 != 0  if T1!=0 and T2!=1
+               ;; T1 ^ !T2 = 0 ==> T1 ^  T2 != 0  if T1!=0 and T2!=0
+               ((and (typep T2 '(cons (eql not))) 
+                     (not (void-type-p T1))
+                     (not (void-type-p (cadr T2)))
+                     (disjoint-types-p T1 (cadr T2)))
+                (list nil t))
+               ;; e.g., (disjoint-types-p (not float) number) ==> (nil t)
+               ;;       (disjoint-types-p (not number) float) ==> (t t)
+               ((and (typep T1 '(cons (eql not)))
+                     (setq Y (multiple-value-list (smarter-subtypep (cadr T1) T2)))
+                     (setq X (multiple-value-list (smarter-subtypep T2 (cadr T1))))
+                     (subsetp '((t t) (nil t)) (list X Y) :test #'equal))
+                (list (car X) t))
+               ;; e.g., (disjoint-types-p float (not number)) ==> (t t)
+               ;;       (disjoint-types-p number (not float)) ==> (nil t)
+               ((and (typep T2 '(cons (eql not)))
+                     (setq Y (multiple-value-list (smarter-subtypep T1 (cadr T2))))
+                     (setq X (multiple-value-list (smarter-subtypep (cadr T2) T1)))
+                     (subsetp '((t t) (nil t)) (list X Y) :test #'equal))
+                (list (car Y) t))
+               ((or (smarter-subtypep T1 T2)
+                    (smarter-subtypep T2 T1))
+                (list nil t))
+               (t
+                (list nil nil))))))
+    ;;(format t "*disjoint-hash* ~A~%" *disjoint-hash*)
+    (apply #'values
+           (cond ((null *disjoint-hash*)
+                  (calculate))
+                 ((nth-value 1 (gethash t12 *disjoint-hash*))
+                  (gethash t12 *disjoint-hash*))
+                 (t
+                  (prog1 (setf (gethash t12 *disjoint-hash*)
+                               (calculate))
+                    ;;(format t "cached: ~A -> ~A~%" t12 (gethash t12 *disjoint-hash*))
+                    ))))))
 
 (defun equivalent-types-p (T1 T2)
   "Two types are considered equivalent if each is a subtype of the other."
