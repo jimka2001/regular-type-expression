@@ -22,11 +22,7 @@
 
 (in-package   :lisp-types)
 
-(defun decompose-types (type-specifiers)
-  (declare (type list type-specifiers))
-  "Given a list TYPE-SPECIFIERS of lisp type names, return a list of disjoint, 
-non-nil type-specifiers comprising the same union, with each of the resulting
-type-specifiers being a sub-type of one of the given type-specifiers."
+(defun %decompose-types (type-specifiers)
   (let (decomposition) ;; the list of disjoint type-specifiers
     (labels ((remove-disjoint ()
 	       (dolist (T1 type-specifiers)
@@ -34,7 +30,7 @@ type-specifiers being a sub-type of one of the given type-specifiers."
 				(disjoint-types-p T1 T2)) ;; are T1 and T2 disjoint?
 			      (cdr type-specifiers))
 		   (let ((new (reduce-lisp-type T1)))
-		     (when new ; don't remember the nil type
+		     (when new          ; don't remember the nil type
 		       (pushnew new decomposition :test #'equivalent-types-p)))
 		   (setf type-specifiers (remove T1 type-specifiers :test #'equal)))))
 	     (find-intersecting ()
@@ -60,3 +56,14 @@ type-specifiers being a sub-type of one of the given type-specifiers."
 		     (remember `(and ,T1 (not ,T2)))
 		     (remember `(and (not ,T1) ,T2))))))
       decomposition)))
+
+(defun decompose-types (type-specifiers)
+  (declare (type list type-specifiers))
+  "Given a list TYPE-SPECIFIERS of lisp type names, return a list of disjoint, 
+non-nil type-specifiers comprising the same union, with each of the resulting
+type-specifiers being a sub-type of one of the given type-specifiers."
+  (with-disjoint-hash
+      (lambda ()
+        (with-subtype-hash
+            (lambda ()
+              (%decompose-types type-specifiers))))))
