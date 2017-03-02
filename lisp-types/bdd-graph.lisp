@@ -118,7 +118,7 @@
                                      (recursive t)
                                      (inner-loop :operation)
                                      (do-break-sub :relaxed)
-                                     (do-break-loop nil)
+                                     (do-break-loop t)
                                      (sort-nodes (find-sort-strategy-function sort-strategy))
                                      (do-disjoint t)
                                      (do-break-touch t))
