@@ -86,16 +86,42 @@
        (print-sub-super)
        (print-foot)))))
 
+(defvar *sort-strategies*
+  `((:sort-nodes ,#'(lambda (graph)
+                   (shuffle-list graph))
+     :sort-strategy "SHUFFLE")
+    (:sort-nodes ,(lambda (graph)
+                   (declare (notinline sort))
+                   (sort graph #'< :key #'count-connections-per-node))
+     :sort-strategy "INCREASING-CONNECTIONS")
+    (:sort-nodes ,(lambda (graph)
+                   (declare (notinline sort))
+                   (sort graph #'> :key #'count-connections-per-node))
+     :sort-strategy "DECREASING-CONNECTIONS")
+    (:sort-nodes ,(lambda (graph)
+                   (declare (notinline sort))
+                   (sort graph #'> :key #'count-parents-per-node))
+     :sort-strategy "BOTTOM-TO-TOP")
+    (:sort-nodes ,(lambda (graph)
+                   (declare (notinline sort))
+                   (sort graph #'< :key #'count-parents-per-node))
+     :sort-strategy "TOP-TO-BOTTOM")))
+
+(defun find-sort-strategy-function (name)
+  (getf (find name *sort-strategies* :test #'string= :key (getter :sort-strategy))
+        :sort-nodes))
+
+
 (defun %decompose-types-bdd-graph (type-specifiers &rest options
                                    &key
-                                     (sort-nodes #'identity)
-                                     (sort-strategy "default")
-                                     (inner-loop :node)
-                                     (recursive nil)
-                                     (do-disjoint t)
+                                     (sort-strategy "BOTTOM-TO-TOP")
+                                     (recursive t)
+                                     (inner-loop :operation)
                                      (do-break-sub :relaxed)
-                                     (do-break-touch t)
-                                     (do-break-loop nil))
+                                     (do-break-loop nil)
+                                     (sort-nodes (find-sort-strategy-function sort-strategy))
+                                     (do-disjoint t)
+                                     (do-break-touch t))
   (declare (notinline sort +)
            ;;(ignore sort-strategy)
            (type (member :node :operation) inner-loop)
@@ -451,9 +477,6 @@
 (defun decompose-types-bdd-graph-recursive-increasing-connections (type-specifiers)
   (bdd-with-new-hash (lambda ()
                        (%decompose-types-bdd-graph type-specifiers
-                                                   :sort-nodes (lambda (graph)
-                                                                 (declare (notinline sort))
-                                                                 (sort graph #'< :key #'count-connections-per-node))
                                                    :sort-strategy "INCREASING-CONNECTIONS"
                                                    :inner-loop :recursive))))
 
@@ -467,60 +490,40 @@
                                  :do-break-loop nil)
                                (:do-break-sub :relaxed
                                  :do-break-loop t)))
-        ( inner-loops '((:inner-loop :node)
+        ( inner-loops '((:inner-loop :node :recursive nil)
                         (:inner-loop :operation :recursive t)
                         (:inner-loop :operation :recursive nil)))
-        ( sort-nodes '((:sort-nodes (lambda (graph)
-                                        (shuffle-list graph))
-                          :sort-strategy "SHUFFLE")
-                         (:sort-nodes (lambda (graph)
-                                        (declare (notinline sort))
-                                        (sort graph #'< :key #'count-connections-per-node))
-                          :sort-strategy "INCREASING-CONNECTIONS")
-                         (:sort-nodes (lambda (graph)
-                                        (declare (notinline sort))
-                                        (sort graph #'> :key #'count-connections-per-node))
-                          :sort-strategy "DECREASING-CONNECTIONS")
-                         (:sort-nodes (lambda (graph)
-                                        (declare (notinline sort))
-                                        (sort graph #'> :key #'count-parents-per-node))
-                          :sort-strategy "BOTTOM-TO-TOP")
-                         (:sort-nodes (lambda (graph)
-                                        (declare (notinline sort))
-                                        (sort graph #'< :key #'count-parents-per-node))
-                          :sort-strategy "TOP-TO-BOTTOM")))
+        ( sort-nodes (mapcar (getter :sort-strategy) *sort-strategies*))
 
         )
-    (dolist (sort-nodes-args sort-nodes)
-      (destructuring-bind (&key sort-nodes sort-strategy) sort-nodes-args
-        (declare (ignore sort-nodes))
-        (dolist (inner-loop-args inner-loops)
-          (destructuring-bind (&key inner-loop recursive) inner-loop-args
-            (dolist (operation-combo-args operation-combos)
-              (destructuring-bind (&key do-break-sub do-break-loop) operation-combo-args
-                (let* ((symbol (concatenate 'string
-                                             "DECOMPOSE-TYPES-BDD-GRAPH-"
-                                             (symbol-name do-break-sub)
-                                             "/"
-                                             "BREAK-LOOP="
-                                             (if do-break-loop "YES" "NO")
-                                             "/"
-                                             (symbol-name inner-loop)
-                                             "/"
-                                             "RECURSIVE="
-                                             (if recursive "YES" "NO")
-                                             "/"
-                                             sort-strategy))
-                       (fun-name (intern symbol (find-package "LISP-TYPES")))
-                       (props `(,@sort-nodes-args
-                                ,@inner-loop-args
-                                ,@operation-combo-args)))
+    (dolist (sort-nodes-arg sort-nodes)
+      (dolist (inner-loop-args inner-loops)
+        (destructuring-bind (&key inner-loop recursive) inner-loop-args
+          (dolist (operation-combo-args operation-combos)
+            (destructuring-bind (&key do-break-sub do-break-loop) operation-combo-args
+              (let* ((symbol (concatenate 'string
+                                          "DECOMPOSE-TYPES-BDD-GRAPH-"
+                                          (symbol-name do-break-sub)
+                                          "/"
+                                          "BREAK-LOOP="
+                                          (if do-break-loop "YES" "NO")
+                                          "/"
+                                          (symbol-name inner-loop)
+                                          "/"
+                                          "RECURSIVE="
+                                          (if recursive "YES" "NO")
+                                          "/"
+                                          sort-nodes-arg))
+                     (fun-name (intern symbol (find-package "LISP-TYPES")))
+                     (props `(:sort-strategy ,sort-nodes-arg
+                              ,@inner-loop-args
+                              ,@operation-combo-args)))
 
-                  (push `(setf (get ',fun-name 'decompose-properties) ',props) prop-defs)
-                  (push `(defun ,fun-name (type-specifiers)
-                           (bdd-with-new-hash (lambda ()
-                                                (%decompose-types-bdd-graph type-specifiers ,@props))))
-                        fun-defs))))))))
+                (push `(setf (get ',fun-name 'decompose-properties) ',props) prop-defs)
+                (push `(defun ,fun-name (type-specifiers)
+                         (bdd-with-new-hash (lambda ()
+                                              (%decompose-types-bdd-graph type-specifiers ,@props))))
+                      fun-defs)))))))
     (setf fun-names (mapcar #'cadr fun-defs))
     `(progn
        (defvar *decompose-fun-names* ',fun-names)
