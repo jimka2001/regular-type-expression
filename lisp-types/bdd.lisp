@@ -643,8 +643,183 @@ set of BDDs."
   (and (bdd-subtypep t1 t2)
        (bdd-subtypep t2 t1)))
 
+(defun bdd-to-if-then-else-1 (bdd obj)
+  "expand into worse-case exponentially large code as IF-THEN-ELSE, whose run-time is logrithmic."
+  (labels ((expand (bdd)
+             (typecase bdd
+               (bdd-false nil)
+               (bdd-true t)
+               (bdd-node `(if (typep ,obj ',(bdd-label bdd))
+                              ,(expand (bdd-left bdd))
+                              ,(expand (bdd-right bdd)))))))
+    (typecase bdd
+      (bdd-false
+       `(lambda (,obj)
+          (declare (ignore ,obj))
+          nil))
+      (bdd-true
+       `(lambda (,obj)
+          (declare (ignore ,obj))
+          t))
+      (bdd-node
+       `(lambda (,obj)
+          ,(expand bdd))))))
+
+(defun topological-sort (graph &key (test 'eql))
+  ;; this function was taking verbatim from rosettacode.org
+  ;; https://rosettacode.org/wiki/Topological_sort#Common_Lisp
+  "Graph is an association list whose keys are objects and whose
+values are lists of objects on which the corresponding key depends.
+Test is used to compare elements, and should be a suitable test for
+hash-tables.  Topological-sort returns two values.  The first is a
+list of objects sorted toplogically.  The second is a boolean
+indicating whether all of the objects in the input graph are present
+in the topological ordering (i.e., the first value)."
+  (let ((entries (make-hash-table :test test)))
+    (flet ((entry (vertex)
+             "Return the entry for vertex.  Each entry is a cons whose
+              car is the number of outstanding dependencies of vertex
+              and whose cdr is a list of dependants of vertex."
+             (multiple-value-bind (entry presentp) (gethash vertex entries)
+               (if presentp entry
+                 (setf (gethash vertex entries) (cons 0 '()))))))
+      ;; populate entries initially
+      (dolist (vertex graph)
+        (destructuring-bind (vertex &rest dependencies) vertex
+          (let ((ventry (entry vertex)))
+            (dolist (dependency dependencies)
+              (let ((dentry (entry dependency)))
+                (unless (funcall test dependency vertex)
+                  (incf (car ventry))
+                  (push vertex (cdr dentry))))))))
+      ;; L is the list of sorted elements, and S the set of vertices
+      ;; with no outstanding dependencies.
+      (let ((L '())
+            (S (loop for entry being each hash-value of entries
+                     using (hash-key vertex)
+                     when (zerop (car entry)) collect vertex)))
+        ;; Until there are no vertices with no outstanding dependencies,
+        ;; process vertices from S, adding them to L.
+        (do* () ((endp S))
+          (let* ((v (pop S)) (ventry (entry v)))
+            (remhash v entries)
+            (dolist (dependant (cdr ventry) (push v L))
+              (when (zerop (decf (car (entry dependant))))
+                (push dependant S)))))
+        ;; return (1) the list of sorted items, (2) whether all items
+        ;; were sorted, and (3) if there were unsorted vertices, the
+        ;; hash table mapping these vertices to their dependants
+        (let ((all-sorted-p (zerop (hash-table-count entries))))
+          (values (nreverse L)
+                  all-sorted-p
+                  (unless all-sorted-p
+                    entries)))))))
+
+;; (bdd-to-if-then-else-2 (bdd '(or (and sequence (not array))
+;;                                      number
+;;                               (and (not sequence) array))) 'X)
+
+(defun bdd-to-if-then-else-2 (bdd obj)
+  "expand into linear size code as LET*, whose runtime is linear"
+  (let ((constraints (make-hash-table :test #'eq)))
+    (labels ((calc-constraints (bdd)
+               (typecase bdd
+                 (bdd-false)
+                 (bdd-true)
+                 (bdd-node
+                  (unless (nth-value 1 (gethash bdd constraints))
+                    (setf (gethash bdd constraints) nil))
+                  (pushnew bdd (gethash (bdd-left bdd) constraints nil) :test #'eq)
+                  (pushnew bdd (gethash (bdd-right bdd) constraints nil) :test #'eq)
+                  (calc-constraints (bdd-left bdd))
+                  (calc-constraints (bdd-right bdd))))))
+      (calc-constraints bdd)
+      ;; constraints is a hash table mapping BEFORE to a list of BDDS which which BEFORE must preceed in the sorted list.
+
+      (let* ((nodes (topological-sort (let (collected)
+                                        (maphash (lambda (key value)
+                                                   (push (cons key value) collected)) constraints)
+                                        collected) :test #'eq))
+             (name-map (mapcar (lambda (node)
+                                 (list node (gensym "N")))
+                               nodes))
+             (vars (mapcar (lambda (node)
+                             (typecase node
+                               (bdd-false
+                                (list (cadr (assoc node name-map)) nil))
+                               (bdd-true
+                                (list (cadr (assoc node name-map)) t))
+                               (bdd-node
+                                (list (cadr (assoc node name-map))
+                                      `(if (typep ,obj ',(bdd-label node))
+                                           ,(cadr (assoc (bdd-left node) name-map))
+                                           ,(cadr (assoc (bdd-right node) name-map)))))))
+                           (reverse nodes))))
+        `(lambda (,obj)
+           (let* ,vars
+             ,(caar (last vars))))))))
+
+
+
+(defun bdd-to-if-then-else-3 (bdd obj)
+  "expand into linear size code as LABELS, whose runtime is logrithmic and code size is linear"
+  (let (bdd->name-mapping)
+    (labels ((walk-bdd (bdd)
+               (typecase bdd
+                 (bdd-false)
+                 (bdd-true)
+                 (bdd-node
+                  (unless (assoc bdd bdd->name-mapping)
+                    (push (list bdd (gensym)) bdd->name-mapping)
+                    (walk-bdd (bdd-left bdd))
+                    (walk-bdd (bdd-right bdd))))))
+             (branch (bdd)
+               (typecase bdd
+                 (bdd-false nil)
+                 (bdd-true t)
+                 (bdd-node
+                  (list (cadr (assoc bdd bdd->name-mapping))))))
+             (label-function (bdd)
+               (typecase bdd
+                 (bdd-node
+                  `(,(cadr (assoc bdd bdd->name-mapping)) ()
+                    (if (typep ,obj ',(bdd-label bdd))
+                        ,(branch (bdd-left bdd))
+                        ,(branch (bdd-right bdd))))))))
+      (walk-bdd bdd)
+      `(lambda (,obj)
+         (labels ,(mapcar #'label-function (mapcar #'car bdd->name-mapping))
+           ,(branch bdd))))))
+
+;; (bdd-to-if-then-else-3 (bdd '(or (and sequence (not array))
+;;                                      number
+;;                               (and (not sequence) array))) 'X)
+      
+      
+
+(defun bdd-typep (obj type-specifier)
+  "This function has the same syntax as CL:TYPEP, but using a BDD based algorithm " 
+  (bdd-type-p obj (bdd type-specifier)))
+
+(define-compiler-macro bdd-typep (obj type-specifier)
+  (typecase type-specifier
+    ((cons (eql quote))
+     (bdd-with-new-hash
+      (lambda (&aux (bdd (bdd (cadr type-specifier))))
+        `(funcall ,(bdd-to-if-then-else-3 bdd (gensym)) ,obj))))
+    (t
+     `(typep ,obj ,type-specifier))))
+
+
+ ;; (funcall (compiler-macro-function 'bdd-typep) '(bdd-typep '(or (and sequence (not array))
+ ;;                                     number
+ ;;                              (and (not sequence) array))) nil)
+
+
 (defun bdd-type-p (obj bdd)
-  "Similar to TYPEP but takes a bdd rather than a type-specifier.
+  "Similar semantics to TYPEP but takes a bdd rather than a type-specifier.
+If a CL type specifier is given as 2nd argument, it is interpreted as
+the corresponding BDD object, via a call to the function BDD.
 Returns T if the OBJ of an element of the specified type,
 Returns NIL otherwise."
   (etypecase bdd
@@ -656,7 +831,9 @@ Returns NIL otherwise."
      (bdd-type-p obj 
                  (if (typep obj (bdd-label bdd))
                      (bdd-left bdd)
-                     (bdd-right bdd))))))
+                     (bdd-right bdd))))
+    (t
+     (bdd-type-p obj (the bdd (bdd bdd))))))
 
 (defun bdd-reduce-lisp-type (type)
     "Given a common lisp type designator such as (AND A (or (not B) C)), 
@@ -790,3 +967,4 @@ to a set of types returned from %bdd-decompose-types."
          (dolist (c2 (remove c calculated))
            (when (bdd-type-equal (bdd c2) (bdd c))
              (error "calculated two equal types ~A = ~A" c c2))))))))
+
