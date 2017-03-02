@@ -1919,11 +1919,12 @@ the list of xys need not be already ordered."
             (destructuring-bind ((x1 y1) &optional ((x2 y2) '(nil nil)) &rest tail) xys-tail
               (when tail
                 ;; increment by trapizoid area
-                (incf acc (* (- x2 x1) (/ (+ y2 y1) 2))))))
+                (incf acc (* 1.0 ;;(- x2 x1)
+                             (/ (+ y2 y1) 2))))))
           sorted)
     (when (minusp acc)
       (warn "negative integral ~A: ~A~%" acc sorted))
-    acc))
+    (/ acc (length xys))))
 
 ;; (reduce (lambda (string num) (format nil "~D~S" num string)) '(1 2 3) :initial-value "")
 (defun statistics (data)

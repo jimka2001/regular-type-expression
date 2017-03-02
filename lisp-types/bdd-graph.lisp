@@ -114,11 +114,11 @@
 
 (defun %decompose-types-bdd-graph (type-specifiers &rest options
                                    &key
-                                     (sort-strategy "BOTTOM-TO-TOP")
+                                     (sort-strategy "DECREASING-CONNECTIONS") ;; "BOTTOM-TO-TOP" or "DECREASING-CONNECTIONS"
                                      (recursive t)
                                      (inner-loop :operation)
                                      (do-break-sub :relaxed)
-                                     (do-break-loop t)
+                                     (do-break-loop nil) ;; t or nil
                                      (sort-nodes (find-sort-strategy-function sort-strategy))
                                      (do-disjoint t)
                                      (do-break-touch t))
