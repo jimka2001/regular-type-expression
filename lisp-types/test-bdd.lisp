@@ -228,7 +228,12 @@
   (assert-true (eq '> (bdd-cmp 'null 'cons)))
   (assert-true (eq '> (bdd-cmp '(a) nil)))
   (assert-true (eq '> (bdd-cmp 1/2 1/3)))
-  )
-
-  
+  )  
                    
+(define-test test/bdd-type-p
+  (assert-false (bdd-type-p  t (bdd '(or (and sequence (not array))
+                                      number
+                                      (and (not sequence) array)))))
+  (assert-true (bdd-type-p  3 (bdd '(or (and sequence (not array))
+                                     number
+                                     (and (not sequence) array))))))
