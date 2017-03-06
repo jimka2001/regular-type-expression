@@ -85,27 +85,28 @@
        (print-touching)
        (print-sub-super)
        (print-foot)))))
-
-(defvar *sort-strategies*
-  `((:sort-nodes ,#'(lambda (graph)
-                   (shuffle-list graph))
-     :sort-strategy "SHUFFLE")
-    (:sort-nodes ,(lambda (graph)
-                   (declare (notinline sort))
-                   (sort graph #'< :key #'count-connections-per-node))
-     :sort-strategy "INCREASING-CONNECTIONS")
-    (:sort-nodes ,(lambda (graph)
-                   (declare (notinline sort))
-                   (sort graph #'> :key #'count-connections-per-node))
-     :sort-strategy "DECREASING-CONNECTIONS")
-    (:sort-nodes ,(lambda (graph)
-                   (declare (notinline sort))
-                   (sort graph #'> :key #'count-parents-per-node))
-     :sort-strategy "BOTTOM-TO-TOP")
-    (:sort-nodes ,(lambda (graph)
-                   (declare (notinline sort))
-                   (sort graph #'< :key #'count-parents-per-node))
-     :sort-strategy "TOP-TO-BOTTOM")))
+ 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+   (defvar *sort-strategies*
+     `((:sort-nodes ,#'(lambda (graph)
+                         (shuffle-list graph))
+        :sort-strategy "SHUFFLE")
+       (:sort-nodes ,(lambda (graph)
+                       (declare (notinline sort))
+                       (sort graph #'< :key #'count-connections-per-node))
+        :sort-strategy "INCREASING-CONNECTIONS")
+       (:sort-nodes ,(lambda (graph)
+                       (declare (notinline sort))
+                       (sort graph #'> :key #'count-connections-per-node))
+        :sort-strategy "DECREASING-CONNECTIONS")
+       (:sort-nodes ,(lambda (graph)
+                       (declare (notinline sort))
+                       (sort graph #'> :key #'count-parents-per-node))
+        :sort-strategy "BOTTOM-TO-TOP")
+       (:sort-nodes ,(lambda (graph)
+                       (declare (notinline sort))
+                       (sort graph #'< :key #'count-parents-per-node))
+        :sort-strategy "TOP-TO-BOTTOM"))))
 
 (defun find-sort-strategy-function (name)
   (getf (find name *sort-strategies* :test #'string= :key (getter :sort-strategy))
@@ -484,13 +485,10 @@
   (let (fun-defs
         prop-defs
         fun-names
-        ( operation-combos '((:do-break-sub :strict
-                                 :do-break-loop t)
-                               (:do-break-sub :relaxed
-                                 :do-break-loop nil)
-                               (:do-break-sub :relaxed
-                                 :do-break-loop t)))
-        ( inner-loops '((:inner-loop :node :recursive nil)
+        ( operation-combos '((:do-break-sub :strict  :do-break-loop t)
+                             (:do-break-sub :relaxed :do-break-loop nil)
+                             (:do-break-sub :relaxed :do-break-loop t)))
+        ( inner-loops '((:inner-loop :node      :recursive nil)
                         (:inner-loop :operation :recursive t)
                         (:inner-loop :operation :recursive nil)))
         ( sort-nodes (mapcar (getter :sort-strategy) *sort-strategies*))
