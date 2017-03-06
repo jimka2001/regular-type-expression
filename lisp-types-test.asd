@@ -32,4 +32,5 @@
      (:file "test-typecase" :depends-on ("test-lisp-types"))
      (:file "test-sat" :depends-on ("test-lisp-types" "test-perf"))
      (:file "test-graph" :depends-on ("test-lisp-types" "test-perf"))
-     (:file "test-bdd" :depends-on ("test-lisp-types" "test-perf"))))))
+     (:file "analysis" )
+     (:file "test-bdd" :depends-on ("analysis" "test-lisp-types" "test-perf"))))))
