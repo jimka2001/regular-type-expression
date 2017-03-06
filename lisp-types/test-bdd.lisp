@@ -237,3 +237,11 @@
   (assert-true (bdd-type-p  3 (bdd '(or (and sequence (not array))
                                      number
                                      (and (not sequence) array))))))
+
+(define-test test/bdd-dnf
+  (assert-true (member 'number (bdd-to-dnf (bdd '(or (and sequence (not array))
+                                                  number
+                                                  (and (not sequence) array))))))
+  (assert-false (member '(and number) (bdd-to-dnf (bdd '(or (and sequence (not array))
+                                                  number
+                                                  (and (not sequence) array)))) :test #'equal)))
