@@ -1,4 +1,4 @@
-;; Copyright (c) 2016 EPITA Research and Development Laboratory
+,;; Copyright (c) 2016 EPITA Research and Development Laboratory
 ;;
 ;; Permission is hereby granted, free of charge, to any person obtaining
 ;; a copy of this software and associated documentation
@@ -66,12 +66,12 @@
                  nconc (list t1 `(and ,t1 ,t2) `(or ,t1, t2)))))
 
 (defvar *decomposition-function-descriptors*
-  `((:names (decompose-types) :max-num-types 12 :color "blue")
-    (:names (decompose-types-sat) :color "dark-cyan")
-    (:names (decompose-types-graph) :color "green")
-    (:names (bdd-decompose-types) :color "orange")
-    (:names ,*decompose-fun-names* :color "violet")
-    (:names (decompose-types-bdd-graph) :color "dark-green")))
+  `((:names (decompose-types) :max-num-types 12 :color "blue" :legend t)
+    (:names (decompose-types-sat) :color "dark-cyan"  :legend t)
+    (:names (decompose-types-graph) :color "goldenrod" :legend t)
+    (:names (bdd-decompose-types) :color "orange" :legend t)
+    (:names ,*decompose-fun-names* :color "light-blue" :legend nil)
+    (:names (decompose-types-bdd-graph) :color "red" :linewidth 2  :legend t)))
 
 (defvar *decomposition-functions*
   (set-difference (mapcan (lambda (plist)
@@ -92,8 +92,10 @@
                           (decompose *decomposition-functions*)
                           normalize
                           (sorted-name "/dev/null")
+                          (ltxdat-name "/dev/null")
                           (sexp-name "/dev/null")
                           (gnuplot-name "/dev/null")
+                          (gnuplot-normalized-name "/dev/null")
                           (png-name "/dev/null")
                           (png-normalized-name "/dev/null")
                           (dat-name "/dev/null"))
@@ -106,16 +108,19 @@
                    (push thunk delayed)
                    (funcall thunk)))
              (log-data ()
-               (print-report dat-name
-                            :sexp-name sexp-name
-                            :gnuplot-name gnuplot-name
-                            :png-name png-name
-                            :png-normalized-name png-normalized-name
-                            :sorted-name sorted-name
-                            :summary summary
-                            :normalize normalize
-                            :time-out time-out
-                            :limit limit))
+               (print-report :re-run re-run
+                             :dat-name dat-name
+                             :ltxdat-name ltxdat-name
+                             :sexp-name sexp-name
+                             :gnuplot-name gnuplot-name
+                             :gnuplot-normalized-name gnuplot-normalized-name
+                             :png-name png-name
+                             :png-normalized-name png-normalized-name
+                             :sorted-name sorted-name
+                             :summary summary
+                             :normalize normalize
+                             :time-out time-out
+                             :limit limit))
              (run (types)
                (dolist (f (if (listp decompose)
                               decompose
@@ -509,10 +514,11 @@ returns a plist, one of the following:
 
 (defun create-gnuplot (sorted-file gnuplot-file png-filename normalize)
   (let ((content (with-open-file (stream sorted-file :direction :input)
+                   (format t "reading    ~A~%" sorted-file)
                    (read stream nil nil))))
     (with-open-file (stream gnuplot-file :direction :output :if-exists :supersede)
-      (destructuring-bind (&key summary sorted &allow-other-keys &aux min-curve) content
-        (cl-user::print-vals summary sorted content)
+      (format t "writing to ~A~%" gnuplot-file)
+      (destructuring-bind (&key summary sorted &allow-other-keys &aux min-curve min-curve-line-style) content
         (assert (typep sorted 'cons))
         ;; sort DATA so that the order agrees with *decomposition-function-descriptors*
         (setf sorted (mapcan (lambda (desc &aux (names (getf desc :names)))
@@ -547,7 +553,9 @@ returns a plist, one of the following:
           (let* ((line-style 0)
                  (mapping (mapcar (lambda (descr)
                                     (incf line-style)
-                                    (format stream "set style line ~D linecolor rgb ~S~%" line-style
+                                    (format stream "set style line ~D linewidth ~D linecolor rgb ~S~%"
+                                            line-style
+                                            (or (getf descr :linewidth) 1)
                                             (getf descr :color))
                                     ;; collect
                                     `(:line-style ,line-style ,@descr))
@@ -557,7 +565,8 @@ returns a plist, one of the following:
                                                 :key (getter :decompose) :test #'string=)))))
             (assert (or (not normalize) normalize-to-xys) (normalize normalize-to-xys sorted))
             (incf line-style)
-            (format stream "set style line ~D linecolor rgb ~S~%" line-style "dark-turquoise")
+            (setf min-curve-line-style line-style)
+            (format stream "set style line ~D linewidth 2 linecolor rgb ~S~%" min-curve-line-style "black")
             (labels ((interpolate-y (x0 x1 y1 x2 y2)
                        (+ y1 (* (- y2 y1)
                                 (/ (float (- x0 x1)) (- x2 x1)))))
@@ -613,7 +622,7 @@ returns a plist, one of the following:
                                                 (format nil "   \"-\" using 1:2 notitle with lines ls ~D"
                                                         (getf mapping-plist :line-style))))
                                             sorted)))
-              (format stream ",\\~%\   \"-\" using 1:2 notitle with lines ls ~D~%" line-style)
+              (format stream ",\\~%\   \"-\" using 1:2 notitle with lines ls ~D~%" min-curve-line-style)
               (mapc #'plot-curve sorted)
               (plot-curve min-curve))))))
 
@@ -717,6 +726,7 @@ the list of xys need not be already ordered."
        (apply #'sort-results stream out options)))
     ((typep out '(or pathname string))
      (with-open-file (stream out :direction :output :if-exists :supersede)
+       (format t "writing to ~A~%" out)
        (apply #'sort-results in stream options)))
     ((eq out :return)
      ;; (reduce (lambda (num string) (format nil "~D~S" num string)) '(1 2 3) :initial-value "")
@@ -750,15 +760,26 @@ the list of xys need not be already ordered."
                 :sorted (sort 
                          (loop for plist in data
                                collect (destructuring-bind (&key decompose given calculated run-time &allow-other-keys) plist
-                                         (let ((xys (mapcar (lambda (given calculated run-time)
-                                                              (declare (type fixnum given calculated)
-                                                                       (type number run-time))
-                                                              (list (* given calculated) run-time)) given calculated run-time)))
-                                           (unless (find observed-min-prod xys :key #'car)
-                                             (push (list observed-min-prod observed-min-time) xys))
-                                           (unless (find observed-max-prod xys :key #'car)
-                                             (push (list observed-max-prod observed-max-time) xys))
-                                           (list :integral (integral xys) ;; TODO using the simple integral to sort the curves is dubious because it give more weight to 
+                                         (let* ((xys (mapcar (lambda (given calculated run-time)
+                                                               (declare (type fixnum given calculated)
+                                                                        (type number run-time))
+                                                               (list (* given calculated) run-time)) given calculated run-time))
+                                                (xys-extended xys))
+                                           (unless (find observed-min-prod xys-extended :key #'car)
+                                             (push (list observed-min-prod observed-min-time) xys-extended))
+                                           (unless (find observed-max-prod xys-extended :key #'car)
+                                             (push (list observed-max-prod observed-max-time) xys-extended))
+                                           (setf xys (sort (copy-list xys)
+                                                           (lambda (a b)
+                                                             (if (= (car a) (car b))
+                                                                 (< (cadr a) (cadr b))
+                                                                 (< (car a) (car b))))))
+                                           (setf xys-extended (sort (copy-list xys-extended)
+                                                                    (lambda (a b)
+                                                                      (if (= (car a) (car b))
+                                                                          (< (cadr a) (cadr b))
+                                                                          (< (car a) (car b))))))
+                                           (list :integral (integral xys-extended)
                                                  :xys xys
                                                  :samples (length xys)
                                                  :decompose decompose
@@ -768,33 +789,6 @@ the list of xys need not be already ordered."
     (t
      (let ((*package* (find-package "CL")))
        (format out "~S~%" (apply #'sort-results in :return options))))))
-
-(defun print-json (stream summary)
-  (let ((groups (group-by (cdr *perf-results*) :key (lambda (item) (getf item :decompose)))))
-    (format stream "{")
-    (when summary
-      (format stream " \"SUMMARY\" : ~S~%" summary))
-    (format stream ", \"DATA\" : [")
-    (flet ((print-group (group)
-             (destructuring-bind (decompose data) group
-               (format stream "{ \"DECOMPOSE\" : ~S" (symbol-name decompose))
-               (let ((no-time-out (setof item data
-                                    (null (getf item :time-out)))))
-                 (dolist (tag `(:given :calculated :time))
-                   (format stream "~%,~S : [" (symbol-name tag))
-                   (when no-time-out
-                     (format stream "~S" (getf (car no-time-out) tag)))
-                   (dolist (item (cdr no-time-out))
-                     (format stream ", ~A" (getf item tag)))
-                   (format stream "]")))
-               (format stream "}~%"))))
-      (when (car groups)
-        (print-group (car groups)))
-      (dolist (group (cdr groups))
-        (format stream ", ")
-        (print-group group)))
-    (format stream "]}~%"))
-  nil)
 
 (defun print-sexp (stream summary limit)
   (let ((groups (group-by (cdr *perf-results*) :key (getter :decompose))))
@@ -854,56 +848,87 @@ the list of xys need not be already ordered."
     (format stream "))~%"))
   nil)
 
-(defun print-report (stream &rest args &key limit (summary nil) normalize (sorted-name "/dev/null") (sexp-name "/dev/null") (png-name "/dev/null") (png-normalized-name "/dev/null") (gnuplot-name "/dev/null") (include-decompose *decomposition-functions*) &allow-other-keys)
-  (etypecase stream
-    ((or stream
-         (eql t)
-         (eql nil))
-     (format t "report ~A~%" summary)
-     (with-open-file (stream sexp-name :direction :output :if-exists :supersede)
-       (print-sexp stream summary limit))
-     (sort-results sexp-name sorted-name)
-     (create-gnuplot sorted-name gnuplot-name png-name nil)
-     (when normalize
-       (create-gnuplot sorted-name gnuplot-name png-normalized-name normalize))
-     (format stream "given calculated sum product touching disjoint disjoint*given touching*given new time decompose~%")
-     (let ((domain (remove-duplicates *perf-results*
-                                      :test #'equal
-                                      :key #'(lambda (plist)
-                                               (list (getf plist :decompose)
-                                                     (getf plist :types))))))
-       (dolist (plist domain)
-         (destructuring-bind (&key given calculated decompose value types time time-out &allow-other-keys) plist
-           (when time-out
-             (setf time time-out))
-           (unless calculated
-             (let ((hit (find-if (lambda (plist)
-                                   (equal given (getf plist :given)))
-                                 domain)))
-               (setf calculated (getf hit :calculated))))
+(defun print-ltxdat (ltxdat-name sorted-name include-decompose)
+  (let ((content (with-open-file (stream sorted-name :direction :input :if-does-not-exist :error)
+                   (read stream))))
+    (destructuring-bind (&key sorted &allow-other-keys) content
+      (with-open-file (stream ltxdat-name :direction :output :if-exists :supersede)
+        (format stream "\\begin{tikzpicture}~%")
+        (format stream "\\begin{axis}[xlabel=Size,ylabel=Time,xmode=log,ymode=log,legend style={at={(1.1,0.2)},anchor=west}, xmajorgrids, xminorgrids, ymajorgrids, legend style={font=\\tiny}, xticklabel style={font=\\tiny}, yticklabel style={font=\\tiny}, label style={font=\\tiny}]~%")
+        (let ((*print-case* :downcase)
+              legend)
+          (dolist (descr *decomposition-function-descriptors*)
+            (dolist (curve sorted)
+              (destructuring-bind (&key decompose xys &allow-other-keys
+                                   &aux (name (find-if (lambda (name)
+                                                         (string= (symbol-name name) decompose))
+                                                       include-decompose))
+                                     (descr2 (find-decomposition-function-descriptor name)))
+                  curve
+                ;; decompose is a string such as "DECOMPOSE-TYPES-BDD-GRAPH"
+                ;; include-decompose contains symbols such as DECOMPOSE-TYPES-BDD-GRAPH
+                (when (and (eq descr descr2) name)
+                  (format stream "\\addplot[color=~A] coordinates {~%" (getf descr :color ))
+                  (dolist (xy xys)
+                    (format stream "(~D, ~S)~%" (car xy) (cadr xy)))
+                  (format stream "};~%")
+                  (push (if (getf descr :legend)
+                            (format nil "~A" decompose)
+                            "") legend)))))
+          (format stream "\\legend{~A};~%" (build-string ", " (reverse legend))))
+        (format stream "\\end{axis}~%")
+        (format stream "\\end{tikzpicture}~%")))))
+            
+(defun print-dat (dat-name include-decompose)
+  (with-open-file (stream dat-name :direction :output :if-exists :supersede)
+    (format stream "given calculated sum product touching disjoint disjoint*given touching*given new time decompose~%")    
+    (let ((domain (remove-duplicates *perf-results*
+                                     :test #'equal
+                                     :key #'(lambda (plist)
+                                              (list (getf plist :decompose)
+                                                    (getf plist :types))))))
+      (dolist (plist domain)
+        (destructuring-bind (&key given calculated decompose value types time time-out &allow-other-keys) plist
+          (when time-out
+            (setf time time-out))
+          (unless calculated
+            (let ((hit (find-if (lambda (plist)
+                                  (equal given (getf plist :given)))
+                                domain)))
+              (setf calculated (getf hit :calculated))))
            
-           (cond
-             ((or (not given) (not calculated)))
-             ((< time 0.0011))
-             ((= 0 time))
-             ((member decompose include-decompose)
-              (let ((*print-case* :downcase)
-                    (num-disjoint (count-pairs types #'disjoint-types-p))
-                    (num-touching (count-pairs types #'(lambda (x y)
-                                                         (not (disjoint-types-p x y))))))
-                (format stream "~D ~D ~D ~D ~D ~D ~D ~D ~D ~S ~A~%"
-                        given calculated
-                        (+ given calculated) ;; sum
-                        (* given calculated) ;; product
-                        num-touching         ;; touching
-                        num-disjoint         ;; disjoint
-                        (* num-disjoint given) ;; disjoint * given
-                        (* num-touching given) ;; touching * given
-                        (length (set-difference value types :test #'equivalent-types-p)) ;; new
-                        time decompose))))))))
-    ((or pathname string)
-     (with-open-file (str stream :direction :output :if-exists :supersede)
-       (apply #'print-report str args)))))
+          (cond
+            ((or (not given) (not calculated)))
+            ((< time 0.0011))
+            ((= 0 time))
+            ((member decompose include-decompose)
+             (let ((*print-case* :downcase)
+                   (num-disjoint (count-pairs types #'disjoint-types-p))
+                   (num-touching (count-pairs types #'(lambda (x y)
+                                                        (not (disjoint-types-p x y))))))
+               (format stream "~D ~D ~D ~D ~D ~D ~D ~D ~D ~S ~A~%"
+                       given calculated
+                       (+ given calculated)    ;; sum
+                       (* given calculated)    ;; product
+                       num-touching            ;; touching
+                       num-disjoint            ;; disjoint
+                       (* num-disjoint given)  ;; disjoint * given
+                       (* num-touching given)  ;; touching * given
+                       (length (set-difference value types :test #'equivalent-types-p)) ;; new
+                       time decompose)))))))))
+
+(defun print-report (&key (re-run t) limit (summary nil) normalize (dat-name "/dev/null") (ltxdat-name "/dev/null") (sorted-name "/dev/null") (sexp-name "/dev/null") (png-name "/dev/null") (png-normalized-name "/dev/null") (gnuplot-name "/dev/null") (gnuplot-normalized-name "/dev/null") (include-decompose *decomposition-functions*) &allow-other-keys)
+  (format t "report ~A~%" summary)
+  (when re-run
+    (with-open-file (stream sexp-name :direction :output :if-exists :supersede)
+      (format t "writing to ~A~%" sexp-name)
+      (print-sexp stream summary limit)))
+  (sort-results sexp-name sorted-name)
+  (create-gnuplot sorted-name gnuplot-name png-name nil)
+  (when normalize
+    (create-gnuplot sorted-name gnuplot-normalized-name png-normalized-name normalize))
+  (print-dat dat-name include-decompose)
+  (print-ltxdat ltxdat-name sorted-name include-decompose))
 
 (defun test-report (&key (prefix "") (re-run t) (suite-time-out (* 60 60 4))  (time-out (* 3 60)) normalize (destination-dir "/Users/jnewton/newton.16.edtchs/src")
                       types file-name (limit 15) tag
@@ -925,10 +950,12 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
                              :normalize normalize
                              (when file-name
                                (list
+                                :ltxdat-name (format nil "~A/~A~A.ltxdat" destination-dir prefix file-name)
                                 :dat-name (format nil "~A/~A~A.dat" destination-dir prefix file-name)
                                 :png-name (format nil "~A/~A~A.png" destination-dir prefix file-name)
                                 :png-normalized-name (format nil "~A/~A~A-normalized.png" destination-dir prefix file-name)
                                 :gnuplot-name (format nil "~A/~A~A.gnu" destination-dir prefix file-name)
+                                :gnuplot-normalized-name (format nil "~A/~A~A-normalized.gnu" destination-dir prefix file-name)
                                 :sexp-name (format nil "~A/~A~A.sexp" destination-dir prefix file-name)
                                 :sorted-name (format nil "~A/~A~A.sorted" destination-dir prefix file-name))))))
 
@@ -1006,6 +1033,14 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
 (defun big-test-report (&rest options &key (prefix "") (re-run t) (suite-time-out (* 60 60 4)) (time-out (* 3 60)) normalize (decomposition-functions *decomposition-functions*) (destination-dir "/Users/jnewton/newton.16.edtchs/src"))
   (declare (ignore prefix re-run suite-time-out time-out normalize destination-dir))
   (let ((*decomposition-functions*  decomposition-functions))
+    
+    (apply #'test-report :limit 15
+                         :tag "SB-PCL types"
+                         :types (loop :for name being the external-symbols in "SB-PCL"
+                                      :when (find-class name nil)
+                                        :collect name)
+                         :file-name "pcl-types"
+                         options)
     (apply #'test-report :limit 27
                          :tag "cl-types"
                          :types *cl-types*
@@ -1047,12 +1082,5 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
                          :file-name "subtypes-of-t"
                          options)
 
-    (apply #'test-report :limit 15
-                         :tag "SB-PCL types"
-                         :types (loop :for name being the external-symbols in "SB-PCL"
-                                      :when (find-class name nil)
-                                        :collect name)
-                         :file-name "pcl-types"
-                         options)
     ))
 
