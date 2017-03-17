@@ -20,6 +20,9 @@
 ;; WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 (in-package   :lisp-types)
+;;(pushnew :decompose-graph *features*)
+(setf *features* (remove :decompose-graph *features*))
+
 
 (defun all-type-specifiers (package)
   (let (all-types)
@@ -141,8 +144,7 @@
            (type list graph))
   (find type-option graph :test #'eq :key #'type-option))
 
-;;(pushnew :decompose-graph *features*)
-(setf *features* (remove :decompose-graph *features*))
+
 
 
 (defun eventual-super (sub-node super-node graph)
