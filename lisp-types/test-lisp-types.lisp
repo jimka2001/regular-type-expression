@@ -240,13 +240,16 @@
 
 (defclass AB () ())
 (defclass A1 (AB) ())
-(defclass A2 (AB) ())
+(defclass B1 (AB) ())
+(defclass AB1 (A1 B1) ())
 
 (define-test type/reduce-lisp-type2
   (assert-true (equal (reduce-lisp-type '(or A1 (and A1 B1 C D) E))
 		      '(or E A1)))
   (let ((un-interned (gensym)))
-    (assert-true (equal (reduce-lisp-type `(or (and A1 B1) (and A1 B1 C D) E ,un-interned))
+    (assert-true (equal (reduce-lisp-type `(or (and A1 B1)
+                                               (and A1 B1 C D)
+                                               E ,un-interned))
                         `(or ,un-interned E (and B1 A1)))))
   (assert-true (equal (reduce-lisp-type '(or (and A1 B1) (and A1 B1 C D) E :F))
 		      '(or :f E (and B1 A1))))
