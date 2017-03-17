@@ -141,7 +141,8 @@
 (defclass F () ())
 (defclass G () ())
 
-(define-test type/reduce-b
+
+(define-test type/reduce-c
   (assert-true (equal (reduce-lisp-type '(OR (NOT A) B))
                       '(not a))))
 

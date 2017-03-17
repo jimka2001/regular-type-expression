@@ -238,7 +238,7 @@
 								  (< (abs (- a b)) 0.01)))
 		  0.01)))
 
-(defclass AB (A B) ())
+(defclass AB () ())
 (defclass A1 (AB) ())
 (defclass A2 (AB) ())
 
