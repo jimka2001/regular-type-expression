@@ -144,6 +144,18 @@ If N > (length of data) then a permutation of DATA is returned"
           (exists t3 (cdr t1)
                   (smarter-subtypep t3 t2)))
      '(t t))
+    ;;(subtypep '(AND ARITHMETIC-ERROR CELL-ERROR) nil)
+    ((and (typep t1 '(cons (eql and)))
+          (smarter-subtypep t2 nil)
+          (exists t3 (cdr t1)
+            (exists t4 (cdr t1)
+              (and (not (eq t3 t4))
+                   (disjoint-types-p t3 t4)))))
+     '(t t))
+    ;; (subtypep 'arithmetic-error  '(not cell-error))
+    ((and (typep t2 '(cons (eql not)))
+          (disjoint-types-p t1 (cadr t2))) ;; (disjoint? 'arithmetic-error 'cell-error)
+     '(t t))
     ;; this is the dual of the previous clause, but it appears sbcl gets this one right
     ;;   so we comment it out
     ;; ((and (typep t2 '(cons (eql or)))
@@ -210,6 +222,7 @@ i.e., is a subtype of nil."
                      (symbolp T2)
                      (find-class T1 nil)
                      (find-class T2 nil))
+                ;; e.g., ARITHMETIC-ERROR vs CELL-ERROR
                 (list (not (dispatch:specializer-intersections (find-class T1) (find-class T2)))
                       t))
                ((subsetp '((t t) (nil t))
