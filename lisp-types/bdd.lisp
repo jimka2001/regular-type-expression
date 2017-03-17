@@ -604,7 +604,7 @@ set of BDDs."
                ((eql nil)
                 nil)
                (t
-                (cons 'and (remove-supers (list head dnf))))))
+                (wrap 'and t (remove-supers (list head dnf))))))
            (disjunction (left right)
              (cond
                ((null left)
