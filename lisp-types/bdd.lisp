@@ -811,9 +811,9 @@ in the topological ordering (i.e., the first value)."
      `(typep ,obj ,type-specifier))))
 
 
- ;; (funcall (compiler-macro-function 'bdd-typep) '(bdd-typep '(or (and sequence (not array))
- ;;                                     number
- ;;                              (and (not sequence) array))) nil)
+;; (funcall (compiler-macro-function 'bdd-typep) '(bdd-typep X '(or (and sequence (not array))
+;;                                       number
+;;                                (and (not sequence) array))) nil)
 
 
 (defun bdd-type-p (obj bdd)

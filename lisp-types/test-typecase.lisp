@@ -87,7 +87,7 @@
 					42)
 				       (B
 					43)))
-		      '(TYPECASE FRED ((AND A B) 41) (A 42) (B 43))))
+		      '(TYPECASE FRED (nil 41) (A 42) (B 43))))
   (assert-true (equal (macroexpand-1 '(lisp-types::reduced-typecase fred
 				       ((or (not A) B)
 					41)
@@ -95,7 +95,7 @@
 					42)
 				       (B
 					43)))
-		      '(TYPECASE FRED ((OR B (NOT A)) 41) (T 42) (NIL 43))))
+		      '(TYPECASE FRED ((NOT A) 41) (T 42) (NIL 43))))
   (assert-true (equal (macroexpand-1 '(lisp-types::reduced-typecase fred
 				       ((or (not (and A B)) C)
 					41)
@@ -105,9 +105,7 @@
 					43)
 				       (C
 					44)))
-		      '(TYPECASE FRED ((OR C (NOT A) (NOT B)) 41) (T 42) (T 43) (NIL 44))))
-  
-
+		      '(progn fred 41)))
   )
 
 

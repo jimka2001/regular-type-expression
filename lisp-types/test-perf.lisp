@@ -308,15 +308,17 @@
 
 (define-test disjoint-cmp-h
   (setf *perf-results* nil)
-  (types/cmp-perfs :types '((COMMON-LISP:EQL 3)
-                                  (COMMON-LISP:MEMBER 1 2 3)
-                                  (COMMON-LISP:MEMBER 0 2) COMMON-LISP:NULL
-                                  (COMMON-LISP:MEMBER 0 2 3)
-                                  (COMMON-LISP:MEMBER 0 1 2 3))))
+  (types/cmp-perfs :limit 5
+                   :types '((COMMON-LISP:EQL 3)
+                            (COMMON-LISP:MEMBER 1 2 3)
+                            (COMMON-LISP:MEMBER 0 2) COMMON-LISP:NULL
+                            (COMMON-LISP:MEMBER 0 2 3)
+                            (COMMON-LISP:MEMBER 0 1 2 3))))
 
 (define-test disjoint-cmp-i
   (setf *perf-results* nil)
-  (types/cmp-perfs :types '(STRING STANDARD-GENERIC-FUNCTION ATOM METHOD SIMPLE-BASE-STRING
+  (types/cmp-perfs :limit 5
+                   :types '(STRING STANDARD-GENERIC-FUNCTION ATOM METHOD SIMPLE-BASE-STRING
                             SEQUENCE COMPLEX STANDARD-OBJECT STANDARD-METHOD)))
 
 (define-test disjoint-cmp-j
@@ -423,11 +425,54 @@
                                  :do-break-sub :relaxed
                                  :do-break-loop nil))))
 
+(defun read-trace (stream)
+  (let (pending)
+    (labels ((next-token ()
+               (if pending
+                   (pop pending)
+                   (let (chars)
+                     (do ((c (read-char stream) (read-char stream nil 'the-end)))
+                         ((char= #\: c) chars)
+                       (when (digit-char-p c)
+                         (push c chars))))))
+             (un-read (token)
+               (push token pending))
+             (next-expr ()
+               (read stream nil nil))
+             (read-suffix (prefix)
+               (list :prefix prefix
+                     :fname (next-expr)
+                     :returned (next-expr)
+                     :output (next-expr)))
+             (read-one-node ()
+               (let* ((prefix (next-token))
+                      (call (next-expr))
+                      (token (next-token))
+                      sub-nodes)
+                 (while (not (equal token prefix))
+                   (un-read token)
+                   (push (read-one-node) sub-nodes)
+                   (setf token (next-token)))
+                 
+                 `(:sub-nodes ,(reverse sub-nodes)
+                   :input ,(cadr call)
+                   ,@(read-suffix prefix)))))
+      (read-one-node))))
 
-
-
+(defun filter-trace (filename)
+  "read the printed output traced functions, throw away function calls and returns
+if the function returned the same as it was passed as input (according to EQUAL)"
+  (labels ((print-trace (node)
+             (when node
+               (destructuring-bind (&key prefix input fname returned output sub-nodes) node
+                 (cond
+                   ((equal output input)
+                    (mapc #'print-trace sub-nodes))
+                   (t
+                    (format t "~A ~A~%" prefix (list fname input))
+                    (mapc #'print-trace sub-nodes)
+                    (format t "~A ~A ~A ~A~%"
+                            prefix fname returned output)))))))
+    (print-trace (with-open-file (str filename :direction :input)
+                   (read-trace str)))))
     
-
-
-
-

@@ -332,4 +332,15 @@
 				  :test #'equivalent-types-p))
   (assert-false (set-exclusive-or (decompose-types-graph '(integer fixnum number bit unsigned-byte bignum))
 				  (decompose-types '(integer fixnum number bit unsigned-byte bignum))
-				  :test #'equivalent-types-p)))
+				  :test #'equivalent-types-p))
+  (assert-false (set-exclusive-or (decompose-types-graph '(FIXNUM CHAR-CODE UNSIGNED-BYTE))
+                                  (decompose-types       '(FIXNUM CHAR-CODE UNSIGNED-BYTE))
+                                  :test #'equivalent-types-p))
+  (assert-false (set-exclusive-or (decompose-types-graph '(FIXNUM (integer 0 (1114112)) UNSIGNED-BYTE))
+                        (decompose-types       '(FIXNUM (integer 0 (1114112)) UNSIGNED-BYTE))
+                        :test #'equivalent-types-p))
+
+
+)
+
+

@@ -39,6 +39,48 @@
 	(*print-errors* t))
     (run-tests :all (list :lisp-types.test))))
 
+(define-test type/reduce-b
+  (assert-true (equal (reduce-lisp-type '(AND ARITHMETIC-ERROR (NOT CELL-ERROR)))
+
+                      'arithmetic-error))
+    (assert-true (equal (reduce-lisp-type '(OR ARITHMETIC-ERROR (NOT CELL-ERROR)))
+
+                        '(NOT CELL-ERROR))))
+
+
+(define-test type/reduce-a
+  (assert-true (equal (reduce-lisp-type '(and (and (integer 0) (not (integer 0 3)))
+                                          (and fixnum (not (integer 0 3)))))
+                      '(and fixnum (integer 0) (not (integer 0 3)))))
+  (assert-true (equal (reduce-lisp-type '(and ARITHMETIC-ERROR CELL-ERROR))
+                      nil))
+  (assert-true (equal (reduce-lisp-type '(AND
+                          ATOM
+                          CONDITION
+                          CELL-ERROR
+                                          ARITHMETIC-ERROR))
+                      nil))
+  (assert-true (equal (reduce-lisp-type '(AND
+                                          (NOT (AND CONDITION (NOT CELL-ERROR))) ATOM
+                                           CONDITION CELL-ERROR
+                                          ARITHMETIC-ERROR))
+                      nil))
+  (assert-true (equal (reduce-lisp-type '(AND
+                                          (NOT (AND CONDITION (NOT CELL-ERROR))) ATOM
+                                           (AND CONDITION CELL-ERROR)
+                                          ARITHMETIC-ERROR))
+                      nil))
+  (assert-true (equal (reduce-lisp-type '(AND
+                                          (AND (NOT (AND CONDITION (NOT CELL-ERROR))) ATOM)
+                                           (AND CONDITION CELL-ERROR)
+                                          ARITHMETIC-ERROR))
+                      nil))
+  (assert-true (equal (reduce-lisp-type '(AND
+                                          (AND (AND (NOT (AND CONDITION (NOT CELL-ERROR))) ATOM)
+                                           (AND CONDITION CELL-ERROR))
+                                          ARITHMETIC-ERROR))
+                      nil)))
+
 (define-test type/reduce-compound
   ;; array
   (assert-true (equal (reduce-lisp-type '(array (and integer number) (3)))
@@ -217,36 +259,35 @@
   (assert-true (equal (reduce-lisp-type '(or W (and A B) X
 					  Y (and (not A) C)
 					  Z (and B C)))
-		      '(or X Y W Z
-			(and A B)
-			(and C (not A)))))
+		      '(or c X Y W Z)))
 					
   (assert-true (equal (reduce-lisp-type '(or (and A B)
 					       (and (not A) C)
 					       (and B C)))
-		      '(or (and A B)
-			(and C (not A)))))
+		      'c))
   (assert-true (equal (reduce-lisp-type '(or (and A B)
 					       (and B C)
 					       (and (not A) C)))
-		      '(or (and A B)
-			(and C (not A)))))
+		      'c))
   (assert-true (equal (reduce-lisp-type '(or (and A B)
 					       (and B C)
 					       (and C (not A))))
-		      '(or (and A B)
-			(and C (not A)))))
+		      'c))
 
   (assert-true (equal (reduce-lisp-type '(or (and A U V)
 					       (and V W (not A))
 					       (and V W U)))
 		      '(or (and A U V)
 			(and V W (not A)))))
-  (assert-true (equal (reduce-lisp-type '(or (and A U V)
+  (assert-true (member (reduce-lisp-type '(or (and A U V)
 					       (and (not A) V W)
-					       (and U V W)))
-		      '(or (and A U V)
-			(and V W (not A))))))
+                                           (and U V W)))
+                                           
+		      '((or (and A U V)
+                         (and V W (not A)))
+                        (or (and U A V)
+                         (and V W (not A))))
+                      :test #'equal)))
 
 
 (define-test type/rule-case

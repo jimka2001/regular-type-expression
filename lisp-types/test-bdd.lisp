@@ -141,9 +141,16 @@
 (defclass F () ())
 (defclass G () ())
 
+(define-test type/reduce-b
+  (assert-true (equal (reduce-lisp-type '(OR (NOT A) B))
+                      '(not a))))
+
 (deftype non-number () `(not number))
 (deftype non-integer () `(not integer))
 (define-test type/bdd-reduce
+  (bdd-with-new-hash
+   (lambda ()
+
   ;; there are six cases to test
 
   ;; 1) disjoint on left
@@ -189,13 +196,19 @@
                        (bdd-node 'non-integer
                                  nil
                                  (bdd-node 'number t nil)))
-                      '(non-integer nil t))))
+                      '(non-integer nil t))))))
 
 (define-test test/bdd-numbers
-  (assert-true (types/cmp-perfs :limit 15 :decompose 'lisp-types::bdd-decompose-types :types (valid-subtypes 'number))))
+  (bdd-with-new-hash
+   (lambda ()
+
+  (assert-true (types/cmp-perfs :limit 15 :decompose 'lisp-types::bdd-decompose-types :types (valid-subtypes 'number))))))
 
 
 (define-test test/bdd-cmp
+  (bdd-with-new-hash
+   (lambda ()
+
   ;; =
   (assert-true (eq '= (bdd-cmp 'a 'a)))
   (assert-true (eq '= (bdd-cmp "a" "a")))
@@ -228,20 +241,25 @@
   (assert-true (eq '> (bdd-cmp 'null 'cons)))
   (assert-true (eq '> (bdd-cmp '(a) nil)))
   (assert-true (eq '> (bdd-cmp 1/2 1/3)))
-  )  
+  )  ))
                    
 (define-test test/bdd-type-p
-  (assert-false (bdd-type-p  t (bdd '(or (and sequence (not array))
-                                      number
-                                      (and (not sequence) array)))))
-  (assert-true (bdd-type-p  3 (bdd '(or (and sequence (not array))
-                                     number
-                                     (and (not sequence) array))))))
+  (bdd-with-new-hash
+   (lambda ()
+     (assert-false (bdd-type-p  t (bdd '(or (and sequence (not array))
+                                         number
+                                         (and (not sequence) array)))))
+     (assert-true (bdd-type-p  3 (bdd '(or (and sequence (not array))
+                                        number
+                                        (and (not sequence) array))))))))
+
 
 (define-test test/bdd-dnf
-  (assert-true (member 'number (bdd-to-dnf (bdd '(or (and sequence (not array))
-                                                  number
-                                                  (and (not sequence) array))))))
-  (assert-false (member '(and number) (bdd-to-dnf (bdd '(or (and sequence (not array))
-                                                  number
-                                                  (and (not sequence) array)))) :test #'equal)))
+  (bdd-with-new-hash
+   (lambda ()
+     (assert-true (member 'number (bdd-to-dnf (bdd '(or (and sequence (not array))
+                                                     number
+                                                     (and (not sequence) array))))))
+     (assert-false (member '(and number) (bdd-to-dnf (bdd '(or (and sequence (not array))
+                                                            number
+                                                            (and (not sequence) array)))) :test #'equal)))))
