@@ -880,12 +880,9 @@ convert it to DNF (disjunctive-normal-form)"
                              (option-bdd (bdd type-specifier)))
                            type-specifiers)))
          (when bdds
-           (let* ((U (reduce #'bdd-or bdds :initial-value *bdd-false*))
-                  (init (list (bdd-and U (car bdds))
-                              (bdd-and-not U (car bdds)))))
-             (remove-supers
+           (remove-supers
               (reduce #'slice (cdr bdds)
-                      :initial-value (remove *bdd-false* init))))))))))
+                      :initial-value (list (car bdds))))))))))
 
 (defun bdd-collect-terms (bdd)
   (declare (type bdd bdd))
@@ -967,4 +964,3 @@ to a set of types returned from %bdd-decompose-types."
          (dolist (c2 (remove c calculated))
            (when (bdd-type-equal (bdd c2) (bdd c))
              (error "calculated two equal types ~A = ~A" c c2))))))))
-
