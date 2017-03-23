@@ -1,4 +1,4 @@
-;; Copyright (c) 2016 EPITA Research and Development Laboratory
+;; Copyright (c) 2016,2017 EPITA Research and Development Laboratory
 ;;
 ;; Permission is hereby granted, free of charge, to any person obtaining
 ;; a copy of this software and associated documentation
@@ -30,6 +30,7 @@
 (defgeneric bdd-and (b1 b2))
 (defgeneric bdd-and-not (b1 b2))
 
+
 (defvar *bdd-count* 1)
 (defclass bdd ()
   ((ident ;; :reader bdd-ident
@@ -50,6 +51,9 @@
 ;;  faster than the method
 (defun bdd-ident (bdd)
   (slot-value bdd 'ident))
+
+
+
 
 (defun bdd-new-hash ()
   (make-hash-table :test #'equal))

@@ -33,4 +33,5 @@
      (:file "graph" :depends-on ("macros" "lisp-types"))
      (:file "bdd" :depends-on ("macros" "lisp-types"))
      (:file "bdd-graph" :depends-on ("macros" "bdd" ))
+     (:file "bdd-dot" :depends-on ("bdd"))
      ))))
