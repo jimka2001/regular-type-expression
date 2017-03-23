@@ -29,63 +29,88 @@
     (t
      ;; header
      (format stream "digraph G {~%")
-
-     (let* ((buf (tconc nil (list :bdd bdd :node-name (format nil "~A" (bdd-label bdd)))))
-            done
-            (nodes (car buf)))
-
-       (labels ((descend (&rest args &key bdd &allow-other-keys)
-                  (declare (type bdd bdd))
-                  (cond
-                    ((not reduced)
-                     (tconc buf args)                     
-                     (print-node args)
-                     args)
-                    ((car (member bdd (car buf) :key (getter :bdd))))
-                    (t
-                     (tconc buf args)
-                     (print-node args)
-                     args)))
-                (print-node (args)
-                  (destructuring-bind (&key bdd node-name &allow-other-keys) args
-                    (unless (and reduced
-                                 (find bdd done :key (getter :bdd)))
-                      (format stream "~S [shape=~A,label=~S]~%"
-                              node-name
-                              (typecase bdd
-                                (bdd-node "ellipse")
-                                (bdd-leaf "box"))
-                              (format nil "~A" (bdd-label bdd))))))
-                (connect (bdd1 name2 parity &aux
-                                             (name1 (getf (find bdd1 (car buf) :key (getter :bdd)) :node-name))
-                                    )
-                  (format stream "~S -> ~S [style=~A]~%" name1 name2 (ecase parity
-                                                                       ((:L) "solid")
-                                                                       ((:R) "dotted")))))
-         (print-node (car nodes))
-         (while nodes
-           (destructuring-bind (&key bdd node-name &allow-other-keys &aux name-R name-L) (car nodes)
-             (typecase bdd
-               (bdd-node
-                (setf name-L (getf (descend :bdd (bdd-left bdd)  :node-name (format nil "~A:L" node-name) :parity :L) :node-name))
-                (setf name-R (getf (descend :bdd (bdd-right bdd) :node-name (format nil "~A:R" node-name) :parity :R) :node-name))))
-             (unless (and reduced
-                          (find bdd done :key (getter :bdd)))
-               (push (car nodes) done)
-               (typecase bdd
-                 (bdd-node
-                  (connect bdd name-L  :L)
-                  (connect bdd name-R :R))))
-             (pop nodes)))))
-         
-     ;; footer
-     (format stream "}~%"))))
      
-(defun bdd-view (bdd)
+     (labels ((dot-node (bdd node-num)
+                (format stream "~D [shape=~A,label=~S]~%"
+                        node-num
+                        (bdd-shape bdd)
+                        (format nil "~A" (bdd-label bdd))))
+              (bdd-shape (bdd)
+                (typecase bdd
+                  (bdd-node "ellipse")
+                  (bdd-leaf "box")))
+
+              )
+
+       (cond
+         (reduced                       ;BFS
+          (let* ((num 0)
+                 (buf (tconc nil (list :bdd bdd :node-num (incf num))))
+                 (nodes (car buf)))
+            ;; first print the node delcarations and remember the node list
+            (while nodes
+              (destructuring-bind (&key node-num bdd) (car nodes)
+                (dot-node bdd node-num)
+                (typecase bdd
+                  (bdd-node
+                   (tconc buf
+                          (list :bdd (bdd-left bdd) :node-num (incf num))
+                          (list :bdd (bdd-right bdd) :node-num (incf num))))))
+              (pop nodes))
+            ;; now print the connections
+            (dolist (node (car buf))
+              (destructuring-bind (&key node-num bdd) node
+                (typecase bdd
+                  (bdd-node
+                   (let* ((left-num  (getf (find (bdd-left  bdd) (car buf)
+                                                 :key (getter :bdd))
+                                           :node-num))
+                          (right-num (getf (find (bdd-right bdd) (car buf)
+                                                 :key (getter :bdd))
+                                           :node-num)))
+                     (format stream "~D -> ~D [style=~A]~%" node-num left-num  "solid")
+                     (format stream "~D -> ~D [style=~A]~%" node-num right-num "dotted"))))))))
+         (t
+          (let (nodes
+                (num 0))
+            (labels ((visit (bdd action path)
+                       (funcall action bdd path)
+                       (typecase bdd
+                         (bdd-node
+                          (visit (bdd-left bdd) action (cons :L path))
+                          (visit (bdd-right bdd) action (cons :R path)))))
+                     (name-node (bdd path)
+                       (push (list :bdd bdd :node-num (incf num) :path path) nodes))
+                     (print-node (bdd path &aux
+                                             (node (find-node bdd path))
+                                             (node-num (getf node :node-num)))
+                       (dot-node bdd node-num))
+                     (find-node (bdd path)
+                       (find-if #'(lambda (node)
+                                    (and (eq bdd (getf node :bdd))
+                                         (equal path (getf node :path))))
+                                nodes))
+                     (print-connections (bdd path)
+                       (typecase bdd
+                         (bdd-node
+                          (let* ((node-num  (getf (find-node bdd             path)           :node-num))
+                                 (left-num  (getf (find-node (bdd-left  bdd) (cons :L path)) :node-num))
+                                 (right-num (getf (find-node (bdd-right bdd) (cons :R path)) :node-num)))
+                            (declare (type fixnum left-num right-num))
+                            (format stream "~D -> ~D [style=~A]~%" node-num left-num  "solid")
+                            (format stream "~D -> ~D [style=~A]~%" node-num right-num "dotted"))))))
+              (visit bdd #'name-node ())
+              (visit bdd #'print-node ())
+              (visit bdd #'print-connections ())))))
+         
+       ;; footer
+       (format stream "}~%")))))
+     
+(defun bdd-view (bdd &key (reduced t))
   (let ((dot-path (format nil "/tmp/jnewton/graph/~A.dot" (bdd-ident bdd)))
         (png-path (format nil "/tmp/jnewton/graph/~A.png" (bdd-ident bdd))))
-  (with-open-file (stream dot-path :direction :output :if-exists :supersede)
-    (bdd-to-dot bdd stream :reduced nil))
+    (with-open-file (stream dot-path :direction :output :if-exists :supersede)
+      (bdd-to-dot bdd stream :reduced reduced))
     (sb-ext:run-program "dot"
                         (list "-Tpng" dot-path
                               "-o" png-path)
