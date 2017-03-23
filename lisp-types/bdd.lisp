@@ -801,6 +801,39 @@ in the topological ordering (i.e., the first value)."
       
       
 
+(defun bdd-to-if-then-else-4 (bdd obj)
+  "expand into linear size code as TAGBODY/GO, whose runtime is logrithmic and code size is linear"
+  (let (bdd->name-mapping (num 0))
+    (labels ((walk-bdd (bdd)
+               (typecase bdd
+                 (bdd-false)
+                 (bdd-true)
+                 (bdd-node
+                  (unless (assoc bdd bdd->name-mapping)
+                    (push (list bdd (incf num)) bdd->name-mapping)
+                    (walk-bdd (bdd-left bdd))
+                    (walk-bdd (bdd-right bdd))))))
+             (branch (bdd)
+               (typecase bdd
+                 (bdd-false `(return nil))
+                 (bdd-true `(return t))
+                 (bdd-node
+                  `(go ,(cadr (assoc bdd bdd->name-mapping))))))
+             (label-function (bdd)
+               (typecase bdd
+                 (bdd-node
+                  `(,(cadr (assoc bdd bdd->name-mapping))
+                    (if (typep ,obj ',(bdd-label bdd))
+                        ,(branch (bdd-left bdd))
+                        ,(branch (bdd-right bdd))))))))
+      (walk-bdd bdd)
+      `(lambda (,obj)
+         (block nil
+           (tagbody 
+              ,@(mapcan #'label-function
+                        (mapcar #'car (reverse bdd->name-mapping)))))))))
+
+
 (defun bdd-typep (obj type-specifier)
   "This function has the same syntax as CL:TYPEP, but using a BDD based algorithm " 
   (bdd-type-p obj (bdd type-specifier)))
