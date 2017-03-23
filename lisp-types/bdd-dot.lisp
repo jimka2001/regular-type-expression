@@ -43,19 +43,20 @@
               )
 
        (cond
-         (reduced                       ;BFS
+         (reduced
           (let* ((num 0)
                  (buf (tconc nil (list :bdd bdd :node-num (incf num))))
                  (nodes (car buf)))
-            ;; first print the node delcarations and remember the node list
+            ;; BFS: first print the node delcarations and remember the node list
             (while nodes
               (destructuring-bind (&key node-num bdd) (car nodes)
                 (dot-node bdd node-num)
                 (typecase bdd
                   (bdd-node
-                   (tconc buf
-                          (list :bdd (bdd-left bdd) :node-num (incf num))
-                          (list :bdd (bdd-right bdd) :node-num (incf num))))))
+                   (unless (find (bdd-left bdd) (car buf) :key (getter :bdd))
+                     (tconc buf (list :bdd (bdd-left bdd)  :node-num (incf num))))
+                   (unless (find (bdd-right bdd) (car buf) :key (getter :bdd))
+                     (tconc buf (list :bdd (bdd-right bdd) :node-num (incf num)))))))
               (pop nodes))
             ;; now print the connections
             (dolist (node (car buf))
