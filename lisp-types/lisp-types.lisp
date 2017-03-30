@@ -92,14 +92,15 @@ If N > (length of data) then a permutation of DATA is returned"
   (choose-randomly data (length data)))
 
 (defun valid-type-p (type-designator)
-  #+sbcl (and (SB-EXT:VALID-TYPE-SPECIFIER-P type-designator)
-	      (not (eq type-designator 'cl:*)))
+  #+sbcl (handler-case (and (SB-EXT:VALID-TYPE-SPECIFIER-P type-designator)
+                            (not (eq type-designator 'cl:*)))
+           (SB-KERNEL::PARSE-UNKNOWN-TYPE (c) (declare (ignore c)) nil))
   #+(or clisp  allegro) (ignore-errors (subtypep type-designator t))
   #-(or sbcl clisp allegro) (error "VALID-TYEP-P not implemented for ~A" (lisp-implementation-type))
 )
 
-(assert (not (valid-type-p (gensym))))
-(assert (valid-type-p 'bignum))
+;;(assert (not (valid-type-p (gensym))))
+;;(assert (valid-type-p 'bignum))
 
 (defun new-subtype-hash ()
   (make-hash-table :test #'equal))

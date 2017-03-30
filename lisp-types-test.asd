@@ -28,9 +28,10 @@
   ((:module "lisp-types"
     :components
     ((:file "test-lisp-types")
-     (:file "test-perf")
+     (:file "test-perf" :depends-on ("analysis"))
      (:file "test-typecase" :depends-on ("test-lisp-types"))
      (:file "test-sat" :depends-on ("test-lisp-types" "test-perf"))
      (:file "test-graph" :depends-on ("test-lisp-types" "test-perf"))
-     (:file "analysis" )
-     (:file "test-bdd" :depends-on ("analysis" "test-lisp-types" "test-perf"))))))
+     (:file "analysis" :depends-on ("test-lisp-types")) ;; valid-subtypes
+     (:file "test-bdd" :depends-on ("analysis" "test-lisp-types" "test-perf"))
+     ))))

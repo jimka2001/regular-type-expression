@@ -23,12 +23,18 @@
   (:shadowing-import-from :lisp-types "TEST" "A")
   (:use :cl :lisp-types :lisp-unit))
 
+(eval-when (:execute :load-toplevel :compile-toplevel)
+  (defun shadow-package-symbols ()
+    (let ((lisp-types-test (find-package  :lisp-types.test))
+          (lisp-types (find-package  :lisp-types)))
+      (do-symbols (name :lisp-types)
+        (when (and (eq lisp-types (symbol-package name))
+                   (not (find-symbol (symbol-name name) lisp-types-test)))
+          (format t "5 importing name=~A into  :lisp-types.test~%" name)
+          (shadowing-import name :lisp-types.test))))))
 
-(let ((lisp-types (find-package  :lisp-types)))
-  (do-symbols (name :lisp-types)
-    (when (eq lisp-types (symbol-package name))
-      (format t "importing name=~A into  :lisp-types.test~%" name)
-      (shadowing-import name :lisp-types.test))))
+(shadow-package-symbols)
+
 
 (in-package :lisp-types.test)
 
@@ -266,34 +272,30 @@
   (assert-true (equal (reduce-lisp-type '(or W (and A B) X
 					  Y (and (not A) C)
 					  Z (and B C)))
-		      '(or c X Y W Z)))
+                      '(OR X Y W Z (AND A B) (AND C (NOT A)))))
 					
   (assert-true (equal (reduce-lisp-type '(or (and A B)
 					       (and (not A) C)
 					       (and B C)))
-		      'c))
+		      '(OR (AND A B) (AND C (NOT A)))))
   (assert-true (equal (reduce-lisp-type '(or (and A B)
 					       (and B C)
 					       (and (not A) C)))
-		      'c))
+		      '(OR (AND A B) (AND C (NOT A)))))
   (assert-true (equal (reduce-lisp-type '(or (and A B)
 					       (and B C)
 					       (and C (not A))))
-		      'c))
+		      '(OR (AND A B) (AND C (NOT A)))))
 
   (assert-true (equal (reduce-lisp-type '(or (and A U V)
 					       (and V W (not A))
 					       (and V W U)))
-		      '(or (and A U V)
-			(and V W (not A)))))
+		      '(OR (AND A U V) (AND V W (NOT A)))))
   (assert-true (member (reduce-lisp-type '(or (and A U V)
 					       (and (not A) V W)
                                            (and U V W)))
-                                           
-		      '((or (and A U V)
-                         (and V W (not A)))
-                        (or (and U A V)
-                         (and V W (not A))))
+                       
+                       '((OR (AND A U V) (AND V W (NOT A))))
                       :test #'equal)))
 
 

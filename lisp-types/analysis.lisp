@@ -21,8 +21,33 @@
 
 (in-package :lisp-types.test)
 
-(do-symbols (name :lisp-types)
-  (shadowing-import name :lisp-types.test))
+#|
+
+|#
+
+(let ((lisp-types-test (find-package  :lisp-types.test))
+      (lisp-types (find-package  :lisp-types)))
+  (do-symbols (name :lisp-types)
+    (when (and (eq lisp-types (symbol-package name))
+               (not (find-symbol (symbol-name name) lisp-types-test)))
+      (format t "1 importing name=~A into  :lisp-types.test~%" name)
+      (shadowing-import name :lisp-types.test))))
+
+;;(shadow-package-symbols)
+;;(do-symbols (name :lisp-types)
+;;  (shadowing-import name :lisp-types.test))
+
+
+
+(defun valid-subtypes (super)
+  (let (all-types)
+    (do-external-symbols (sym :cl)
+      (when (and (valid-type-p sym)
+                 (subtypep sym super))
+	(push sym all-types)))
+    all-types))
+
+
 
 (defvar *cl-types* '(
                      arithmetic-error                  function            simple-condition           
@@ -59,19 +84,46 @@
                      floating-point-overflow           simple-base-string                             
                      floating-point-underflow          simple-bit-vector    ))
 
-(defvar *number-combos*
-  (setof e (loop for t1 in (shuffle-list (valid-subtypes 'number))
-               for t2 in (shuffle-list (valid-subtypes 'number))
-               nconc (list t1 `(and ,t1 (not ,t2)) `(or ,t1 ,t2)))
-      (not (subtypep e nil))))
 
-(length  *number-combos*)
+
+
+
+(defmacro print-conditions (&body body)
+  (let ((conditions (gensym "conditions")))
+    `(let (,conditions)
+       (handler-bind ((t #'(lambda (condition) (push condition ,conditions))))
+         (prog1 (progn ,@body)
+           (when ,conditions
+             (let ((n 0))
+               (format t "Conditions singled while evaluating: ~A~%" ',body)
+               (dolist (condition (nreverse ,conditions))
+                 (format t "~D: ~S~%" (incf n) condition)))))))))
+
+;; (defmethod print-object ((c SB-KERNEL:PARSE-UNKNOWN-TYPE) stream)
+;;   (print-unreadable-object (c stream :type t :identity nil)
+;;     (when (slot-boundp c 'SB-KERNEL::specifier)
+;;       (format stream " specifier=~A " (SB-KERNEL::parse-unknown-type-specifier c)))))
+
+(defvar *number-combos*
+
+  (let* ((l1 (shuffle-list (valid-subtypes 'number)))
+         (l2 (shuffle-list (valid-subtypes 'number)))
+         (l3 (loop for t1 in l1
+                   for t2 in l2
+                   nconc (list t1 `(and ,t1 (not ,t2)) `(or ,t1 ,t2)))))
+    (setof e l3
+      (not (subtypep e nil)))))
+
+
+
+;;(length  *number-combos*)
 
 (defvar *cl-type-combos*
   (loop for types on *cl-types*
         nconc (loop for t2 in (cdr types)
                  with t1 = (car types)
                  nconc (list t1 `(and ,t1 ,t2) `(or ,t1, t2)))))
+
 
 (defvar *decomposition-function-descriptors*
   `((:names (decompose-types) :max-num-types 11 :color "blue" :legend t)
@@ -176,6 +228,7 @@
       (sb-ext:gc :full t)
       (log-data)))
   t)
+
 
 
 (defun call-with-timeout (time-out thunk)
@@ -314,22 +367,6 @@ returns a plist, one of the following:
 (defun get-all-types ()
   (set-difference (valid-subtypes t) '(t nil class built-in-class )))
 
-
-(defun valid-subtypes (super)
-  (let (all-types)
-    (do-external-symbols (sym :cl)
-      (when (and (valid-type-p sym)
-                 (subtypep sym super))
-	(push sym all-types)))
-    all-types))
-
-
-
-
-
-
-
-
 (defun find-decomposition-function-descriptor (name)
   (typecase name
     (symbol
@@ -379,6 +416,8 @@ returns a plist, one of the following:
                  (return-from find-decomposition-discrepancy nil)
                  ))))
     (recure type-specs)))
+
+
 
 
 (defun compare/results (all-results &aux (good-results (setof res all-results
@@ -729,8 +768,8 @@ the list of xys need not be already ordered."
 (defun append-tail (l1 l2 value)
   (append l1 (mapcar (constantly value) (nthcdr (length l1) l2))))
 
-(append-tail '(a b c d) '(0 0 0 0 1 2 3 4 5 6 7) -1)
-(append-tail '(0 0 0 0 1 2 3 4 5 6 7) '(a b c d) -1)
+;; (append-tail '(a b c d) '(0 0 0 0 1 2 3 4 5 6 7) -1)
+;;(append-tail '(0 0 0 0 1 2 3 4 5 6 7) '(a b c d) -1)
 
 
 
@@ -1156,3 +1195,9 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
                    :decomposition-functions '(decompose-types-bdd-graph
                                               decompose-types-graph)))
 
+
+
+
+
+#|
+|#

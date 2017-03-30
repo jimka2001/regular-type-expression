@@ -21,127 +21,18 @@
 
 (in-package :lisp-types.test)
 
-(do-symbols (name :lisp-types)
-  (shadowing-import name :lisp-types.test))
 
+    (let ((lisp-types-test (find-package  :lisp-types.test))
+          (lisp-types (find-package  :lisp-types)))
+      (do-symbols (name :lisp-types)
+        (when (and (eq lisp-types (symbol-package name))
+                   (not (find-symbol (symbol-name name) lisp-types-test)))
+          (format t "6 importing name=~A into  :lisp-types.test~%" name)
+          (shadowing-import name :lisp-types.test))))
 
-(defun compare/results (all-results &aux (good-results (setof res all-results
-                                                         (and res
-                                                              (null (getf res :time-out)))))
-                                      (good-decomp (mapcar (lambda (plist) (getf plist :decompose)) good-results)))
-  ;; results is a list of plists
-  ;; each plist has one of two forms
-  ;;  keys: (:types :given :decompose :time-out)
-  ;;        or
-  ;;        (:types :given :calculated :decompose :value :time)
-  ;;   :value designates a list of calculated types according to the algorithm :decompose
-  ;;   This function compare/results assures that the list of types is the same for each algorithm
-  ;;   Ignoring ones which timed out, i.e., :time-out exists in the plist.
-  ;;  If a difference is found, an attempt is made to find a smaller input list which also results
-  ;;  in different types being calculated
-  (labels ((equiv-type-sets (set1 set2)
-             (and (= (length set1) (length set2))
-                  (bdd-with-new-hash
-                   (lambda () (or (null (set-exclusive-or set1 set2 :test #'%equal))
-                                  (let ((bdd-set1 (bdd `(or ,@set1)))
-                                        (bdd-set2 (bdd `(or ,@set2))))
-                                  (and (eq *bdd-false* (bdd-and-not bdd-set1 bdd-set2))
-                                       (eq *bdd-false* (bdd-and-not bdd-set2 bdd-set1)))))))))
-           (%equal (t1 t2)
-             (or (bdd-type-equal (bdd t1) (bdd t2))
-                 (equivalent-types-p t1 t2)))
-           (compare (res1 res2)
-             (cond ((equiv-type-sets (getf res1 :value) (getf res2 :value)))
-                   (t
-                    (find-small-difference res1 res2))))
-           (touching-pairs (types)
-             (loop for tail on types
-                   nconc (loop for type2 in (cdr types)
-                               with type1 = (car types)
-                               if (not (subtypep `(and ,type1 ,type2) nil))
-                                 collect (list type1 type2))))
-           (find-small-difference (res1 res2)
-             (let ((*package* (find-package "KEYWORD")))
-               (format t "found difference given=~D ~A=~D ~A=~D~%"
-                       (length (getf res1 :types))
-                       (getf res1 :decompose)
-                       (length (getf res1 :value))
-                       (getf res2 :decompose)
-                       (length (getf res2 :value)))
-               (let* ((smaller (find-smaller (getf res1 :types) (getf res1 :decompose) (getf res2 :decompose)))
-                      (v1 (funcall (getf res1 :decompose) smaller))
-                      (v2 (funcall (getf res2 :decompose) smaller))
-                      (o1 (touching-pairs v1))
-                      (o2 (touching-pairs v2))
-                      (v1-v2 (bdd-and-not (bdd `(or ,@v1)) (bdd `(or ,@v2))))
-                      (v2-v1 (bdd-and-not (bdd `(or ,@v2)) (bdd `(or ,@v2)))))
-
-                 (dolist (pair o1)
-                   (warn "~A touching pair: ~A~%" (getf res1 :decompose) pair))
-                 (dolist (pair o2)
-                   (warn "~A touching pairs: ~A~%" (getf res2 :decompose) pair))
-
-                 (let ((msg (format nil "given=~A calculated~%   ~A=[~D]~A~%   vs ~A=[~D]~A~%  a\\b=~A~%  b\\a=~A~%   common=~A~%  a-b=~A~%  b-a=~A"
-                                    smaller
-                                    (getf res1 :decompose) (length v1) v1 
-                                    (getf res2 :decompose) (length v2) v2
-                                    (set-difference v1 v2 :test #'%equal)
-                                    (set-difference v2 v1 :test #'%equal)
-                                    (intersection v1 v2 :test #'%equal)
-                                    v1-v2
-                                    v2-v1)))
-                   (warn msg)
-                   (error msg)))))
-           (find-smaller (given f1 f2 &aux v1 v2)
-             (format t "searching for smaller error than ~S~%" given)
-             (let ((ts (exists t1 given
-                         (not (equiv-type-sets (setf v1 (funcall f1 (remove t1 given)))
-                                               (setf v2 (funcall f2 (remove t1 given))))))))
-               (cond
-                 (ts
-                  (format t "   found smaller difference given=~D~%" (1- (length given)))
-                  (find-smaller (remove (car ts) given) f1 f2))
-                 (t
-                  given))))
-           (check-1 (given-types calculated-types decompose-function)
-             (when given-types
-               (loop :for types :on calculated-types
-                     :do (loop :for t2 :in (cdr types)
-                               :with t1 = (car types)
-                               :with bdd1 = (bdd (car types))
-                               :do (let ((*package* (find-package "KEYWORD"))
-                                         (bdd2 (bdd t2)))
-                                     (unless (bdd-disjoint-types-p bdd1 bdd2)
-                                       (dolist (type given-types)
-                                         (let ((fewer (remove type given-types :test #'eq)))
-                                           (check-1 fewer
-                                                    (funcall decompose-function fewer)
-                                                    decompose-function)))
-                                       (error "Calculated touching types: ~S touches ~S~%Given types ~S~%Calculated: ~S~% Decomp ~S"
-                                              t1 t2 given-types calculated-types good-decomp)))))
-               (let* ((bdd-given (bdd `(or ,@given-types)))
-                      (bdd-calc  (bdd `(or ,@calculated-types))))
-                 (let ((*package* (find-package "KEYWORD")))
-                   (unless (bdd-type-equal bdd-given bdd-calc)
-                     (warn "found problem with ~S" given-types)
-                     (dolist (type given-types)
-                       (let ((fewer (remove type given-types)))
-                         (warn "  checking with ~S" fewer)
-                         (check-1 fewer (funcall decompose-function fewer) decompose-function)))
-                     (error "Calculated types not equivalent to given types~% given: ~S~% calculated: ~S~% decompose: ~S~% calculated - given: ~S~% given - calculated: ~S"
-                            given-types
-                            calculated-types
-                            decompose-function
-                            (bdd-to-dnf (bdd-and-not bdd-calc bdd-given))
-                            (bdd-to-dnf (bdd-and-not bdd-given bdd-calc)))))))))
-    (when good-results
-      (let ((res1 (car good-results)))
-        (bdd-with-new-hash
-         (lambda ()
-           (check-1 (getf res1 :types) (getf res1 :value) (getf res1 :decompose)))))
-      
-      (dolist (res (cdr good-results))
-        (compare (car good-results) res)))))
+;;(shadow-package-symbols)
+;;(do-symbols (name :lisp-types)
+;;  (shadowing-import name :lisp-types.test))
 
 
 (define-test disjoint-cmp-1

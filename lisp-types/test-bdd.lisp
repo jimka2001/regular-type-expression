@@ -21,8 +21,17 @@
 
 (in-package :lisp-types.test)
 
-(do-symbols (name :lisp-types)
-  (shadowing-import name :lisp-types.test))
+(let ((lisp-types-test (find-package  :lisp-types.test))
+      (lisp-types (find-package  :lisp-types)))
+  (do-symbols (name :lisp-types)
+    (when (and (eq lisp-types (symbol-package name))
+               (not (find-symbol (symbol-name name) lisp-types-test)))
+      (format t "3 importing name=~A into  :lisp-types.test~%" name)
+      (shadowing-import name :lisp-types.test))))
+
+;(shadow-package-symbols)
+;;(do-symbols (name :lisp-types)
+;;  (shadowing-import name :lisp-types.test))
 
 
 (define-test test/bdd-to-dnf
@@ -51,6 +60,11 @@
 (define-test test/certain-reductions
   (assert-true (bdd '(or (and integer (not string)) (and string (not integer)))))
   (assert-false (bdd-to-dnf (bdd-and-not (bdd 'integer) (bdd 'number)))))
+
+(define-test type/bdd-sample-a
+  (assert-false (set-exclusive-or (bdd-decompose-types '(unsigned-byte bit fixnum rational number float))
+                                  (decompose-types     '(unsigned-byte bit fixnum rational number float))
+                                  :test #'equivalent-types-p)))
 
 (define-test type/3-types
   (let ((decomp (bdd-decompose-types '(CHAR-CODE DOUBLE-FLOAT UNSIGNED-BYTE))))
@@ -140,7 +154,7 @@
 (defclass E () ())
 (defclass F () ())
 (defclass G () ())
-
+;; (defclass ABCDE (A B C D E) ())
 
 (define-test type/reduce-c
   (assert-true (equal (reduce-lisp-type '(OR (NOT A) B))
@@ -264,3 +278,110 @@
      (assert-false (member '(and number) (bdd-to-dnf (bdd '(or (and sequence (not array))
                                                             number
                                                             (and (not sequence) array)))) :test #'equal)))))
+
+(defclass Z1 () ())
+(defclass Z2 () ())
+(defclass Z3 () ())
+(defclass Z4 () ())
+(defclass Z5 () ())
+(defclass Z12345 (Z1 Z2 Z3 Z4 Z5) ())
+(defclass Z54321 (Z5 Z4 Z3 Z2 Z1) ())
+
+
+(defun int-to-boolean-expression (n vars)
+  (let ((num-vars (length vars)))
+    (let ((max-n (expt 2 (expt 2 num-vars))))
+      (assert (< n max-n) (n vars)
+              "N=~D must be less than ~D for ~D variables=~A"
+              n max-n num-vars vars))
+    (flet ((gen-min-term (i)
+             ;; interpret the given I as a bit-mask
+             ;; and generate an (AND ...) expression
+             ;; the arguments of AND are the symbols in order in VAR
+             ;; either as is or wrapped in (NOT ...)
+             ;; e.g. if VAR='(a b), then 2 with bitmask 10 -> (and A (not B))
+             ;; bits from right to left correspond to variables from left to rith
+             (prog1
+                 (when (oddp n)
+                   (list (cons 'and (mapcar (lambda (var)
+                                              (prog1 (if (oddp i)
+                                                         var
+                                                         `(not ,var))
+                                                (setf i (ash i -1)))) vars))))
+               (setf n (ash n -1)))))
+      (cons 'or (loop for i from 0 to (expt 2 num-vars)
+                      nconc (gen-min-term i))))))
+    
+
+(defun random-boolean-combination (vars)
+  ;; vars is a list of symbols
+  (int-to-boolean-expression (random (expt 2 (expt 2 (length vars))))
+                             vars))
+
+(defun measure-bdd-size (vars num-samples)
+  (let ((hash (make-hash-table)))
+    (dotimes (_ num-samples)
+      (bdd-with-new-hash (lambda ()
+                           (incf (gethash
+                                  (bdd-count-nodes
+                                   (bdd (random-boolean-combination vars)))
+                                  hash
+                                  0)))
+                         :verbose nil))
+    (let (a-list sum)
+      (declare (notinline sort))
+      (maphash (lambda (&rest args)
+                 (push args a-list))
+               hash)
+      (setf sum (reduce #'+ (cdr a-list) :initial-value (cadr (car a-list)) :key #'cadr))
+      ;;
+      (mapcar (lambda (pair)
+                (declare (type (cons integer (cons integer)) pair))
+                (list (car pair)
+                      (float (/ (cadr pair) sum))
+                      ))
+              (sort a-list #'< :key #'car)))))
+  
+(defun measure-bdd-sizes (vars num-samples)
+  (maplist (lambda (vars)
+             (list (length vars)
+                   (measure-bdd-size vars
+                                     (min (expt 2 (expt 2 (length vars)))
+                                          num-samples))))
+           vars))
+
+(defun latex-measure-bdd-sizes (stream vars num-samples)
+  (cond
+    ((null stream)
+     (with-output-to-string (str)
+       (latex-measure-bdd-sizes str vars num-samples)))
+    (t
+     (let (legend
+           (colors '("red" "blue" "goldenrod" "lavender" "greeny" "dark-cyan"))
+           (data (measure-bdd-sizes vars num-samples)))
+       (format stream "\\begin{tikzpicture}~%")
+       (format stream "\\begin{axis}[xlabel=BDD Size, xmajorgrids, xminorgrids, ylabel=Probability, legend style={font=\\tiny}, label style={font=\\tiny}]~%")
+
+       (dolist (pair data)
+         (destructuring-bind (num-vars coordinates) pair
+           (push (format nil "Size with ~D variables" num-vars) legend)
+           (format stream "\\addplot[color=~A] coordinates {~%"
+                   (or (pop colors) "black"))
+           (dolist (xy coordinates)
+             (format stream "  (~D,~A)~%" (car xy) (cadr xy)))
+           (format stream "};~%")))
+       (format stream "\\legend{")
+       (let ((first t))
+         (dolist (label (reverse legend))
+           (unless first
+             (format stream ","))
+           (format stream "~S" label)
+           (setf first nil)))
+       (format stream "}~%")
+       (format stream "\\end{axis}~%")
+       (format stream "\\end{tikzpicture}~%")))))
+
+;; (with-open-file (stream "/Users/jnewton/newton.16.edtchs/src/bdd-distribution.ltxdat"
+;;                         :direction :output :if-exists :supersede)
+;;   (sb-ext::gc :full t)
+;;   (latex-measure-bdd-sizes stream '(Z1 Z2 Z3 Z4 Z5) 4000))
