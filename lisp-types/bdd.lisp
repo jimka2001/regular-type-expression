@@ -446,13 +446,19 @@ according to the LABEL which is now the label of some parent in its lineage."
               (%bdd-node a2 (funcall op b1 c2) (funcall op b1 d2)))))))
 
   (defmethod bdd-or ((b1 bdd-node) (b2 bdd-node))
-    (bdd-op #'bdd-or b1 b2))
+    (if (eq b1 b2)
+        b1
+        (bdd-op #'bdd-or b1 b2)))
 
   (defmethod bdd-and ((b1 bdd-node) (b2 bdd-node))
-    (bdd-op #'bdd-and b1 b2))
+    (if (eq b1 b2)
+        b1
+        (bdd-op #'bdd-and b1 b2)))
 
   (defmethod bdd-and-not ((b1 bdd-node) (b2 bdd-node))
-    (bdd-op #'bdd-and-not b1 b2)))
+    (if (eq b1 b2)
+        *bdd-false*
+        (bdd-op #'bdd-and-not b1 b2))))
 
 (defmethod bdd-or (b1 b2)
   (error "bdd-or not implemented for ~A and ~A" b1 b2))
