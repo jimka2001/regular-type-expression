@@ -52,8 +52,28 @@
 (defun bdd-ident (bdd)
   (slot-value bdd 'ident))
 
+(defun bdd-bfs (bdd action)
+  (let* ((buf (tconc nil bdd))
+         ;; TODO -- don't really need nodes, we could
+         ;; actually just pop (car buf), but this way
+         ;; is a bit less obscure.
+         (nodes (car buf)))
+    (while nodes
+      (funcall action (car nodes))
+      (typecase (car nodes)
+        (bdd-node
+         (unless (member (bdd-left (car nodes)) (car buf) :test #'eq)
+           (tconc buf (bdd-left (car nodes))))
+         (unless (member (bdd-right (car nodes)) (car buf) :test #'eq)
+           (tconc buf (bdd-right (car nodes))))))
+      (pop nodes))))
 
-
+(defun bdd-count-nodes (bdd)
+  (let ((c 0))
+    (bdd-bfs bdd (lambda (node)
+                   (declare (ignore node))
+                   (incf c)))
+    c))
 
 (defun bdd-new-hash ()
   (make-hash-table :test #'equal))
