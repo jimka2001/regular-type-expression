@@ -79,9 +79,11 @@
   (make-hash-table :test #'equal))
 
 (defvar *bdd-hash* (bdd-new-hash))
+(defvar *bdd-verbose* nil)
 
-(defun bdd-with-new-hash (thunk)
-  (let ((*bdd-hash* (bdd-new-hash))
+(defun bdd-with-new-hash (thunk &key (verbose *bdd-verbose*))
+  (let ((*bdd-verbose* verbose)
+        (*bdd-hash* (bdd-new-hash))
         (*disjoint-hash* (new-disjoint-hash))
         (*subtype-hash* (new-subtype-hash)))
     ;; (setf (gethash :type-system *bdd-hash*)
@@ -92,7 +94,8 @@
     ;;                   (and (not float) (not integer) (not ratio) real)
     ;;                   (and (not bignum) (not fixnum) unsigned-byte)))))
     (prog1 (funcall thunk)
-      (format t "finished with ~A and ~A~%" *bdd-hash* *subtype-hash*))))
+      (when verbose
+        (format t "finished with ~A and ~A~%" *bdd-hash* *subtype-hash*)))))
   
 (defun bdd-make-key (label left right)
   (list left right label))
@@ -229,13 +232,15 @@
 
 
 (defvar *bdd-hash-access-count* 0)
+
 (labels ((incr-hash ()
            (incf *bdd-hash-access-count*)
-           (when (= 0 (mod *bdd-hash-access-count* 10000))
-             (format t "bdd hash = ~A wall-time=~A cpu-time=~A~%"
-                     *bdd-hash*
-                     (truncate (get-internal-run-time) internal-time-units-per-second)
-                     (truncate (get-universal-time) internal-time-units-per-second))))
+           (when *bdd-verbose*
+             (when (= 0 (mod *bdd-hash-access-count* 10000))
+               (format t "bdd hash = ~A wall-time=~A cpu-time=~A~%"
+                       *bdd-hash*
+                       (truncate (get-internal-run-time) internal-time-units-per-second)
+                       (truncate (get-universal-time) internal-time-units-per-second)))))
          (relation (r x-parity y-parity)
            #'(lambda (x y)
                (funcall r
@@ -922,6 +927,7 @@ convert it to DNF (disjunctive-normal-form)"
                           (option-bdd (funcall f bdd-b bdd-a)))
                         *bdd-slicers*))
               (slice (bdds bdd1)
+                (declare (notinline sort))
                 (let ((sliced (mapcan (lambda (bdd2)
                                         (slice-set bdd1 bdd2))
                                       bdds)))
