@@ -46,10 +46,12 @@
          (reduced
           (let* ((num 0)
                  (buf (tconc nil (list :bdd bdd :node-num (incf num))))
+                 labels
                  (nodes (car buf)))
-            ;; BFS: first print the node delcarations and remember the node list
+            ;; BFS: first print the node delcarations and remember the node list, and remember the labels
             (while nodes
               (destructuring-bind (&key node-num bdd) (car nodes)
+                (pushnew (bdd-label bdd) labels :test #'equal)
                 (dot-node bdd node-num)
                 (typecase bdd
                   (bdd-node
@@ -58,6 +60,15 @@
                    (unless (find (bdd-right bdd) (car buf) :key (getter :bdd))
                      (tconc buf (list :bdd (bdd-right bdd) :node-num (incf num)))))))
               (pop nodes))
+            ;; now print the rank=same lines
+            (dolist (label labels)
+              (let ((common-labels (setof node (car buf)
+                                     (equal label (bdd-label (getf node :bdd))))))
+                (when (cdr common-labels)
+                  (format stream "{rank=same")
+                  (dolist (common common-labels)
+                    (format stream " ~D" (getf common :node-num)))
+                  (format stream "}~%"))))
             ;; now print the connections
             (dolist (node (car buf))
               (destructuring-bind (&key node-num bdd) node
@@ -69,8 +80,8 @@
                           (right-num (getf (find (bdd-right bdd) (car buf)
                                                  :key (getter :bdd))
                                            :node-num)))
-                     (format stream "~D -> ~D [style=~A]~%" node-num left-num  "solid")
-                     (format stream "~D -> ~D [style=~A]~%" node-num right-num "dotted"))))))))
+                     (format stream "~D -> ~D [style=~A,color=~A]~%" node-num left-num  "solid" "green")
+                     (format stream "~D -> ~D [style=~A,color=~A]~%" node-num right-num "dotted" "red"))))))))
          (t
           (let (nodes
                 (num 0))
@@ -112,6 +123,7 @@
         (png-path (format nil "/tmp/jnewton/graph/~A.png" (bdd-ident bdd))))
     (with-open-file (stream dot-path :direction :output :if-exists :supersede)
       (bdd-to-dot bdd stream :reduced reduced))
+    (format t "~A~%" png-path)
     (sb-ext:run-program "dot"
                         (list "-Tpng" dot-path
                               "-o" png-path)
