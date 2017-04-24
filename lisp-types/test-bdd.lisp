@@ -284,8 +284,10 @@
 (defclass Z3 () ())
 (defclass Z4 () ())
 (defclass Z5 () ())
-(defclass Z12345 (Z1 Z2 Z3 Z4 Z5) ())
-(defclass Z54321 (Z5 Z4 Z3 Z2 Z1) ())
+(defclass Z6 () ())
+(defclass Z7 () ())
+(defclass Z1234567 (Z1 Z2 Z3 Z4 Z5 Z6 Z7) ())
+(defclass Z7654321 (Z7 Z6 Z5 Z4 Z3 Z2 Z1) ())
 
 
 (defun int-to-boolean-expression (n vars)
@@ -319,12 +321,20 @@
                              vars))
 
 (defun measure-bdd-size (vars num-samples)
-  (let ((hash (make-hash-table)))
-    (dotimes (_ num-samples)
-      (bdd-with-new-hash (lambda ()
+  (let ((hash (make-hash-table))
+        (n-vars (length vars))
+        (worst-case '(0)))
+    (dotimes (try num-samples)
+      (sb-ext::gc :full t)
+      (bdd-with-new-hash (lambda (&aux (boolean-combo (random-boolean-combination vars))
+                                    (bdd (bdd boolean-combo))
+                                    (node-count (bdd-count-nodes bdd)))
+                           (when (> node-count (car worst-case))
+                             (setf worst-case (list node-count (bdd-to-dnf bdd)))
+                             (bdd-view bdd)
+                             (format t "~D worse case after ~D: ~A~%" n-vars try worst-case))
                            (incf (gethash
-                                  (bdd-count-nodes
-                                   (bdd (random-boolean-combination vars)))
+                                  node-count
                                   hash
                                   0)))
                          :verbose nil))
@@ -381,7 +391,192 @@
        (format stream "\\end{axis}~%")
        (format stream "\\end{tikzpicture}~%")))))
 
-;; (with-open-file (stream "/Users/jnewton/newton.16.edtchs/src/bdd-distribution.ltxdat"
-;;                         :direction :output :if-exists :supersede)
-;;   (sb-ext::gc :full t)
-;;   (latex-measure-bdd-sizes stream '(Z1 Z2 Z3 Z4 Z5) 4000))
+
+(defun map-pairs (f objs)
+  (dolist (o1 objs)
+    (dolist (o2 objs)
+      (unless (eq o1 o2)
+        (funcall f o1 o2)))))
+
+(defun bdd-row-sizes (n-vars)
+  ;; n-vars is a positive integer
+  (let ((data (list (list n-vars 2)))
+        (sum 2)
+        q)
+    (while (> n-vars 1)
+      (decf n-vars)
+      (setf q (* sum (1- sum)))
+      (push (list n-vars (expt 2 n-vars) q
+                  (min (expt 2 n-vars)
+                              q)) data)
+      (incf sum q))
+    (push (list 0 1 1) data)
+    data))
+
+(defun visit-pairs (f m objects )
+  "Visit M pairs of adjacent objects such every element object is visited at least once,
+   and no pair is visited twice."
+  (declare (type (function (t t) t) f)
+           (type integer m)
+           (type list objects))
+  (let ((need-pairs m)
+        (N (length objects)))
+    (let ((ptr objects))
+      (loop for i from 1 to (min need-pairs (truncate N 2))
+            do (progn (decf need-pairs)
+                      (funcall f (pop ptr) (pop ptr)))))
+
+    (let ((ptr objects))
+      (loop for i from 1 to (min need-pairs (truncate N 2))
+            do (progn (decf need-pairs)
+                      (apply f (reverse (list (pop ptr) (pop ptr)))))))))
+
+
+(defun bdd-make-worst-case (vars)
+  (let* ((leaves (list *bdd-true* *bdd-false*))
+         (size 2)
+         (row-num (1- (length vars)))
+         (rows (list leaves)))
+
+    ;; build up the bottom
+    (while (< (* size (1- size)) (expt 2 row-num))
+      (format t "case 1 ~A~%" vars)
+      (let (bdds)
+        (map-pairs (lambda (o1 o2)
+                     (push (bdd-node (car vars) o1 o2) bdds))
+                   (reduce #'append rows :initial-value ()))
+        (push bdds rows)
+        (assert (= (length bdds) (* size (1- size))) (size bdds))
+        (incf size (* size (1- size)))
+        (pop vars)
+        (decf row-num)))
+    ;; build the belt with exactly (expt 2 row-num) elements,
+    ;; and 2* (expt 2 row-num) arrows.
+    ;; so two cases, does the previous row below have enough elements
+    ;; to support the arrows?
+    (let* ((n row-num)
+           (m (expt 2 n))
+           (p (length (car rows))))
+      (assert (<= p (* 2 m)) (row-num m p)
+              "expecting to create BDD row of ~D elements with ~D connecting to less than ~D elements"
+              m (* 2 m) (* 2 m))
+         
+      (cond
+        ;; Can we construct row n using ONLY the elements from row n+1?
+        ;; If  p*(p-1) <= 2^n,  then yes we can.
+        ;; p*(p-1) is the number of order pairs taken from p number of objects.
+        ((<= m (* p (1- p)))
+         (format t "case 2b ~A~%" vars)
+         (let (bdds (needed m))
+           (block create-remaining
+             (map-pairs (lambda (left right)
+                          (cond
+                            ((plusp needed)
+                             (push (bdd-node (car vars) left right) bdds)
+                             (decf needed))
+                            (t
+                             (return-from create-remaining))))
+                        (car rows)))
+           (push bdds rows)
+           (pop vars)))
+        (t
+         ;; we can constructed p(p-1) nodes, we need to construct m-(p)(p-1) additional ones,
+         ;; but can we construct the remaining required ones (how many? 2^n - (p)(p-1))
+         ;; by taking pairs of the nodes from rows n+2 and higher?
+         (format t "case 2a ~A~%" vars)
+         ;; TODO use the algorithm for case 1 but limit to (expt 2 row-num) elements
+         (let (bdds (remaining (- m (* p (1- p)))))
+           (map-pairs (lambda (left right)
+                        (push (bdd-node (car vars) left right) bdds))
+                      (car rows))
+           (assert (evenp (length bdds)) ()
+                   "expecting to have created an even number of bdds, not ~D" (length bdds))
+           (block create-remaining
+             (map-pairs (lambda (right left)
+                          (cond
+                            ((and (member left (car rows))
+                                  (member right (car rows))))
+                            ((plusp remaining)
+                             (push (bdd-node (car vars) left right) bdds)
+                             (decf remaining))
+                            (t
+                             (return-from create-remaining))))
+                        (reduce #'append rows :initial-value ())))
+           (cl-user::print-vals 'phase-2 remaining m (length bdds))
+           (assert (= (length bdds) m) (remaining)
+                   "expecting to have created ~D number of bdds, not ~D" m (length bdds))
+           (push bdds rows)
+           (pop vars)))))
+      
+        ;; build the top
+        (while vars
+          (format t "case 3 ~A ~A~%" vars (mapcar #'length rows))
+          (let (bdds
+                (ptr (car rows)))
+            (assert (or (= 1 (length ptr))
+                        (evenp (length ptr))) (ptr)
+                        "expecting either 1 or even number as length, not ~D" (length ptr))
+            (while ptr
+              (push (bdd-node (car vars) (pop ptr) (pop ptr)) bdds))
+            (push bdds rows))
+          (pop vars))
+        (cl-user::print-vals (mapcar #'length rows))
+        ;; the top row has one item, that element is the worst case bdd for the given variables
+        (bdd-view (car (car rows)))
+        (car (car rows))
+        nil))
+
+
+(defvar *bdd-6-worst-case*
+  (let* ((leafs (list *bdd-true* *bdd-false*))
+         (row-6 (let (pairs)
+                  (map-pairs (lambda (o1 o2)
+                              (push (bdd-node 'Z6 o1 o2) pairs))
+                             leafs)
+                  pairs))
+         (row-5 (let (pairs)
+                  (map-pairs (lambda (o1 o2)
+                              (push (bdd-node 'Z5 o1 o2) pairs))
+                             (append row-6 leafs))
+                  pairs))
+         ;; build 8 nodes
+         (row-4 (let (pairs)
+                  (visit-pairs (lambda (right left)
+                                 (push (bdd-node 'Z4 right left) pairs))
+                               8 row-5)
+                  pairs))
+         (row-3 (let (pairs (ptr row-4))
+                  (assert (evenp (length row-4)))
+                  (while ptr
+                    (push (bdd-node 'Z3 (pop ptr) (pop ptr)) pairs))
+                  pairs))
+         (row-2 (let (pairs (ptr row-3))
+                  (assert (evenp (length row-3)))
+                  (while ptr
+                    (push (bdd-node 'Z2 (pop ptr) (pop ptr)) pairs))
+                  pairs))
+         (row-1 (let (pairs (ptr row-2))
+                  (assert (evenp (length row-2)))
+                  (while ptr
+                    (push (bdd-node 'Z1 (pop ptr) (pop ptr)) pairs))
+                  pairs))
+         (bdd (car row-1)))
+    (bdd-view bdd)
+    (bdd-to-dnf bdd)
+    bdd))
+
+         
+         
+                    
+                      
+                        
+                    
+
+                    
+         
+
+
+ (with-open-file (stream "/Users/jnewton/newton.16.edtchs/src/bdd-distribution.ltxdat"
+                         :direction :output :if-exists :supersede)
+   (sb-ext::gc :full t)
+   (latex-measure-bdd-sizes stream '(Z1 Z2 Z3 Z4 Z5 Z6) 4000))
