@@ -450,81 +450,74 @@
         (incf size (* size (1- size)))
         (pop vars)
         (decf row-num)))
+
     ;; build the belt with exactly (expt 2 row-num) elements,
     ;; and 2* (expt 2 row-num) arrows.
     ;; so two cases, does the previous row below have enough elements
     ;; to support the arrows?
     (let* ((n row-num)
            (m (expt 2 n))
-           (p (length (car rows))))
+           (p (length (car rows)))
+           (needed m)
+           (remaining (- m (* p (1- p))))
+           bdds)
+
       (assert (<= p (* 2 m)) (row-num m p)
               "expecting to create BDD row of ~D elements with ~D connecting to less than ~D elements"
               m (* 2 m) (* 2 m))
-         
-      (cond
-        ;; Can we construct row n using ONLY the elements from row n+1?
-        ;; If  p*(p-1) <= 2^n,  then yes we can.
-        ;; p*(p-1) is the number of order pairs taken from p number of objects.
-        ((<= m (* p (1- p)))
-         (format t "case 2b ~A~%" vars)
-         (let (bdds (needed m))
-           (block create-remaining
-             (map-pairs (lambda (left right)
-                          (cond
-                            ((plusp needed)
-                             (push (bdd-node (car vars) left right) bdds)
-                             (decf needed))
-                            (t
-                             (return-from create-remaining))))
-                        (car rows)))
-           (push bdds rows)
-           (pop vars)))
-        (t
-         ;; we can constructed p(p-1) nodes, we need to construct m-(p)(p-1) additional ones,
-         ;; but can we construct the remaining required ones (how many? 2^n - (p)(p-1))
-         ;; by taking pairs of the nodes from rows n+2 and higher?
-         (format t "case 2a ~A~%" vars)
-         ;; TODO use the algorithm for case 1 but limit to (expt 2 row-num) elements
-         (let (bdds (remaining (- m (* p (1- p)))))
-           (map-pairs (lambda (left right)
-                        (push (bdd-node (car vars) left right) bdds))
-                      (car rows))
-           (assert (evenp (length bdds)) ()
-                   "expecting to have created an even number of bdds, not ~D" (length bdds))
-           (block create-remaining
-             (map-pairs (lambda (right left)
-                          (cond
-                            ((and (member left (car rows))
-                                  (member right (car rows))))
-                            ((plusp remaining)
-                             (push (bdd-node (car vars) left right) bdds)
-                             (decf remaining))
-                            (t
-                             (return-from create-remaining))))
-                        (reduce #'append rows :initial-value ())))
-           (cl-user::print-vals 'phase-2 remaining m (length bdds))
-           (assert (= (length bdds) m) (remaining)
-                   "expecting to have created ~D number of bdds, not ~D" m (length bdds))
-           (push bdds rows)
-           (pop vars)))))
+
+      (block create-links-to-n+1
+        ;; First construct as many as possible, but not too many nodes pointing to row n+1.
+        ;; This will create a maximum of p(p-1) nodes.   If p*(p-1) <= 2^n then this is
+        ;; sufficient, otherwise, remaining denotes how many additional need to be created
+        ;; in BLOCK  create-remaining.
+        (map-pairs (lambda (left right)
+                     (cond
+                       ((plusp needed)
+                        (push (bdd-node (car vars) left right) bdds)
+                        (decf needed))
+                       (t
+                        (return-from create-links-to-n+1))))
+                   (car rows)))
+      (block create-remaining
+        ;; Next we create any remaining nodes that are needed.  This has some effect
+        ;; only in the case that p*(p-1) > 2^n, which means that the previous block
+        ;; create-links-to-n+1 failed to create 2^n nodes, because row n+1 doesn't
+        ;; have enough elements.  So the strategy is to create links to as many
+        ;; of the existing nodes row n+2, n+3 ... as necessary.
+        (map-pairs (lambda (right left)
+                     (cond
+                       ((and (member left (car rows))
+                             (member right (car rows))))
+                       ((plusp remaining)
+                        (push (bdd-node (car vars) left right) bdds)
+                        (decf remaining))
+                       (t
+                        (return-from create-remaining))))
+                   (reduce #'append rows :initial-value ())))
+      (assert (= m (length bdds)) (m n p)
+              "failed to create exactly ~D=2^~D nodes for row ~d, created ~D instead"
+              m n n (length bdds))
+      (push bdds rows)
+      (pop vars))
       
-        ;; build the top
-        (while vars
-          (format t "case 3 ~A ~A~%" vars (mapcar #'length rows))
-          (let (bdds
-                (ptr (car rows)))
-            (assert (or (= 1 (length ptr))
-                        (evenp (length ptr))) (ptr)
-                        "expecting either 1 or even number as length, not ~D" (length ptr))
-            (while ptr
-              (push (bdd-node (car vars) (pop ptr) (pop ptr)) bdds))
-            (push bdds rows))
-          (pop vars))
-        (cl-user::print-vals (mapcar #'length rows))
-        ;; the top row has one item, that element is the worst case bdd for the given variables
-        (bdd-view (car (car rows)))
-        (car (car rows))
-        nil))
+    ;; build the top
+    (while vars
+      (format t "case 3 ~A ~A~%" vars (mapcar #'length rows))
+      (let (bdds
+            (ptr (car rows)))
+        (assert (or (= 1 (length ptr))
+                    (evenp (length ptr))) (ptr)
+                    "expecting either 1 or even number as length, not ~D" (length ptr))
+        (while ptr
+          (push (bdd-node (car vars) (pop ptr) (pop ptr)) bdds))
+        (push bdds rows))
+      (pop vars))
+    (cl-user::print-vals (mapcar #'length rows))
+    ;; the top row has one item, that element is the worst case bdd for the given variables
+    (bdd-view (car (car rows)))
+    (car (car rows))
+    nil))
 
 
 (defvar *bdd-6-worst-case*
