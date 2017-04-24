@@ -286,8 +286,9 @@
 (defclass Z5 () ())
 (defclass Z6 () ())
 (defclass Z7 () ())
-(defclass Z1234567 (Z1 Z2 Z3 Z4 Z5 Z6 Z7) ())
-(defclass Z7654321 (Z7 Z6 Z5 Z4 Z3 Z2 Z1) ())
+(defclass Z8 () ())
+(defclass Z12345678 (Z1 Z2 Z3 Z4 Z5 Z6 Z7 Z8) ())
+(defclass Z87654321 (Z8 Z7 Z6 Z5 Z4 Z3 Z2 Z1) ())
 
 
 (defun int-to-boolean-expression (n vars)
@@ -392,11 +393,42 @@
        (format stream "\\end{tikzpicture}~%")))))
 
 
-(defun map-pairs (f objs)
+(defun -map-pairs (f objs)
   (dolist (o1 objs)
     (dolist (o2 objs)
       (unless (eq o1 o2)
         (funcall f o1 o2)))))
+
+(defun map-pairs (f objs)
+  (let* ((size (length objs))
+         (size^2 (* size size))
+         (vec (make-array size :initial-contents objs))
+         (prim size))
+    ;; first we make sure that all the objects get 'used if possible
+    ;; by calling F with adjacent pairs first f(0 1), f(2 3), f(4 5) ...
+    (loop for i from 0 below (1- size) by 2
+          do (funcall f (svref vec i) (svref vec (1+ i))))
+    ;; then we continue by calling the missed adjacent pairs
+    ;;   f(1 2), f(3 4), f(5 6) ...
+    (loop for i from 1 below (1- size) by 2
+          do (funcall f (svref vec i) (svref vec (1+ i))))
+    ;; then we continue by calling the adjacent pairs in reverse order
+    ;;   f(1 0), f(2 1), f(3 2), f(4 3) ...
+    (loop for i from 0 below (1- size)
+          do (funcall f (svref vec (1+ i)) (svref vec i)))
+    (loop until (= 1 (gcd prim size))
+          do (incf prim))
+    (do ((n 0 (1+ n))
+         (b prim (+ b prim)))
+        ((= n size^2) nil)
+      (multiple-value-bind (q r) (truncate b size)
+        (let ((i1 (mod q size)))
+          (cond
+            ((= i1 r)) ;; don't call the function on the same index at the same time.  f(1 1)
+            ((= (1+ i1) r)) ;; skip adjacent pairs because they've been handled already above
+            ((= i1 (1+ r))) ;; skip adjacent pairs because they've been handled already above
+            (t
+             (funcall f (svref vec i1) (svref vec r)))))))))
 
 (defun bdd-row-sizes (n-vars)
   ;; n-vars is a positive integer
@@ -465,7 +497,7 @@
       (assert (<= p (* 2 m)) (row-num m p)
               "expecting to create BDD row of ~D elements with ~D connecting to less than ~D elements"
               m (* 2 m) (* 2 m))
-
+      
       (block create-links-to-n+1
         ;; First construct as many as possible, but not too many nodes pointing to row n+1.
         ;; This will create a maximum of p(p-1) nodes.   If p*(p-1) <= 2^n then this is
@@ -479,6 +511,7 @@
                        (t
                         (return-from create-links-to-n+1))))
                    (car rows)))
+
       (block create-remaining
         ;; Next we create any remaining nodes that are needed.  This has some effect
         ;; only in the case that p*(p-1) > 2^n, which means that the previous block
@@ -495,9 +528,19 @@
                        (t
                         (return-from create-remaining))))
                    (reduce #'append rows :initial-value ())))
+      
+      ;; (let ((omitted (setof next (car rows)
+      ;;                  (not (exists bdd bdds
+      ;;                         (or (eql next (bdd-left bdd))
+      ;;                             (eql next (bdd-right bdd))))))))
+      ;;   (assert (null omitted) ()
+      ;;           "calculation of row missed some ~D elements of next row" (length omitted)))
+      
       (assert (= m (length bdds)) (m n p)
               "failed to create exactly ~D=2^~D nodes for row ~d, created ~D instead"
               m n n (length bdds))
+              
+                      
       (push bdds rows)
       (pop vars))
       
@@ -513,7 +556,7 @@
           (push (bdd-node (car vars) (pop ptr) (pop ptr)) bdds))
         (push bdds rows))
       (pop vars))
-    (cl-user::print-vals (mapcar #'length rows))
+
     ;; the top row has one item, that element is the worst case bdd for the given variables
     (bdd-view (car (car rows)))
     (car (car rows))
