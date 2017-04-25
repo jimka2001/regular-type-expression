@@ -464,7 +464,7 @@
                       (apply f (reverse (list (pop ptr) (pop ptr)))))))))
 
 
-(defun bdd-make-worst-case (vars)
+(defun bdd-make-worst-case (vars &key (basename (format nil "/tmp/jnewton/graph/bdd-worst-~D" (length vars))))
   (let* ((leaves (list *bdd-true* *bdd-false*))
          (size 2)
          (row-num (1- (length vars)))
@@ -472,7 +472,6 @@
 
     ;; build up the bottom
     (while (< (* size (1- size)) (expt 2 row-num))
-      (format t "case 1 ~A~%" vars)
       (let (bdds)
         (map-pairs (lambda (o1 o2)
                      (push (bdd-node (car vars) o1 o2) bdds))
@@ -546,7 +545,6 @@
       
     ;; build the top
     (while vars
-      (format t "case 3 ~A ~A~%" vars (mapcar #'length rows))
       (let (bdds
             (ptr (car rows)))
         (assert (or (= 1 (length ptr))
@@ -558,61 +556,37 @@
       (pop vars))
 
     ;; the top row has one item, that element is the worst case bdd for the given variables
-    (bdd-view (car (car rows)))
+    (bdd-view (car (car rows)) :basename basename)
     (car (car rows))
-    nil))
+    (values 
+     (bdd-to-expr (car (car rows)))
+     (bdd-count-nodes (car (car rows))))))
+
+(defun bdd-size (n)
+  (let ((k 1))
+    (while (> (expt 2 (- n k))
+              (- (expt 2 (expt 2 k))
+                 (expt 2 (expt 2 (1- k)))))
+      (incf k))
+    (decf k)
+    (let ((t1 (1- (expt 2 (- n k))))
+          (t2 (expt 2 (expt 2 k))))
+      (list n k t1 t2 (+ t1 t2)))))
 
 
-(defvar *bdd-6-worst-case*
-  (let* ((leafs (list *bdd-true* *bdd-false*))
-         (row-6 (let (pairs)
-                  (map-pairs (lambda (o1 o2)
-                              (push (bdd-node 'Z6 o1 o2) pairs))
-                             leafs)
-                  pairs))
-         (row-5 (let (pairs)
-                  (map-pairs (lambda (o1 o2)
-                              (push (bdd-node 'Z5 o1 o2) pairs))
-                             (append row-6 leafs))
-                  pairs))
-         ;; build 8 nodes
-         (row-4 (let (pairs)
-                  (visit-pairs (lambda (right left)
-                                 (push (bdd-node 'Z4 right left) pairs))
-                               8 row-5)
-                  pairs))
-         (row-3 (let (pairs (ptr row-4))
-                  (assert (evenp (length row-4)))
-                  (while ptr
-                    (push (bdd-node 'Z3 (pop ptr) (pop ptr)) pairs))
-                  pairs))
-         (row-2 (let (pairs (ptr row-3))
-                  (assert (evenp (length row-3)))
-                  (while ptr
-                    (push (bdd-node 'Z2 (pop ptr) (pop ptr)) pairs))
-                  pairs))
-         (row-1 (let (pairs (ptr row-2))
-                  (assert (evenp (length row-2)))
-                  (while ptr
-                    (push (bdd-node 'Z1 (pop ptr) (pop ptr)) pairs))
-                  pairs))
-         (bdd (car row-1)))
-    (bdd-view bdd)
-    (bdd-to-dnf bdd)
-    bdd))
+(defun bdd-nth-row (n)
+  (let ((k 1))
+    (while (> (expt 2 (- n k))
+              (- (expt 2 (expt 2 k))
+                 (expt 2 (expt 2 (1- k)))))
+      (incf k))
+    (decf k)
+    (let ((rx (- (expt 2 (expt 2 k)) (expt 2 (expt 2 (1- k)))))
+          (ry (- (expt 2 (expt 2 (1+ k))) (expt 2 (expt 2 k)))))
+      (list k rx ry))))
+      
 
-         
-         
-                    
-                      
-                        
-                    
-
-                    
-         
-
-
- (with-open-file (stream "/Users/jnewton/newton.16.edtchs/src/bdd-distribution.ltxdat"
-                         :direction :output :if-exists :supersede)
-   (sb-ext::gc :full t)
-   (latex-measure-bdd-sizes stream '(Z1 Z2 Z3 Z4 Z5 Z6) 4000))
+ ;; (with-open-file (stream "/Users/jnewton/newton.16.edtchs/src/bdd-distribution.ltxdat"
+ ;;                         :direction :output :if-exists :supersede)
+ ;;   (sb-ext::gc :full t)
+ ;;   (latex-measure-bdd-sizes stream '(Z1 Z2 Z3 Z4 Z5 Z6) 4000))
