@@ -53,21 +53,18 @@
 
 (defun measure-bdd-size (vars num-samples)
   (let ((hash (make-hash-table))
-        (n-vars (length vars))
-        (worst-case '(0)))
+        (randomp (< num-samples (expt 2 (expt 2 (length vars))))))
+    (format t "generating ~D " num-samples)
+    (when randomp (format t "randomly chosen "))
+    (format t "BDDs of possible ~D with ~D variables ~A~%"  (expt 2 (expt 2 (length vars))) (length vars) vars)
     (dotimes (try num-samples)
       (sb-ext::gc :full t)
-      (bdd-with-new-hash (lambda (&aux (boolean-combo (random-boolean-combination vars))
+      (bdd-with-new-hash (lambda (&aux (boolean-combo (if randomp
+                                                          (random-boolean-combination vars)
+                                                          (int-to-boolean-expression try vars)))
                                     (bdd (bdd boolean-combo))
                                     (node-count (bdd-count-nodes bdd)))
-                           (when (> node-count (car worst-case))
-                             (setf worst-case (list node-count (bdd-to-dnf bdd)))
-                             (bdd-view bdd)
-                             (format t "~D worse case after ~D: ~A~%" n-vars try worst-case))
-                           (incf (gethash
-                                  node-count
-                                  hash
-                                  0)))
+                           (incf (gethash node-count hash 0)))
                          :verbose nil))
     (let (a-list sum)
       (declare (notinline sort))
@@ -76,19 +73,23 @@
                hash)
       (setf sum (reduce #'+ (cdr a-list) :initial-value (cadr (car a-list)) :key #'cadr))
       ;;
-      (mapcar (lambda (pair)
-                (declare (type (cons integer (cons integer)) pair))
-                (list (car pair)
-                      (float (/ (cadr pair) sum))
-                      ))
-              (sort a-list #'< :key #'car)))))
+      (list :sum sum
+            :num-samples num-samples
+            :randomp randomp
+            :num-vars (length vars)
+            :counts (mapcar (lambda (pair)
+                              (declare (type (cons integer (cons integer)) pair))
+                              (list (car pair)
+                                    (float (/ (cadr pair) sum))
+                                    (cadr pair)
+                                    ))
+                            (sort a-list #'< :key #'car))))))
 
 (defun measure-bdd-sizes (vars num-samples)
   (maplist (lambda (vars)
-             (list (length vars)
-                   (measure-bdd-size vars
-                                     (min (expt 2 (expt 2 (length vars)))
-                                          num-samples))))
+             (measure-bdd-size vars
+                               (min (expt 2 (expt 2 (length vars)))
+                                    num-samples)))
            vars))
 
 (defun latex-measure-bdd-sizes (stream vars num-samples)
@@ -102,15 +103,17 @@
            (data (measure-bdd-sizes vars num-samples)))
        (format stream "\\begin{tikzpicture}~%")
        (format stream "\\begin{axis}[xlabel=BDD Size, xmajorgrids, xminorgrids, ylabel=Probability, legend style={font=\\tiny}, label style={font=\\tiny}]~%")
-
-       (dolist (pair data)
-         (destructuring-bind (num-vars coordinates) pair
+       
+       (dolist (datum data)
+         (destructuring-bind (&key sum num-samples randomp num-vars counts) datum
+           (declare (ignore sum num-samples randomp))
            (push (format nil "Size with ~D variables" num-vars) legend)
            (format stream "\\addplot[color=~A] coordinates {~%"
                    (or (pop colors) "black"))
-           (dolist (xy coordinates)
+           (dolist (xy counts)
              (format stream "  (~D,~A)~%" (car xy) (cadr xy)))
            (format stream "};~%")))
+
        (format stream "\\legend{")
        (let ((first t))
          (dolist (label (reverse legend))
