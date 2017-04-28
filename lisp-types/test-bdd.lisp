@@ -291,16 +291,12 @@
 (defclass Z87654321 (Z8 Z7 Z6 Z5 Z4 Z3 Z2 Z1) ())
 
 
- ;; (with-open-file (stream "/Users/jnewton/newton.16.edtchs/src/bdd-distribution.ltxdat"
- ;;                                                   :direction :output :if-exists :supersede)
  ;;    (sb-ext::gc :full t)
- ;;    (latex-measure-bdd-sizes stream '(Z1 Z2 Z3 Z4 Z5 Z6) 4000))
+ ;;    (latex-measure-bdd-sizes "/Users/jnewton/newton.16.edtchs/src" '(Z1 Z2 Z3 Z4 Z5 Z6) 4000)
 
-(defun test-with-z1-z6 (fname num-samples)
-  (with-open-file (stream "/Users/jnewton/newton.16.edtchs/src/bdd-distribution.ltxdat"
-                                                    :direction :output :if-exists :supersede)
-     (sb-ext::gc :full t)
-    (latex-measure-bdd-sizes stream '(Z1 Z2 Z3 Z4 Z5 Z6) num-samples)))
+(defun test-with-z1-z6 (prefix num-samples)
+  (sb-ext::gc :full t)
+  (latex-measure-bdd-sizes prefix '(Z1 Z2 Z3 Z4 Z5 Z6) num-samples))
 
 ;; (test-with-z1-z6 "/Users/jnewton/newton.16.edtchs/src/bdd-distribution.ltxdat" 1000)
 
