@@ -25,15 +25,21 @@
 
 (in-package :bdd-17)
 
+(defgeneric label (node))
+(defgeneric (setf label) (new-type node))
+
+
 (defvar *node-num* 0)
+
+
+
 (defclass node ()
   ((id :type unsigned-byte :reader id :initform (incf *node-num*))
+   (label :accessor label :accessor label)
    (touches :initform nil :type list :accessor touches)
    (subsets :initform nil :type list :accessor subsets)
    (supersets :initform nil :type list :accessor supersets)))
 
-(defgeneric label (node))
-(defgeneric (setf label) (new-type node))
 (defgeneric add-node (graph node))
 (defgeneric node-and (node1 node2))
 (defgeneric node-and-not (node1 node2))
@@ -219,13 +225,7 @@
 ;; implemention of sexp based types
 
 (defclass sexp-node (node)
-  ((sexp :initarg :sexp :accessor sexp)))
-
-(defmethod label ((node sexp-node))
-  (sexp node))
-
-(defmethod (setf label) (new-type (node sexp-node))
-  (setf (sexp  node) new-type))
+  ((label :type (or list symbol))))
 
 (defmethod node-and-not ((x sexp-node) (y sexp-node))
   `(and ,(label x) (not ,(label y))))
@@ -245,26 +245,20 @@
 
 ;; implemention of bdd based types
 
-(defclass bdd-node (node)
-  ((bdd :initarg :bdd :accessor bdd :type lisp-types::bdd-node)))
+(defclass node-of-bdd (node)
+  ((label :type lisp-types::bdd-node)))
 
-(defmethod label ((node bdd-node))
-  (bdd node))
-
-(defmethod (setf label) ((new-type lisp-types::bdd-node) (node bdd-17::bdd-node))
-  (setf (bdd node) new-type))
-
-(defmethod node-and-not ((x bdd-node) (y bdd-node))
+(defmethod node-and-not ((x node-of-bdd) (y node-of-bdd))
   (lisp-types::bdd-and-not x y))
 
-(defmethod node-and ((x bdd-node) (y bdd-node))
+(defmethod node-and ((x node-of-bdd) (y node-of-bdd))
   (lisp-types::bdd-and x y))
 
 (defclass bdd-graph (graph)
   ())
 
 (defmethod add-node ((g bdd-graph) type-specifier)
-  (let ((z (make-instance 'bdd-17::sexp-node :bdd (bdd type-specifier))))
+  (let ((z (make-instance 'node-of-bdd :label (bdd type-specifier))))
     (push z
           (nodes g))
     z))
