@@ -151,8 +151,16 @@
                (destructuring-bind (&key num-vars average-size &allow-other-keys) plist
                  (format stream "(~D,~D)~%"
                          num-vars
-                         (coerce average-size 'float))))
+                         (coerce average-size 'double-float))))
              (format stream "};~%")
+             (format stream "\\addplot[color=blue] coordinates {~%")
+             (dolist (plist data)
+               (destructuring-bind (&key num-vars median &allow-other-keys) plist
+                 (format stream "(~D,~D)~%"
+                         num-vars
+                         median)))
+             (format stream "};~%")
+             (format stream "\\legend{Worst case, Average, Median}~%")
              (format stream "\\end{axis}~%")
              (format stream "\\end{tikzpicture}~%"))
            (size-plots (stream)
