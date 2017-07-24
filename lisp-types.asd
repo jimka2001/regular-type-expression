@@ -35,6 +35,6 @@
      (:file "bdd-reduce" :depends-on ("bdd"))
      (:file "bdd-graph" :depends-on ("macros" "bdd" "bdd-reduce"))
      (:file "bdd-dot" :depends-on ("bdd" "bdd-reduce"))
-     (:file "bdd-worst-case")
-     (:file "bdd-size-simulation")
+     (:file "bdd-worst-case" :depends-on ("bdd"))
+     (:file "bdd-size-simulation" :depends-on ("bdd"))
      ))))
