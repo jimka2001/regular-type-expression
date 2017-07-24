@@ -45,6 +45,8 @@
 (defgeneric node-and (node1 node2))
 (defgeneric node-and-not (node1 node2))
 (defgeneric node-subtypep (node1 node2))
+(defgeneric node-empty-type (node))
+(defgeneric node-disjoint-types-p (node1 node2))
 
 (defclass graph ()
   ((nodes :type list :accessor nodes :initarg :nodes
@@ -58,32 +60,40 @@
    (disjoint :type list :accessor disjoint
              :initform nil)))
 
-(defun bdd-decompose-by-graph-1 (u &key (graph-class 'sexp-graph))
-  (declare (type list u))
-  (let ((g (construct-graph graph-class u)))
-    (loop :while (or (blue g) (green g))
-          :do (dolist (x->y (blue g))
-                (destructuring-bind (x y) x->y
-                  (break-relaxed-subset g x y)))
-          :do (dolist (xy (green g))
-                (destructuring-bind (x y) xy
-                  (break-touching g x y))))
-    (mapcar #'label (disjoint g))))
+(defgeneric extract-disjoint (graph))
+(defgeneric decompose-graph-1 (g))
+(defgeneric decompose-graph-2 (g))
 
-(defun bdd-decompose-by-graph-2 (u &key (graph-class 'sexp-graph))
+(defmethod decompose-graph-1 ((g graph))
+  (loop :while (or (blue g) (green g))
+        :do (dolist (x->y (blue g))
+              (destructuring-bind (x y) x->y
+                (break-relaxed-subset g x y)))
+        :do (dolist (xy (green g))
+              (destructuring-bind (x y) xy
+                (break-touching g x y))))
+  (extract-disjoint g))
+
+(defun decompose-by-graph-1 (u &key (graph-class 'sexp-graph))
   (declare (type list u))
-  (let ((g (construct-graph graph-class u)))
-    (loop :while (or (blue g) (green g))
-          :do (dolist (x->y (blue g))
-                (destructuring-bind (x y) x->y
-                  (break-strict-subset g x y)))
-          :do (dolist (xy (green g))
-                (destructuring-bind (x y) xy
-                  (break-touching g x y)))
-          :do (dolist (x->y (blue g))
-                (destructuring-bind (x y) x->y
-                  (break-loop g x y))))
-    (mapcar #'label (disjoint g))))
+  (decompose-graph-1 (construct-graph graph-class u)))
+
+(defmethod decompose-graph-2 ((g graph))
+  (loop :while (or (blue g) (green g))
+        :do (dolist (x->y (blue g))
+              (destructuring-bind (x y) x->y
+                (break-strict-subset g x y)))
+        :do (dolist (xy (green g))
+              (destructuring-bind (x y) xy
+                (break-touching g x y)))
+        :do (dolist (x->y (blue g))
+              (destructuring-bind (x y) x->y
+                (break-loop g x y))))
+  (extract-disjoint g))
+
+(defun decompose-by-graph-2 (u &key (graph-class 'sexp-graph))
+  (declare (type list u))
+  (decompose-graph-2 (construct-graph graph-class u)))
 
 (defun construct-graph (graph-class u)
   (declare (type list u))
@@ -99,9 +109,9 @@
                         ((node-subtypep y x)
                          (add-blue-arrow g y x))
                         (t
-                         (multiple-value-bind (disjoint trust) (disjoint-types-p x y)
+                         (multiple-value-bind (disjoint trust) (node-disjoint-types-p x y)
                            (cond
-                             ((null trust)
+                             ((null trust) ;; maybe intersection types, not sure
                               (add-green-line g x y))
                              (disjoint
                               nil)
@@ -115,7 +125,7 @@
 (defun maybe-disjoint-node (g node)
   (declare (type graph g) (type node node))
   (cond
-    ((null (label node))
+    ((node-empty-type node)
      (setf (nodes g) (remove node (nodes g) :test #'eq)))
     ((null (or (touches node)
                (supersets node)
@@ -156,18 +166,18 @@
   (maybe-disjoint-node g x)
   (maybe-disjoint-node g y))
 
-(defun break-strict-subset (g x y)
-  (declare (type graph g) (type node x y))
-  (cond
-    ((null (member y (subsets x) :test #'eq))
+(defun break-strict-subset (g sub super)
+  (declare (type graph g) (type node sub super))
+  (cond 
+    ((null (member super (supersets sub) :test #'eq))
      nil)
-    ((subsets x)
+    ((subsets sub)
      nil)
-    ((touches x)
+    ((touches sub)
      nil)
     (t
-     (setf (label y) (node-and-not y x))
-     (delete-blue-arrow g x y)))
+     (setf (label super) (node-and-not super sub))
+     (delete-blue-arrow g sub super)))
   g)
 
 (defun break-relaxed-subset (g sub super)
@@ -236,8 +246,14 @@
 (defmethod node-and  ((x sexp-node) (y sexp-node))
   `(and ,(label x) ,(label y)))
 
+(defmethod node-empty-type ((node sexp-node))
+  (null (label node)))
+
 (defmethod node-subtypep ((x sexp-node) (y sexp-node))
   (subtypep (label x) (label y)))
+
+(defmethod node-disjoint-types-p ((x sexp-node) (y sexp-node))
+  (disjoint-types-p (label x) (label y)))
 
 (defclass sexp-graph (graph)
   ())
@@ -248,20 +264,29 @@
           (nodes g))
     z))
 
+(defmethod extract-disjoint ((g sexp-graph))
+  (mapcar #'label (disjoint g)))
 
 ;; implemention of bdd based types
 
 (defclass node-of-bdd (node)
-  ((label :type lisp-types::bdd-node)))
+  ((label :type bdd)))
 
 (defmethod node-and-not ((x node-of-bdd) (y node-of-bdd))
-  (lisp-types::bdd-and-not x y))
+  (lisp-types::bdd-and-not (label x) (label y)))
 
 (defmethod node-and ((x node-of-bdd) (y node-of-bdd))
-  (lisp-types::bdd-and x y))
+  (lisp-types::bdd-and (label x) (label y)))
+
+(defmethod node-empty-type ((node node-of-bdd))
+  (eq lisp-types::*bdd-false* (label node)))
 
 (defmethod node-subtypep ((x node-of-bdd) (y node-of-bdd))
   (lisp-types::bdd-subtypep (label x) (label y)))
+
+(defmethod node-disjoint-types-p ((x node-of-bdd) (y node-of-bdd))
+  (values (lisp-types::bdd-disjoint-types-p (label x) (label y))
+          t))
 
 (defclass bdd-graph (graph)
   ())
@@ -271,3 +296,16 @@
     (push z
           (nodes g))
     z))
+
+(defmethod extract-disjoint ((g bdd-graph))
+  (mapcar #'lisp-types::bdd-to-dnf (mapcar #'label (disjoint g))))
+
+(defmethod decompose-graph-1 ((g bdd-graph))
+  (lisp-types::bdd-with-new-hash
+   (lambda ()
+     (call-next-method))))
+
+(defmethod decompose-graph-2 ((g bdd-graph))
+  (lisp-types::bdd-with-new-hash
+   (lambda ()
+     (call-next-method))))
