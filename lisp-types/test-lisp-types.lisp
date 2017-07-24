@@ -21,7 +21,7 @@
 
 (defpackage :lisp-types.test
   (:shadowing-import-from :lisp-types "TEST" "A")
-  (:use :cl :lisp-types :lisp-unit))
+  (:use :cl :lisp-types :lisp-unit :bdd-17))
 
 (eval-when (:execute :load-toplevel :compile-toplevel)
   (defun shadow-package-symbols ()

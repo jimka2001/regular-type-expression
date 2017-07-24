@@ -28,24 +28,27 @@
 (defgeneric label (node))
 (defgeneric (setf label) (new-type node))
 
-
 (defvar *node-num* 0)
-
-
 
 (defclass node ()
   ((id :type unsigned-byte :reader id :initform (incf *node-num*))
-   (label :accessor label :accessor label)
+   (label :initarg :label :accessor label)
    (touches :initform nil :type list :accessor touches)
    (subsets :initform nil :type list :accessor subsets)
    (supersets :initform nil :type list :accessor supersets)))
 
+(defmethod print-object ((n node) stream)
+  (print-unreadable-object (n stream :type t :identity nil)
+    (format stream "~D: ~A" (id n) (label n))))
+
 (defgeneric add-node (graph node))
 (defgeneric node-and (node1 node2))
 (defgeneric node-and-not (node1 node2))
+(defgeneric node-subtypep (node1 node2))
 
 (defclass graph ()
-  ((nodes :type list :accessor nodes :initarg :nodes)
+  ((nodes :type list :accessor nodes :initarg :nodes
+          :initform nil)
    (blue :type list :accessor blue
          :initform nil
          :documentation "List of blue arrows in order (origin destination)")
@@ -55,9 +58,9 @@
    (disjoint :type list :accessor disjoint
              :initform nil)))
 
-(defun bdd-decompose-by-graph-1 (u)
+(defun bdd-decompose-by-graph-1 (u &key (graph-class 'sexp-graph))
   (declare (type list u))
-  (let ((g (construct-graph u)))
+  (let ((g (construct-graph graph-class u)))
     (loop :while (or (blue g) (green g))
           :do (dolist (x->y (blue g))
                 (destructuring-bind (x y) x->y
@@ -65,11 +68,11 @@
           :do (dolist (xy (green g))
                 (destructuring-bind (x y) xy
                   (break-touching g x y))))
-    (disjoint g)))
+    (mapcar #'label (disjoint g))))
 
-(defun bdd-decompose-by-graph-2 (u)
+(defun bdd-decompose-by-graph-2 (u &key (graph-class 'sexp-graph))
   (declare (type list u))
-  (let ((g (construct-graph u)))
+  (let ((g (construct-graph graph-class u)))
     (loop :while (or (blue g) (green g))
           :do (dolist (x->y (blue g))
                 (destructuring-bind (x y) x->y
@@ -80,9 +83,9 @@
           :do (dolist (x->y (blue g))
                 (destructuring-bind (x y) x->y
                   (break-loop g x y))))
-    (disjoint g)))
+    (mapcar #'label (disjoint g))))
 
-(defun construct-graph (graph-class u )
+(defun construct-graph (graph-class u)
   (declare (type list u))
   (let ((g (make-instance graph-class)))
     (dolist (label u)
@@ -91,9 +94,9 @@
             (let ((x (car tail)))
               (mapc (lambda (y)
                       (cond
-                        ((subtypep x y)
+                        ((node-subtypep x y)
                          (add-blue-arrow g x y))
-                        ((subtypep y x)
+                        ((node-subtypep y x)
                          (add-blue-arrow g y x))
                         (t
                          (multiple-value-bind (disjoint trust) (disjoint-types-p x y)
@@ -158,27 +161,27 @@
   (cond
     ((null (member y (subsets x) :test #'eq))
      nil)
-    ((null (subsets x))
+    ((subsets x)
      nil)
-    ((null (touches x))
+    ((touches x)
      nil)
     (t
      (setf (label y) (node-and-not y x))
      (delete-blue-arrow g x y)))
   g)
 
-(defun break-relaxed-subset (g x y)
-  (declare (type graph g) (type node x y))
-  (cond ((null (member y (supersets x) :test #'eq))
+(defun break-relaxed-subset (g sub super)
+  (declare (type graph g) (type node sub super))
+  (cond ((null (member super (supersets sub) :test #'eq))
          nil)
-        ((null (subsets x))
+        ((subsets sub)
          nil)
         (t
-         (setf (label y) (node-and-not y x))
-         (dolist (alpha (intersection (touches x) (subsets y) :test #'eq))
-           (add-green-line g alpha y)
-           (delete-blue-arrow g alpha y))
-         (delete-blue-arrow g x y)))
+         (setf (label super) (node-and-not super sub))
+         (dolist (alpha (intersection (touches sub) (subsets super) :test #'eq))
+           (add-green-line g alpha super)
+           (delete-blue-arrow g alpha super))
+         (delete-blue-arrow g sub super)))
   g)
 
 (defun break-touching (g x y)
@@ -186,9 +189,9 @@
   (cond
     ((null (member y (touches x) :test #'eq))
      nil)
-    ((null (subsets x))
+    ((subsets x)
      nil)
-    ((null (subsets y))
+    ((subsets y)
      nil)
     (t
      (let ((z (add-node g (node-and x y))))
@@ -206,9 +209,9 @@
   (cond
     ((null (member y (touches x) :test #'eq))
      nil)
-    ((null (subsets x))
+    ((subsets x)
      nil)
-    ((null (subsets y))
+    ((subsets y)
      nil)
     (t
      (let ((z (add-node g (node-and x y))))
@@ -233,11 +236,14 @@
 (defmethod node-and  ((x sexp-node) (y sexp-node))
   `(and ,(label x) ,(label y)))
 
+(defmethod node-subtypep ((x sexp-node) (y sexp-node))
+  (subtypep (label x) (label y)))
+
 (defclass sexp-graph (graph)
   ())
 
 (defmethod add-node ((g sexp-graph) type-specifier)
-  (let ((z (make-instance 'sexp-node :sexp type-specifier)))
+  (let ((z (make-instance 'sexp-node :label type-specifier)))
     (push z
           (nodes g))
     z))
@@ -253,6 +259,9 @@
 
 (defmethod node-and ((x node-of-bdd) (y node-of-bdd))
   (lisp-types::bdd-and x y))
+
+(defmethod node-subtypep ((x node-of-bdd) (y node-of-bdd))
+  (lisp-types::bdd-subtypep (label x) (label y)))
 
 (defclass bdd-graph (graph)
   ())
