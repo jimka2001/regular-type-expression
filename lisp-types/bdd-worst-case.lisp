@@ -50,7 +50,8 @@
          (vec (make-array size :initial-contents objs))
          (prim size))
     ;; first we make sure that all the objects get 'used if possible
-    ;; by calling F with adjacent pairs first f(0 1), f(2 3), f(4 5) ...
+    ;; by calling F with adjacent pairs first f(0 1), f(2 3), f(4 5)
+    ;; ...
     (loop for i from 0 below (1- size) by 2
           do (funcall f (svref vec i) (svref vec (1+ i))))
     ;; then we continue by calling the missed adjacent pairs
@@ -69,15 +70,18 @@
       (multiple-value-bind (q r) (truncate b size)
         (let ((i1 (mod q size)))
           (cond
-            ((= i1 r)) ;; don't call the function on the same index at the same time.  f(1 1)
-            ((= (1+ i1) r)) ;; skip adjacent pairs because they've been handled already above
-            ((= i1 (1+ r))) ;; skip adjacent pairs because they've been handled already above
+            ((= i1 r)) ;; don't call the function on the same index at
+                       ;; the same time.  f(1 1)
+            ((= (1+ i1) r)) ;; skip adjacent pairs because they've
+                            ;; been handled already above
+            ((= i1 (1+ r))) ;; skip adjacent pairs because they've
+                            ;; been handled already above
             (t
              (funcall f (svref vec i1) (svref vec r)))))))))
 
 (defun bdd-make-worst-case (vars &key (basename (format nil "/tmp/jnewton/graph/bdd-worst-~D" (length vars))))
   (let* ((leaves (list *bdd-true* *bdd-false*))
-         (size 2)
+         (size 2) ;; length of leaves
          (row-num (1- (length vars)))
          (rows (list leaves)))
 
@@ -109,10 +113,12 @@
               m (* 2 m) (* 2 m))
       
       (block create-links-to-n+1
-        ;; First construct as many as possible, but not too many nodes pointing to row n+1.
-        ;; This will create a maximum of p(p-1) nodes.   If p*(p-1) <= 2^n then this is
-        ;; sufficient, otherwise, remaining denotes how many additional need to be created
-        ;; in BLOCK  create-remaining.
+        ;; First construct as many as possible, but not too many nodes
+        ;; pointing to row n+1.  Assuming that row n=2 contains p
+        ;; number of nodes, this will create a maximum of p(p-1)
+        ;; nodes.  If p*(p-1) >= 2^n then this is sufficient,
+        ;; otherwise, remaining denotes how many additional need to be
+        ;; created in BLOCK create-remaining.
         (map-pairs (lambda (left right)
                      (cond
                        ((plusp needed)
@@ -123,28 +129,26 @@
                    (car rows)))
 
       (block create-remaining
-        ;; Next we create any remaining nodes that are needed.  This has some effect
-        ;; only in the case that p*(p-1) > 2^n, which means that the previous block
-        ;; create-links-to-n+1 failed to create 2^n nodes, because row n+1 doesn't
-        ;; have enough elements.  So the strategy is to create links to as many
-        ;; of the existing nodes row n+2, n+3 ... as necessary.
-        (map-pairs (lambda (right left)
+        ;; Next we create any remaining nodes that are needed.  This
+        ;; has some effect only in the case that p*(p-1) < 2^n, which
+        ;; means that the previous block create-links-to-n+1 failed to
+        ;; create 2^n nodes, because row n+1 doesn't have enough
+        ;; elements.  So the strategy is to create links to as many of
+        ;; the existing nodes row n+2, n+3 ... as necessary, skipping
+        ;; any pair which has already been created in the previous
+        ;; block.
+        (map-pairs (lambda (right left &aux (bdd (bdd-node (car vars) left right)))
                      (cond
-                       ((and (member left (car rows))
-                             (member right (car rows))))
+                       ;; if there's already a bdd in bdds pointing to
+                       ;; these two nodes, this skip this pair.  we
+                       ;; don't want duplicate nodes.
+                       ((member bdd bdds :test #'eq)) 
                        ((plusp remaining)
-                        (push (bdd-node (car vars) left right) bdds)
+                        (push bdd bdds)
                         (decf remaining))
                        (t
                         (return-from create-remaining))))
                    (reduce #'append rows :initial-value ())))
-      
-      ;; (let ((omitted (setof next (car rows)
-      ;;                  (not (exists bdd bdds
-      ;;                         (or (eql next (bdd-left bdd))
-      ;;                             (eql next (bdd-right bdd))))))))
-      ;;   (assert (null omitted) ()
-      ;;           "calculation of row missed some ~D elements of next row" (length omitted)))
       
       (assert (= m (length bdds)) (m n p)
               "failed to create exactly ~D=2^~D nodes for row ~d, created ~D instead"
