@@ -162,6 +162,7 @@
       (error "invalid type specifier: ~A" label)))
 
 (defmethod bdd ((expr list))
+  (declare (optimize (speed 3) (safety 0) (debug 3) (compilation-speed 0) (space 0)))
   (destructuring-bind (head &rest tail) expr
     (flet ((bdd-tail ()
              (mapcar #'bdd tail)))
@@ -171,12 +172,12 @@
         ((or)
          (reduce #'bdd-or (bdd-tail) :initial-value *bdd-false*))
         ((not)
-         (assert (null (cdr tail)) ()
-                 "NOT takes exactly one argument: cannot convert ~A to a BDD" expr)
+         ;; (assert (null (cdr tail)) ()
+         ;;         "NOT takes exactly one argument: cannot convert ~A to a BDD" expr)
          (bdd-and-not *bdd-true* (bdd (car tail))))
         ((and-not)
-         (assert (<= 2 (length tail)) ()
-                 "AND-NOT takes at least two arguments: cannot convert ~A to a BDD" expr)
+         ;; (assert (<= 2 (length tail)) ()
+         ;;         "AND-NOT takes at least two arguments: cannot convert ~A to a BDD" expr)
          (destructuring-bind (bdd-head &rest bdd-tail) (bdd-tail)
            (reduce #'bdd-and-not bdd-tail :initial-value bdd-head)))
         (t
