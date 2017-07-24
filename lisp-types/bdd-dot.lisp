@@ -118,9 +118,10 @@
        ;; footer
        (format stream "}~%")))))
      
-(defun bdd-view (bdd &key (reduced t) (basename (format nil "/tmp/jnewton/graph/~A" (bdd-ident bdd))))
+(defun bdd-to-png (bdd &key (reduced t) (basename (format nil "/tmp/jnewton/graph/~A" (bdd-ident bdd))))
   (let ((dot-path (format nil "~A.dot" basename))
         (png-path (format nil "~A.png" basename)))
+    (ensure-directories-exist dot-path)
     (with-open-file (stream dot-path :direction :output :if-exists :supersede)
       (bdd-to-dot bdd stream :reduced reduced))
     (format t "~A~%" png-path)
@@ -128,4 +129,9 @@
                         (list "-Tpng" dot-path
                               "-o" png-path)
                         :search t)
-    (sb-ext:run-program "open" (list png-path) :search t)))
+    png-path))
+  
+(defun bdd-view (bdd &key (reduced t) (basename (format nil "/tmp/jnewton/graph/~A" (bdd-ident bdd))))
+  (sb-ext:run-program "open" (list (bdd-to-png bdd :reduced reduced
+                                               :basename basename))
+                      :search t))
