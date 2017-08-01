@@ -312,5 +312,5 @@
 
 (define-test test/bdd-sizes
   (ensure-directories-exist "/tmp/jnewton/graph/bdd-distribution.ltxdat")
-  (test-with-z1-z6 "/tmp/jnewton/graph/bdd-distribution.ltxdat" 10 ;; 4000
+  (test-with-z1-z6 "/tmp/jnewton/graph" 10 ;; 4000
                    ))
