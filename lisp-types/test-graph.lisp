@@ -21,8 +21,16 @@
 
 (in-package :lisp-types.test)
 
-(do-symbols (name :lisp-types)
-  (shadowing-import name :lisp-types.test))
+    (let ((lisp-types-test (find-package  :lisp-types.test))
+          (lisp-types (find-package  :lisp-types)))
+      (do-symbols (name :lisp-types)
+        (when (and (eq lisp-types (symbol-package name))
+                   (not (find-symbol (symbol-name name) lisp-types-test)))
+          (format t "4 importing name=~A into  :lisp-types.test~%" name)
+          (shadowing-import name :lisp-types.test))))
+;;(shadow-package-symbols)
+;;(do-symbols (name :lisp-types)
+;;  (shadowing-import name :lisp-types.test))
 
 
 
@@ -79,6 +87,9 @@
   (assert-true (equal '(a b) (lisp-types::find-duplicates '(a b a b)))))
 
 
+
+
+
 (define-test types/graph2
   (declare (notinline set-difference))
   (let ((all-numbers (set-difference (valid-subtypes 'number)
@@ -87,6 +98,58 @@
     
     (assert-false (set-exclusive-or (decompose-types all-numbers)
                                     (decompose-types-graph all-numbers)
+                                    :test #'equivalent-types-p))))
+
+(define-test type/graph-7
+  (let ((types '( UNSIGNED-BYTE BIGNUM ARRAY-RANK RATIONAL)))
+    (assert-false (set-exclusive-or (DECOMPOSE-TYPES-GRAPH types)
+                                    (decompose-types types)
+                                    :test #'equivalent-types-p))))
+
+(define-test type/graph-6
+  (let ((types '( UNSIGNED-BYTE FLOAT BIGNUM REAL ARRAY-RANK RATIONAL)))
+    (assert-false (set-exclusive-or (DECOMPOSE-TYPES-GRAPH types)
+                                    (decompose-types types)
+                                    :test #'equivalent-types-p))))
+
+(define-test type/graph-5
+  (let ((types '(COMPLEX FLOAT-DIGITS UNSIGNED-BYTE BIGNUM ARRAY-RANK RATIONAL)))
+    (assert-false (set-exclusive-or (DECOMPOSE-TYPES-GRAPH types)
+                                    (decompose-types types)
+                                    :test #'equivalent-types-p))))
+
+(define-test type/graph-4
+  (let ((types '((OR ARRAY-RANK (AND REAL (NOT BIGNUM) (NOT FLOAT) (NOT UNSIGNED-BYTE)))
+                 (AND REAL (NOT BIGNUM) (NOT FLOAT) (NOT UNSIGNED-BYTE)))))
+    (assert-false (set-exclusive-or (DECOMPOSE-TYPES-GRAPH types)
+                                    (decompose-types types)
+                                    :test #'equivalent-types-p))))
+
+(define-test type/graph-3
+  (let ((types '(COMPLEX
+                 FLOAT
+                 FLOAT-DIGITS
+                 (AND BIGNUM (NOT UNSIGNED-BYTE))
+                 (AND BIGNUM UNSIGNED-BYTE)
+                 (AND ARRAY-RANK (NOT FLOAT-DIGITS))
+                 (AND UNSIGNED-BYTE (NOT ARRAY-RANK) (NOT BIGNUM))
+                 (AND REAL (NOT BIGNUM) (NOT FLOAT) (NOT UNSIGNED-BYTE))
+                 )))
+    (assert-false (set-exclusive-or (DECOMPOSE-TYPES-GRAPH types)
+                                    (decompose-types types)
+                                    :test #'equivalent-types-p))))
+
+(define-test type/graph-2
+  (let ((types '(COMPLEX
+                 FLOAT
+                 FLOAT-DIGITS
+                 (AND BIGNUM (NOT UNSIGNED-BYTE))
+                 (AND BIGNUM UNSIGNED-BYTE)
+                 (AND ARRAY-RANK (NOT FLOAT-DIGITS))
+                 (AND UNSIGNED-BYTE (NOT ARRAY-RANK) (NOT BIGNUM))
+                 (OR ARRAY-RANK (AND REAL (NOT BIGNUM) (NOT FLOAT) (NOT UNSIGNED-BYTE))))))
+    (assert-false (set-exclusive-or (DECOMPOSE-TYPES-GRAPH types)
+                                    (decompose-types types)
                                     :test #'equivalent-types-p))))
 
 (define-test type/graph
@@ -280,4 +343,15 @@
 				  :test #'equivalent-types-p))
   (assert-false (set-exclusive-or (decompose-types-graph '(integer fixnum number bit unsigned-byte bignum))
 				  (decompose-types '(integer fixnum number bit unsigned-byte bignum))
-				  :test #'equivalent-types-p)))
+				  :test #'equivalent-types-p))
+  (assert-false (set-exclusive-or (decompose-types-graph '(FIXNUM CHAR-CODE UNSIGNED-BYTE))
+                                  (decompose-types       '(FIXNUM CHAR-CODE UNSIGNED-BYTE))
+                                  :test #'equivalent-types-p))
+  (assert-false (set-exclusive-or (decompose-types-graph '(FIXNUM (integer 0 (1114112)) UNSIGNED-BYTE))
+                        (decompose-types       '(FIXNUM (integer 0 (1114112)) UNSIGNED-BYTE))
+                        :test #'equivalent-types-p))
+
+
+)
+
+

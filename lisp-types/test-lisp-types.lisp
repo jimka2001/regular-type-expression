@@ -23,10 +23,18 @@
   (:shadowing-import-from :lisp-types "TEST" "A")
   (:use :cl :lisp-types :lisp-unit))
 
+(eval-when (:execute :load-toplevel :compile-toplevel)
+  (defun shadow-package-symbols ()
+    (let ((lisp-types-test (find-package  :lisp-types.test))
+          (lisp-types (find-package  :lisp-types)))
+      (do-symbols (name :lisp-types)
+        (when (and (eq lisp-types (symbol-package name))
+                   (not (find-symbol (symbol-name name) lisp-types-test)))
+          (format t "5 importing name=~A into  :lisp-types.test~%" name)
+          (shadowing-import name :lisp-types.test))))))
 
-(do-symbols (name :lisp-types)
-  (format t "importing name=~A into  :lisp-types.test~%" name)
-  (shadowing-import name :lisp-types.test))
+(shadow-package-symbols)
+
 
 (in-package :lisp-types.test)
 
@@ -36,6 +44,48 @@
 	(*summarize-results* t)
 	(*print-errors* t))
     (run-tests :all (list :lisp-types.test))))
+
+(define-test type/reduce-b
+  (assert-true (equal (reduce-lisp-type '(AND ARITHMETIC-ERROR (NOT CELL-ERROR)))
+
+                      'arithmetic-error))
+    (assert-true (equal (reduce-lisp-type '(OR ARITHMETIC-ERROR (NOT CELL-ERROR)))
+
+                        '(NOT CELL-ERROR))))
+
+
+(define-test type/reduce-a
+  (assert-true (equal (reduce-lisp-type '(and (and (integer 0) (not (integer 0 3)))
+                                          (and fixnum (not (integer 0 3)))))
+                      '(and fixnum (integer 0) (not (integer 0 3)))))
+  (assert-true (equal (reduce-lisp-type '(and ARITHMETIC-ERROR CELL-ERROR))
+                      nil))
+  (assert-true (equal (reduce-lisp-type '(AND
+                          ATOM
+                          CONDITION
+                          CELL-ERROR
+                                          ARITHMETIC-ERROR))
+                      nil))
+  (assert-true (equal (reduce-lisp-type '(AND
+                                          (NOT (AND CONDITION (NOT CELL-ERROR))) ATOM
+                                           CONDITION CELL-ERROR
+                                          ARITHMETIC-ERROR))
+                      nil))
+  (assert-true (equal (reduce-lisp-type '(AND
+                                          (NOT (AND CONDITION (NOT CELL-ERROR))) ATOM
+                                           (AND CONDITION CELL-ERROR)
+                                          ARITHMETIC-ERROR))
+                      nil))
+  (assert-true (equal (reduce-lisp-type '(AND
+                                          (AND (NOT (AND CONDITION (NOT CELL-ERROR))) ATOM)
+                                           (AND CONDITION CELL-ERROR)
+                                          ARITHMETIC-ERROR))
+                      nil))
+  (assert-true (equal (reduce-lisp-type '(AND
+                                          (AND (AND (NOT (AND CONDITION (NOT CELL-ERROR))) ATOM)
+                                           (AND CONDITION CELL-ERROR))
+                                          ARITHMETIC-ERROR))
+                      nil)))
 
 (define-test type/reduce-compound
   ;; array
@@ -194,57 +244,85 @@
 								  (< (abs (- a b)) 0.01)))
 		  0.01)))
 
+(defclass AB-247 () ())
+(defclass A1-247 (AB-247) ())
+(defclass B1-247 (AB-247) ())
+(defclass AB1-247 (A1-247 B1-247) ())
+(defclass C-247 () ())
+(defclass D-247 () ())
+(defclass E-247 () ())
+(defclass :F-247 () ())
 (define-test type/reduce-lisp-type2
-  (assert-true (equal (reduce-lisp-type '(or A (and A B C D) E))
-		      '(or A E)))
-  (let ((un-interned (gensym)))
-    (assert-true (equal (reduce-lisp-type `(or (and A B) (and A B C D) E ,un-interned))
-                        `(or ,un-interned E (and A B)))))
-  (assert-true (equal (reduce-lisp-type '(or (and A B) (and A B C D) E :F))
-		      '(or :f E (and A B))))
-  (assert-true (equal (reduce-lisp-type '(or A (and (not A) B)))
-		      '(or A B)))
-  (assert-true (equal (reduce-lisp-type'(or (and (not A) B) A))
-		      '(or A B)))
-  (assert-true (equal (reduce-lisp-type '(or (not A) (and A B)))
-		      '(or B (not A))))
-  (assert-true (equal (reduce-lisp-type '(or (and A B) (not A)))
-		      '(or B (not A)))))
-		      
-(define-test type/consensus-theorem
-  (assert-true (equal (reduce-lisp-type '(or W (and A B) X
-					  Y (and (not A) C)
-					  Z (and B C)))
-		      '(or X Y W Z
-			(and A B)
-			(and C (not A)))))
-					
-  (assert-true (equal (reduce-lisp-type '(or (and A B)
-					       (and (not A) C)
-					       (and B C)))
-		      '(or (and A B)
-			(and C (not A)))))
-  (assert-true (equal (reduce-lisp-type '(or (and A B)
-					       (and B C)
-					       (and (not A) C)))
-		      '(or (and A B)
-			(and C (not A)))))
-  (assert-true (equal (reduce-lisp-type '(or (and A B)
-					       (and B C)
-					       (and C (not A))))
-		      '(or (and A B)
-			(and C (not A)))))
 
-  (assert-true (equal (reduce-lisp-type '(or (and A U V)
-					       (and V W (not A))
-					       (and V W U)))
-		      '(or (and A U V)
-			(and V W (not A)))))
-  (assert-true (equal (reduce-lisp-type '(or (and A U V)
-					       (and (not A) V W)
-					       (and U V W)))
-		      '(or (and A U V)
-			(and V W (not A))))))
+  (assert-false (sb-mop:class-direct-subclasses (find-class 'C-247)))
+  (assert-false (sb-mop:class-direct-subclasses (find-class 'D-247)))
+  (assert-false (sb-mop:class-direct-subclasses (find-class 'E-247)))
+  (assert-false (sb-mop:class-direct-subclasses (find-class ':F-247)))
+  (assert-true (intersection (sb-mop:class-direct-subclasses (find-class 'A1-247))
+                             (sb-mop:class-direct-subclasses (find-class 'B1-247))))
+  (assert-true (equivalent-types-p (reduce-lisp-type '(or A1-247 (and A1-247 B1-247 C-247 D-247) E-247))
+                                   '(or E-247 A1-247)))
+  (let ((un-interned (gensym)))
+    (assert-true (equivalent-types-p (reduce-lisp-type `(or (and A1-247 B1-247)
+                                                            (and A1-247 B1-247 C-247 D-247)
+                                                            E-247 ,un-interned))
+                                     `(or ,un-interned E-247 (and B1-247 A1-247)))))
+  (assert-true (equivalent-types-p (reduce-lisp-type '(or (and A1-247 B1-247) (and A1-247 B1-247 C-247 D-247) E-247 :F-247))
+                                   '(or :f-247 E-247 (and B1-247 A1-247))))
+  (assert-true (equivalent-types-p (reduce-lisp-type '(or A1-247 (and (not A1-247) B1-247)))
+                                   '(or B1-247 A1-247)))
+  (assert-true (equivalent-types-p (reduce-lisp-type'(or (and (not A1-247) B1-247) A1-247))
+                                   '(or B1-247 A1-247)))
+  (assert-true (equivalent-types-p (reduce-lisp-type '(or (not A1-247) (and A1-247 B1-247)))
+                                   '(or B1-247 (not A1-247))))
+  (assert-true (equivalent-types-p (reduce-lisp-type '(or (and A1-247 B1-247) (not A1-247)))
+                                   '(or B1-247 (not A1-247)))))
+
+(defclass W-282 () ())
+(defclass A-282 () ())
+(defclass B-282 () ())
+(defclass C-282 () ())
+(defclass U-282 () ())
+(defclass V-282 () ())
+(defclass X-282 () ())
+(defclass Y-282 () ())
+(defclass Z-282 () ())
+(defclass join-282 (W-282 A-282 B-282 C-282 U-282 V-282 X-282 Y-282 Z-282) ())
+(define-test type/consensus-theorem
+  (assert-true (reduce (lambda (classes class-name)
+                         (intersection classes
+                                       (sb-mop:class-direct-subclasses (find-class class-name))))
+                       '(W-282 A-282 B-282 C-282 U-282 V-282 X-282 Y-282 Z-282)
+                       :initial-value (sb-mop:class-direct-subclasses (find-class 'W-282))))
+          
+  (assert-true (equivalent-types-p (reduce-lisp-type '(or W-282 (and A-282 B-282) X-282
+                                                       Y-282 (and (not A-282) C-282)
+                                                       Z-282 (and B-282 C-282)))
+                                   '(OR X-282 Y-282 W-282 Z-282 (AND A-282 B-282) (AND C-282 (NOT A-282)))))
+					
+  (assert-true (equivalent-types-p (reduce-lisp-type '(or (and A-282 B-282)
+                                                       (and (not A-282) C-282)
+                                                       (and B-282 C-282)))
+                                   '(OR (AND A-282 B-282) (AND C-282 (NOT A-282)))))
+  (assert-true (equivalent-types-p (reduce-lisp-type '(or (and A-282 B-282)
+                                                       (and B-282 C-282)
+                                                       (and (not A-282) C-282)))
+                                   '(OR (AND A-282 B-282) (AND C-282 (NOT A-282)))))
+  (assert-true (equivalent-types-p (reduce-lisp-type '(or (and A-282 B-282)
+                                                       (and B-282 C-282)
+                                                       (and C-282 (not A-282))))
+                                   '(OR (AND A-282 B-282) (AND C-282 (NOT A-282)))))
+
+  (assert-true (equivalent-types-p (reduce-lisp-type '(or (and A-282 U-282 V-282)
+                                                       (and V-282 W-282 (not A-282))
+                                                       (and V-282 W-282 U-282)))
+                                   '(OR (AND A-282 U-282 V-282) (AND V-282 W-282 (NOT A-282)))))
+  (assert-true (member (reduce-lisp-type '(or (and A-282 U-282 V-282)
+                                           (and (not A-282) V-282 W-282)
+                                           (and U-282 V-282 W-282)))
+                       
+                       '((OR (AND A-282 U-282 V-282) (AND V-282 W-282 (NOT A-282))))
+                       :test #'equivalent-types-p)))
 
 
 (define-test type/rule-case

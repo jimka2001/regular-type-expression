@@ -82,15 +82,6 @@
 			      operands)))
   operands)
 
-(defmacro exists-tail (var list &body body)
-  (let ((name (gensym)))
-    `(block ,name
-       (mapl #'(lambda (,var)
-		 (when (progn ,@body)
-		   (return-from ,name ,var)))
-	     ,list)
-       nil)))
-
 (defvar *compound-type-specifier-names*
   '(
     (array :type dimension-spec)
@@ -137,7 +128,25 @@ to reduce a type defined by DEFTYPE.")
 repeated or contradictory type designators."
   (declare (optimize (speed 3) (compilation-speed 0))
 	   (inline sub-super reduce-absorption reduce-redundancy remove-supers remove-subs))
-  (labels ((substitute-tail (list search replace)
+  (labels ((build (op zero args)
+             (cond ((null args)
+                    zero)
+                   ((null (cdr args))
+                    (car args))
+                   (t
+                    (cons op args))))
+           (make-and (args)
+             (build 'and t args))
+           (make-or (args)
+             (build 'or nil args))
+           (make-member (args)
+             (cond ((null args)
+                    nil)
+                   ((null (cdr args))
+                    (cons 'eql args))
+                   (t
+                    (cons 'member args))))
+           (substitute-tail (list search replace)
 	     (cons (car list)
 		   (mapcar (lambda (e)
 			     (if (equal e search)
@@ -181,6 +190,7 @@ repeated or contradictory type designators."
 	     (if trailing
 		 (ldiff data trailing)
 		 data)))
+
     (cond
       ((atom type)
        type)
@@ -326,7 +336,7 @@ repeated or contradictory type designators."
        (setf type (cons (car type)
 			(remove-duplicates (cdr type) :test #'equal)))
 
-       (destructuring-bind (operator &rest operands) type
+       (destructuring-bind (operator &rest operands &aux remove-me) type
 	 (declare (type (member and or not) operator)
 		  (notinline remove-supers remove-subs reduce-absorption reduce-redundancy)
 		  (type list operands))
@@ -335,11 +345,13 @@ repeated or contradictory type designators."
 	    (setf operands (remove-supers operands)) ; (and float number) --> (and float)
 	    (while (some #'and? operands)
 					; (and (and A B) X Y) --> (and A B X Y)
-	      (setf operands (mapcan #'(lambda (operand)
-					 (if (and? operand)
-					     (copy-list (cdr operand))
-					     (list operand)))
-				     operands)))
+              ;; we remove duplicates because flattening might have created some
+              ;; duplicates
+	      (setf operands (remove-duplicates (mapcan #'(lambda (operand)
+                                                            (if (and? operand)
+                                                                (copy-list (cdr operand))
+                                                                (list operand)))
+                                                        operands) :test #'equal)))
 	    (when (member t operands)
 					; (and A t B) --> (and A B)
 	      (setf operands (remove t operands)))
@@ -354,9 +366,9 @@ repeated or contradictory type designators."
 	      ((some #'or? operands)    ; (and A (or x y) B) --> (or (and A B x) (and A B y))
 	       (let* ((match (find-if #'or? operands))
 		      (and-operands (remove match operands :test #'eq)))
-		 (cons 'or
+		 (make-or
 		       (loop :for or-operand :in (cdr match)
-			     :collect (cons 'and (cons or-operand and-operands))))))
+			     :collect (make-and (cons or-operand and-operands))))))
 	      ((some #'eql-or-member? operands)
 	       ;; (and (member a b 2 3) symbol) --> (member a b)
 	       ;; (and (member a 2) symbol) --> (eql a)
@@ -364,12 +376,7 @@ repeated or contradictory type designators."
 	       (let ((objects (remove-if-not (lambda (e)
 					       (declare (notinline typep))
 					       (typep e type)) (cdr (find-if #'eql-or-member? operands)))))
-		 (cond ((null objects)
-			nil)
-		       ((null (cdr objects))
-			(cons 'eql objects))
-		       (t
-			(cons 'member objects)))))		     
+		 (make-member objects)))		     
 	      ((< 1 (count-if #'not-eql-or-member? operands))
 	       ;; (and A B (not (member 1 2 a)) (not (member 2 3 4 b)))
 	       ;;   --> (and A B (not (member 1 2 3 4 a b)))
@@ -404,11 +411,24 @@ repeated or contradictory type designators."
 		      (substitute-tail type `(not (member ,@old-elements))
 				       `(not (eql ,@new-elements))))
 		     (t
-		      (cons 'and others))))))
-	      ((subtypep (cons 'and operands) nil)		; (and float string) --> nil
+		      (make-and others))))))
+	      ((subtypep (make-and operands) nil)		; (and float string) --> nil
 	       nil)
+              ((exists t1 operands
+                 (exists t2 operands
+                   (and (not (eq t1 t2))
+                        (disjoint-types-p t1 t2))))
+               nil)
+              ;; (AND ARITHMETIC-ERROR (NOT CELL-ERROR))) --> ARITHMETIC-ERROR
+              ((exists t1 operands
+                 (exists t2 operands
+                   (and (setq remove-me t2)
+                        (not (eq t1 t2))
+                        (smarter-subtypep t1 t2))))
+               ;; we have already removed duplicates (EQUAL) so removing supertypes is safe
+               (make-and (remove remove-me operands :test #'equal)))
 	      (t
-	       (cons 'and operands))))
+	       (make-and operands))))
 	   ((or)					  ; REDUCE OR
 	    (setf operands (remove-subs operands)) ; (or float number) --> (or number)
 	    (setf operands (reduce-absorption operands))
@@ -449,11 +469,12 @@ repeated or contradictory type designators."
 		(loop :while (setf consensus-term (find-consensus-term))
 		      :do (setf operands (remove consensus-term operands :test #'equal)))))
 	    (while (some #'or? operands) ; (or A (or U V) (or X Y) B C) --> (or A U V X Y B C)
-	      (setf operands (mapcan #'(lambda (operand)
-					 (if (or? operand)
-					     (copy-list (cdr operand))
-					     (list operand)))
-				     operands)))
+	      (setf operands (remove-duplicates (mapcan #'(lambda (operand)
+                                                            (if (or? operand)
+                                                                (copy-list (cdr operand))
+                                                                (list operand)))
+                                                        operands)
+                                                :test #'equal)))
 	    (rule-case type
 	      ((null operands)		; (or) --> nil
 	       nil)
@@ -462,12 +483,12 @@ repeated or contradictory type designators."
 	      ((member t operands)	; (or A t B) --> t
 	       t)
 	      ((member nil operands)	; (or A nil B) --> (or A B)
-	       (cons 'or (remove nil operands)))
+	       (make-or (remove nil operands)))
 	      ((< 1 (count-if #'eql-or-member? operands))
 	       ;; (or string (member 1 2 3) (eql 4) (member 2 5 6))
 	       ;;  --> (or string (member 1 2 3 4 5 6))
 	       (multiple-value-bind (matches other) (partition-by-predicate #'eql-or-member? operands)
-		 (cons 'or (cons (cons 'member (mapcan (lambda (match)
+		 (make-or (cons (make-member (mapcan (lambda (match)
 							 (copy-list (cdr match))) matches))
 				 other))))
 	      ((and (some #'eql-or-member? operands)
@@ -502,10 +523,17 @@ repeated or contradictory type designators."
 						 `(not ,op)))
 					   operands)))
 		 (reduce-lisp-type-once `(not (and ,@new-operands)))))
-	      ((subtypep t (cons 'or operands))	        ; (or number (not number)) --> t
+	      ((subtypep t (make-or operands))	        ; (or number (not number)) --> t
 	       t)
+              ((exists t1 operands
+                 (exists t2 operands
+                   (and (setq remove-me t1)
+                        (not (eq t1 t2))
+                        (smarter-subtypep t1 t2))))
+               ;; we have already removed duplicates (EQUAL) so removing subtypes is safe
+               (make-or (remove remove-me operands :test #'equal)))
 	      (t
-	       (cons 'or operands))))
+	       (make-or operands))))
 	   ((not)
 	    (assert (null (cdr operands)) nil "invalid type ~A, not requires exactly one operand" type)
 	    (cond ((equal '(nil) operands) ; (not nil) --> t
@@ -518,12 +546,12 @@ repeated or contradictory type designators."
 		   (cadr (car operands)))
 		  ((or? (car operands)) ; (not (or A B C)) --> (and (not A) (not B) (not C))
 		   (pattern-bind ((_ &rest args)) operands
-				 (cons 'and
+				 (make-and
 				       (loop :for operand :in args
 					     :collect `(not ,operand)))))
 		  ((and? (car operands)) ; (not (and A B C)) --> (or (not A) (not B) (not C))
 		   (pattern-bind ((_ &rest args)) operands
-				 (cons 'or
+				 (make-or
 				       (loop :for operand :in args
 					     :collect `(not ,operand)))))
 		  (t
@@ -541,3 +569,23 @@ be even simpler in cases such as (OR A B), or (AND A B).  A few restrictions app
   (alphabetize-type
    (fixed-point #'reduce-lisp-type-once
 		type :test #'equal)))
+
+(defun derive-constraints (types)
+  (loop for tail on types
+        nconc (loop for t2 in (cdr tail)
+                 with t1 = (car tail)
+                 when (subtypep t1 t2)
+                   collect (list :subtype t1 t2)
+                 when (subtypep t2 t1)
+                   collect (list :subtype t2 t1)
+                 when (and (subtypep t1 t2)
+                           (subtypep t2 t1))
+                   collect (list :equal t1 t2)
+                 when (null (nth-value 1 (subtypep t1 t2)))
+                   collect (list :unknown-subtype t1 t2)
+                 when (null (nth-value 1 (subtypep t2 t1)))
+                   collect (list :unknown-subtype t2 t1)
+                 when (subtypep `(and ,t1 t2) nil)
+                   collect (list :disjoint t1 t2)
+                 when (null (nth-value 1 (subtypep `(and ,t1 t2) nil)))
+                   collect (list :unknown-disjoint t1 t2))))

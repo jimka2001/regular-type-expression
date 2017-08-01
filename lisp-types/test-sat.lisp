@@ -21,8 +21,24 @@
 
 (in-package :lisp-types.test)
 
-(do-symbols (name :lisp-types)
-  (shadowing-import name :lisp-types.test))
+(let ((lisp-types-test (find-package  :lisp-types.test))
+      (lisp-types (find-package  :lisp-types)))
+  (do-symbols (name :lisp-types)
+    (when (and (eq lisp-types (symbol-package name))
+               (not (find-symbol (symbol-name name) lisp-types-test)))
+      (format t "7 importing name=~A into  :lisp-types.test~%" name)
+      (shadowing-import name :lisp-types.test))))
+
+
+;;(shadow-package-symbols)
+;; (let ((lisp-types (find-package  :lisp-types)))
+;;   (do-symbols (name :lisp-types)
+;;     (when (eq lisp-types (symbol-package name))
+;;       (format t "importing name=~A into  :lisp-types.test~%" name)
+;;       (shadowing-import name :lisp-types.test))))
+
+;;(do-symbols (name :lisp-types)
+;;  (shadowing-import name :lisp-types.test))
 
 
 
@@ -118,7 +134,7 @@
                            double-float ;; long-float
                            ;;short-float signed-byte single-float
                            unsigned-byte)))
-    (types/cmp-perf numerical-types)))
+    (types/cmp-perf :types numerical-types)))
                          
 
 (defun types/cmp-perf-sat ()

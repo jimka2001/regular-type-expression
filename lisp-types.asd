@@ -20,16 +20,22 @@
 ;; WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 (asdf:defsystem :lisp-types
-  :depends-on ()
+  :depends-on (:dispatch)
   :components
   ((:module "lisp-types"
     :components
-    ((:file "lisp-types")
-     (:file "reduce" :depends-on ("lisp-types"))
+    ((:file "macros")
+     (:file "lisp-types" :depends-on ("macros"))
+     (:file "reduce" :depends-on ("macros" "lisp-types"))
      (:file "decompose" :depends-on ("reduce"))
-     (:file "sat" :depends-on ("lisp-types"))
+     (:file "sat" :depends-on ("macros" "lisp-types"))
      (:file "typecase" :depends-on ("lisp-types"))
-     (:file "graph" :depends-on ("lisp-types"))
-     (:file "bdd" :depends-on ("lisp-types"))
-     (:file "bdd-graph" :depends-on ("bdd"))
+     (:file "graph" :depends-on ("macros" "lisp-types"))
+     (:file "bdd" :depends-on ("macros" "lisp-types"))
+     (:file "bdd-reduce" :depends-on ("bdd"))
+     (:file "bdd-graph" :depends-on ("macros" "bdd" "bdd-reduce"))
+     (:file "bdd-dot" :depends-on ("bdd" "bdd-reduce"))
+     (:file "bdd-worst-case" :depends-on ("bdd"))
+     (:file "bdd-size-simulation" :depends-on ("bdd"))
+     (:file "bdd-reduce-17" :depends-on ("bdd"))
      ))))

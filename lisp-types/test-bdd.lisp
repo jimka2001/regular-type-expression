@@ -21,8 +21,17 @@
 
 (in-package :lisp-types.test)
 
-(do-symbols (name :lisp-types)
-  (shadowing-import name :lisp-types.test))
+(let ((lisp-types-test (find-package  :lisp-types.test))
+      (lisp-types (find-package  :lisp-types)))
+  (do-symbols (name :lisp-types)
+    (when (and (eq lisp-types (symbol-package name))
+               (not (find-symbol (symbol-name name) lisp-types-test)))
+      (format t "3 importing name=~A into  :lisp-types.test~%" name)
+      (shadowing-import name :lisp-types.test))))
+
+;(shadow-package-symbols)
+;;(do-symbols (name :lisp-types)
+;;  (shadowing-import name :lisp-types.test))
 
 
 (define-test test/bdd-to-dnf
@@ -51,6 +60,20 @@
 (define-test test/certain-reductions
   (assert-true (bdd '(or (and integer (not string)) (and string (not integer)))))
   (assert-false (bdd-to-dnf (bdd-and-not (bdd 'integer) (bdd 'number)))))
+
+
+(define-test type/bdd-sample-a
+  (let ((types '((member 1 2) (member 2 3) (member 1 2 3 4))))
+    (assert-false (set-exclusive-or (bdd-decompose-types types)
+                                    (decompose-types types)
+                                       :test #'equivalent-types-p)))
+  (assert-false (set-exclusive-or (bdd-decompose-types '(UNSIGNED-BYTE FIXNUM RATIONAL))
+                                  (decompose-types     '(UNSIGNED-BYTE FIXNUM RATIONAL))
+                                  :test #'equivalent-types-p))
+
+  (assert-false (set-exclusive-or (bdd-decompose-types '(unsigned-byte bit fixnum rational number float))
+                                  (decompose-types     '(unsigned-byte bit fixnum rational number float))
+                                  :test #'equivalent-types-p)))
 
 (define-test type/3-types
   (let ((decomp (bdd-decompose-types '(CHAR-CODE DOUBLE-FLOAT UNSIGNED-BYTE))))
@@ -133,17 +156,21 @@
                  :do (progn (test1 testing-types)
                             (push (pop all-types) testing-types)))))))))
 
-(defclass A () ())
-(defclass B () ())
-(defclass C () ())
-(defclass D () ())
-(defclass E () ())
-(defclass F () ())
-(defclass G () ())
+(defclass A-150 () ())
+(defclass B-151 () ())
+
+(define-test type/reduce-c
+  (assert-false (sb-mop:class-direct-subclasses (find-class 'a-150)))
+  (assert-false (sb-mop:class-direct-subclasses (find-class 'b-151)))
+  (assert-true (equal (reduce-lisp-type '(OR (NOT A-150) B-151))
+                      '(not a-150))))
 
 (deftype non-number () `(not number))
 (deftype non-integer () `(not integer))
 (define-test type/bdd-reduce
+  (bdd-with-new-hash
+   (lambda ()
+
   ;; there are six cases to test
 
   ;; 1) disjoint on left
@@ -189,14 +216,19 @@
                        (bdd-node 'non-integer
                                  nil
                                  (bdd-node 'number t nil)))
-                      '(non-integer nil t))))
+                      '(non-integer nil t))))))
 
 (define-test test/bdd-numbers
-  (assert-true (bdd-type-equal
-                (types/cmp-perfs :limit 15 :decompose   #'lisp-types::bdd-decompose-types :types (valid-subtypes 'number)))))
+  (bdd-with-new-hash
+   (lambda ()
+
+  (assert-true (types/cmp-perfs :limit 15 :decompose 'lisp-types::bdd-decompose-types :types (valid-subtypes 'number))))))
 
 
 (define-test test/bdd-cmp
+  (bdd-with-new-hash
+   (lambda ()
+
   ;; =
   (assert-true (eq '= (bdd-cmp 'a 'a)))
   (assert-true (eq '= (bdd-cmp "a" "a")))
@@ -229,7 +261,56 @@
   (assert-true (eq '> (bdd-cmp 'null 'cons)))
   (assert-true (eq '> (bdd-cmp '(a) nil)))
   (assert-true (eq '> (bdd-cmp 1/2 1/3)))
-  )
-
-  
+  )  ))
                    
+(define-test test/bdd-type-p
+  (bdd-with-new-hash
+   (lambda ()
+     (assert-false (bdd-type-p  t (bdd '(or (and sequence (not array))
+                                         number
+                                         (and (not sequence) array)))))
+     (assert-true (bdd-type-p  3 (bdd '(or (and sequence (not array))
+                                        number
+                                        (and (not sequence) array))))))))
+
+
+(define-test test/bdd-dnf
+  (bdd-with-new-hash
+   (lambda ()
+     (assert-true (member 'number (bdd-to-dnf (bdd '(or (and sequence (not array))
+                                                     number
+                                                     (and (not sequence) array))))))
+     (assert-false (member '(and number) (bdd-to-dnf (bdd '(or (and sequence (not array))
+                                                            number
+                                                            (and (not sequence) array)))) :test #'equal)))))
+
+(defclass Z1 () ())
+(defclass Z2 () ())
+(defclass Z3 () ())
+(defclass Z4 () ())
+(defclass Z5 () ())
+(defclass Z6 () ())
+(defclass Z7 () ())
+(defclass Z8 () ())
+(defclass Z12345678 (Z1 Z2 Z3 Z4 Z5 Z6 Z7 Z8) ())
+(defclass Z87654321 (Z8 Z7 Z6 Z5 Z4 Z3 Z2 Z1) ())
+
+
+ ;;    (sb-ext::gc :full t)
+ ;;    (latex-measure-bdd-sizes "/Users/jnewton/newton.16.edtchs/src" '(Z1 Z2 Z3 Z4 Z5 Z6) 4000)
+
+(defun test-with-z1-z6 (prefix num-samples)
+  (sb-ext::gc :full t)
+  (latex-measure-bdd-sizes prefix '(Z1 Z2 Z3 Z4 Z5 Z6) num-samples :min 1 :max 6))
+
+(defun test-with-z7-z8 (prefix num-samples)
+  (sb-ext::gc :full t)
+  (latex-measure-bdd-sizes prefix '(Z1 Z2 Z3 Z4 Z5 Z6 Z7 Z8) num-samples :min 7 :max 8))
+
+;; (test-with-z1-z6 "/Users/jnewton/newton.16.edtchs/src/bdd-distribution.ltxdat" 1000)
+
+
+(define-test test/bdd-sizes
+  (ensure-directories-exist "/tmp/jnewton/graph/bdd-distribution.ltxdat")
+  (test-with-z1-z6 "/tmp/jnewton/graph" 10 ;; 4000
+                   ))

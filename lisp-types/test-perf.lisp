@@ -21,306 +21,19 @@
 
 (in-package :lisp-types.test)
 
-(do-symbols (name :lisp-types)
-  (shadowing-import name :lisp-types.test))
 
-(defvar *cl-types* '(
-                     arithmetic-error                  function            simple-condition           
-                     array                             generic-function    simple-error               
-                     atom                              hash-table          simple-string              
-                     base-char                         integer             simple-type-error          
-                     base-string                       keyword             simple-vector              
-                     bignum                            list                simple-warning             
-                     bit                               logical-pathname    single-float               
-                     bit-vector                        long-float          standard-char              
-                     broadcast-stream                  method              standard-class             
-                     built-in-class                    method-combination  standard-generic-function  
-                     cell-error                        nil                 standard-method            
-                     character                         null                standard-object            
-                     class                             number              storage-condition          
-                     compiled-function                 package             stream                     
-                     complex                           package-error       stream-error               
-                     concatenated-stream               parse-error         string                     
-                     condition                         pathname            string-stream              
-                     cons                              print-not-readable  structure-class            
-                     control-error                     program-error       structure-object           
-                     division-by-zero                  random-state        style-warning              
-                     double-float                      ratio               symbol                     
-                     echo-stream                       rational            synonym-stream             
-                     end-of-file                       reader-error        t                          
-                     error                             readtable           two-way-stream             
-                     extended-char                     real                type-error                 
-                     file-error                        restart             unbound-slot               
-                     file-stream                       sequence            unbound-variable           
-                     fixnum                            serious-condition   undefined-function         
-                     float                             short-float         unsigned-byte              
-                     floating-point-inexact            signed-byte         vector                     
-                     floating-point-invalid-operation  simple-array        warning                    
-                     floating-point-overflow           simple-base-string                             
-                     floating-point-underflow          simple-bit-vector    ))
+    (let ((lisp-types-test (find-package  :lisp-types.test))
+          (lisp-types (find-package  :lisp-types)))
+      (do-symbols (name :lisp-types)
+        (when (and (eq lisp-types (symbol-package name))
+                   (not (find-symbol (symbol-name name) lisp-types-test)))
+          (format t "6 importing name=~A into  :lisp-types.test~%" name)
+          (shadowing-import name :lisp-types.test))))
 
-(defvar *cl-type-combos*
-  (loop for types on *cl-types*
-        nconc (loop for t2 in (cdr types)
-                 with t1 = (car types)
-                 nconc (list t1 `(and ,t1 ,t2) `(or ,t1, t2)))))
+;;(shadow-package-symbols)
+;;(do-symbols (name :lisp-types)
+;;  (shadowing-import name :lisp-types.test))
 
-(defun call-with-timeout (time-out thunk)
-  (let (th-worker th-observer th-worker-join-failed th-observer-join-failed th-worker-destroyed-observer time-it-error result1 result2 (start-time (get-internal-real-time)))
-    (flet ((time-it ()
-             (handler-bind ((error (lambda (e)
-                                     ;; this handler explicitly declines to handle the error
-                                     ;; thus the variable TIME-IT-ERROR will be set as a side
-                                     ;; effect, and th-observer will be destroyed, and the system will
-                                     ;; continue to search for another handler, probably the
-                                     ;; debugger.
-                                     (setf time-it-error e)
-                                     (when th-observer
-                                       (warn "killing thread ~A because of error ~A" th-observer e)
-                                       (ignore-errors (bordeaux-threads:destroy-thread th-observer))))))
-               (let* ((t1 (get-internal-run-time))
-                      (s2 (funcall thunk))
-                      (t2 (get-internal-run-time)))
-                 (setf result1
-                       (list :time (/ (- t2 t1) internal-time-units-per-second)
-                             :value s2))
-                 (when th-observer
-                   (setf th-worker-destroyed-observer
-                         (bordeaux-threads:destroy-thread th-observer)))))))
-      (cond
-        (time-out
-         (setf th-observer
-               (bordeaux-threads:make-thread
-                (lambda (&aux elapsed)
-                  (block waiting
-                    (dotimes (i time-out)
-                      (when (plusp (setf elapsed (/ (- (get-internal-real-time) start-time) internal-time-units-per-second)))
-                        ;; (format t "~A ~D waited ~F seconds~%" th-observer i elapsed)
-                        ;; (finish-output t)
-                        (when (> elapsed time-out)
-                          (return-from waiting)))
-                      (sleep 2)))
-                  (setf result2 (list :time-out time-out))
-                  (format t "killing thread ~A~%" th-worker)
-                  (bordeaux-threads:destroy-thread th-worker))
-                :name "th-observer stop-watch"))
-         (setf th-worker (bordeaux-threads:make-thread #'time-it :name "th-worker handle thunk"))
-         (handler-case (bordeaux-threads:join-thread th-worker)
-           (SB-THREAD:JOIN-THREAD-ERROR (e)
-             (setf th-worker-join-failed e)
-             nil))
-         (handler-case (bordeaux-threads:join-thread th-observer)
-           (SB-THREAD:JOIN-THREAD-ERROR (e)
-             (setf th-observer-join-failed e)
-             nil)))
-      (t
-       (time-it))))
-    (assert (typep (or result1 result2) 'cons)
-            (th-worker th-observer th-worker-destroyed-observer time-it-error th-worker-join-failed th-observer-join-failed result1 result2 time-out))
-    (the cons (or result1 result2))))
-
-(defvar *perf-results* nil)
-(defun types/cmp-perf (&key types sample (decompose 'bdd-decompose-types) (time-out 15) &aux (f (symbol-function decompose)))
-  (setf types (remove nil types))
-  (cond
-    ((null types)
-     nil)
-    ((exists plist *perf-results*
-       (and (eq decompose (getf plist :decompose))
-            (equal types (getf plist :types))))
-     (format t "skipping duplicate ~A ~A~%" decompose types)
-     nil)
-    (t
-     (sb-ext:gc :full t)
-     (let ((result (call-with-timeout time-out
-                                      (lambda ()
-                                        (funcall f types)))))
-       (assert (or (typep (getf result :time) 'number )
-                   (getf result :time-out)) (result))
-       (destructuring-bind (&key time-out time value) result
-         (push
-          (cond
-            (time-out
-             (list :given (length types)
-                   :types types
-                   :sample sample
-                   :decompose decompose
-                   :time (/ time-out 1.0)
-                   :time-out time-out))
-            (t
-             (list :given (length types)
-                   :types types
-                   :sample sample
-                   :decompose decompose
-                   :time (/ time 1.0)
-                   :calculated (length value)
-                   :value value
-)))
-          *perf-results*))
-       (car *perf-results*)))))
-
-(defun get-all-types ()
-  (set-difference (valid-subtypes t) '(t nil class built-in-class )))
-
-
-(defun valid-subtypes (super)
-  (let (all-types)
-    (do-external-symbols (sym :cl)
-      (when (and (valid-type-p sym)
-                 (subtypep sym super))
-	(push sym all-types)))
-    all-types))
-
-
-(defvar *decomposition-functions*
-  '(decompose-types
-    decompose-types-sat
-    decompose-types-graph
-    bdd-decompose-types
-    decompose-types-bdd-graph))
-
-(defun compare/results (all-results &aux (good-results (setof res all-results
-                                                         (and res
-                                                              (null (getf res :time-out)))))
-                                      (good-decomp (mapcar (lambda (plist) (getf plist :decompose)) good-results)))
-  ;; results is a list of plists
-  ;; each plist has one of two forms
-  ;;  keys: (:types :given :sample :decompose :time-out)
-  ;;        or
-  ;;        (:types :given :calculated :decompose :sample :value :time)
-  ;;   :value designates a list of calculated types according to the algorithm :decompose
-  ;;   This function compare/results assures that the list of types is the same for each algorithm
-  ;;   Ignoring ones which timed out, i.e., :time-out exists in the plist.
-  ;;  If a difference is found, an attempt is made to find a smaller input list which also results
-  ;;  in different types being calculated
-  (labels ((equiv-type-sets (set1 set2)
-             (and (= (length set1) (length set2))
-                  (bdd-with-new-hash
-                   (lambda () (or (null (set-exclusive-or set1 set2 :test #'%equal))
-                                  (let ((bdd-set1 (bdd `(or ,@set1)))
-                                        (bdd-set2 (bdd `(or ,@set2))))
-                                  (and (eq *bdd-false* (bdd-and-not bdd-set1 bdd-set2))
-                                       (eq *bdd-false* (bdd-and-not bdd-set2 bdd-set1)))))))))
-           (%equal (t1 t2)
-             (or (bdd-type-equal (bdd t1) (bdd t2))
-                 (equivalent-types-p t1 t2)))
-           (compare (res1 res2)
-             (cond ((equiv-type-sets (getf res1 :value) (getf res2 :value)))
-                   (t
-                    (find-small-difference res1 res2))))
-           (touching-pairs (types)
-             (loop for tail on types
-                   nconc (loop for type2 in (cdr types)
-                               with type1 = (car types)
-                               if (not (subtypep `(and ,type1 ,type2) nil))
-                                 collect (list type1 type2))))
-           (find-small-difference (res1 res2)
-             (let ((*package* (find-package "KEYWORD")))
-               (format t "found difference given=~D ~A=~D ~A=~D~%"
-                       (length (getf res1 :types))
-                       (getf res1 :decompose)
-                       (length (getf res1 :value))
-                       (getf res2 :decompose)
-                       (length (getf res2 :value)))
-               (let* ((smaller (find-smaller (getf res1 :types) (getf res1 :decompose) (getf res2 :decompose)))
-                      (v1 (funcall (getf res1 :decompose) smaller))
-                      (v2 (funcall (getf res2 :decompose) smaller))
-                      (o1 (touching-pairs v1))
-                      (o2 (touching-pairs v2))
-                      (v1-v2 (bdd-and-not (bdd `(or ,@v1)) (bdd `(or ,@v2))))
-                      (v2-v1 (bdd-and-not (bdd `(or ,@v2)) (bdd `(or ,@v2)))))
-
-                 (dolist (pair o1)
-                   (warn "~A touching pair: ~A~%" (getf res1 :decompose) pair))
-                 (dolist (pair o2)
-                   (warn "~A touching pairs: ~A~%" (getf res2 :decompose) pair))
-
-                 (let ((msg (format nil "given=~A calculated~%   ~A=[~D]~A~%   vs ~A=[~D]~A~%  a\\b=~A~%  b\\a=~A~%   common=~A~%  a-b=~A~%  b-a=~A"
-                                    smaller
-                                    (getf res1 :decompose) (length v1) v1 
-                                    (getf res2 :decompose) (length v2) v2
-                                    (set-difference v1 v2 :test #'%equal)
-                                    (set-difference v2 v1 :test #'%equal)
-                                    (intersection v1 v2 :test #'%equal)
-                                    v1-v2
-                                    v2-v1)))
-                   (warn msg)
-                   (error msg)))))
-           (find-smaller (given f1 f2 &aux v1 v2)
-             (format t "searching for smaller error than ~S~%" given)
-             (let ((ts (exists t1 given
-                         (not (equiv-type-sets (setf v1 (funcall f1 (remove t1 given)))
-                                               (setf v2 (funcall f2 (remove t1 given))))))))
-               (cond
-                 (ts
-                  (format t "   found smaller difference given=~D~%" (1- (length given)))
-                  (find-smaller (remove (car ts) given) f1 f2))
-                 (t
-                  given))))
-           (check-1 (given-types calculated-types decompose-function)
-             (when given-types
-               (loop :for types :on calculated-types
-                     :do (loop :for t2 :in (cdr types)
-                               :with t1 = (car types)
-                               :with bdd1 = (bdd (car types))
-                               :do (let ((*package* (find-package "KEYWORD"))
-                                         (bdd2 (bdd t2)))
-                                     (unless (bdd-disjoint-types-p bdd1 bdd2)
-                                       (dolist (type given-types)
-                                         (let ((fewer (remove type given-types :test #'eq)))
-                                           (check-1 fewer
-                                                    (funcall decompose-function fewer)
-                                                    decompose-function)))
-                                       (error "Calculated touching types: ~S touches ~S~%Given types ~S~%Calculated: ~S~% Decomp ~S"
-                                              t1 t2 given-types calculated-types good-decomp)))))
-               (let* ((bdd-given (bdd `(or ,@given-types)))
-                      (bdd-calc  (bdd `(or ,@calculated-types))))
-                 (let ((*package* (find-package "KEYWORD")))
-                   (unless (bdd-type-equal bdd-given bdd-calc)
-                     (warn "found problem with ~S" given-types)
-                     (dolist (type given-types)
-                       (let ((fewer (remove type given-types)))
-                         (warn "  checking with ~S" fewer)
-                         (check-1 fewer (funcall decompose-function fewer) decompose-function)))
-                     (error "Calculated types not equivalent to given types~% given: ~S~% calculated: ~S~% decompose: ~S~% calculated - given: ~S~% given - calculated: ~S"
-                            given-types
-                            calculated-types
-                            decompose-function
-                            (bdd-to-dnf (bdd-and-not bdd-calc bdd-given))
-                            (bdd-to-dnf (bdd-and-not bdd-given bdd-calc)))))))))
-    (when good-results
-      (let ((res1 (car good-results)))
-        (bdd-with-new-hash
-         (lambda ()
-           (check-1 (getf res1 :types) (getf res1 :value) (getf res1 :decompose)))))
-      
-      (dolist (res (cdr good-results))
-        (compare (car good-results) res)))))
-
-(defun types/cmp-perfs (&rest args &key (file-name "/dev/null") (types (valid-subtypes 'number)) (limit 15) (time-out nil) tag sample (decompose *decomposition-functions*))
-  (let ((*package* (find-package "KEYWORD")))
-    (cond
-      ((null types))
-      ((> (length types) limit)
-       (apply #'types/cmp-perfs :types (cdr types) args))
-      (types
-       (apply #'types/cmp-perfs :types (cdr types) args)
-       (let (results)
-         (dolist (f (if (listp decompose)
-                        decompose
-                        (list decompose)))
-           (when (or (not (eq f 'decompose-types))
-                     (> 10 (length types)))
-             (format t "function:  ~A~%" f)
-             (format t "   tag:    ~A~%" tag)
-             (format t "   limit:  ~D~%" (min limit (length types)))
-             (format t "   sample: ~S~%" sample)
-             (push (types/cmp-perf :types types :decompose f :sample sample :time-out time-out)
-                   results)
-             (print-latex file-name
-                          :time-out time-out)))
-         ;;(compare/results results)
-         )))))
 
 (define-test disjoint-cmp-1
   (setf *perf-results* nil)
@@ -338,7 +51,8 @@
                             sb-pcl::SPECIALIZER
                             sb-pcl::EQL-SPECIALIZER
                             sb-pcl::DIRECT-SLOT-DEFINITION
-                            sb-pcl::SLOT-DEFINITION)))
+                            sb-pcl::SLOT-DEFINITION)
+                   :time-out 5))
 
 (define-test disjoint-cmp-3
   (setf *perf-results* nil)
@@ -357,7 +71,8 @@
                             SB-MOP:STANDARD-ACCESSOR-METHOD
                             SB-MOP:STANDARD-READER-METHOD
                             SB-MOP:FUNCALLABLE-STANDARD-CLASS
-                            SB-MOP:FUNCALLABLE-STANDARD-OBJECT)))
+                            SB-MOP:FUNCALLABLE-STANDARD-OBJECT)
+                   :time-out 8))
 
 (define-test disjoint-cmp-5
   (setf *perf-results* nil)
@@ -484,176 +199,171 @@
 
 (define-test disjoint-cmp-h
   (setf *perf-results* nil)
-  (types/cmp-perfs :types '((COMMON-LISP:EQL 3)
-                                  (COMMON-LISP:MEMBER 1 2 3)
-                                  (COMMON-LISP:MEMBER 0 2) COMMON-LISP:NULL
-                                  (COMMON-LISP:MEMBER 0 2 3)
-                                  (COMMON-LISP:MEMBER 0 1 2 3))))
+  (types/cmp-perfs :limit 5
+                   :types '((COMMON-LISP:EQL 3)
+                            (COMMON-LISP:MEMBER 1 2 3)
+                            (COMMON-LISP:MEMBER 0 2) COMMON-LISP:NULL
+                            (COMMON-LISP:MEMBER 0 2 3)
+                            (COMMON-LISP:MEMBER 0 1 2 3))))
 
 (define-test disjoint-cmp-i
   (setf *perf-results* nil)
-  (types/cmp-perfs :types '(STRING STANDARD-GENERIC-FUNCTION ATOM METHOD SIMPLE-BASE-STRING
+  (types/cmp-perfs :limit 5
+                   :types '(STRING STANDARD-GENERIC-FUNCTION ATOM METHOD SIMPLE-BASE-STRING
                             SEQUENCE COMPLEX STANDARD-OBJECT STANDARD-METHOD)))
 
-(defun shuffle-list (data)
-  (labels ((rnd-element (data n &aux (r (random n)) (tail (nthcdr r data)))
-             (list (car tail) (nconc (ldiff data tail) (cdr tail))))
-           (recure (data n collected)
-             (if data
-                 (destructuring-bind (elt remaining) (rnd-element data n)
-                   (recure remaining (1- n) (cons elt collected)))
-                 collected)))
-    (recure data (length data) nil)))
-
-(defun find-decomposition-discrepancy (&optional (type-specs '(array-rank array-total-size bignum bit
-                                                               complex fixnum float float-digits
-                                                               float-radix integer number ratio rational real
-                                                               char-code ;; char-int
-                                                               double-float ;; long-float
-                                                               unsigned-byte)))
-  (labels ((recure ( type-specs)
-             (when (cdr type-specs)
-               (recure (cdr type-specs)))
-             (format t "~%~%~%n = ~D~%~%~%~%" (length type-specs))
-             (let* ((bdd-types (bdd-decompose-types type-specs))
-                    (def-types (decompose-types type-specs))
-                    (common (intersection bdd-types def-types :test #'equivalent-types-p))
-                    (bdd-left-over (set-difference bdd-types common :test #'equivalent-types-p))
-                    (def-left-over (set-difference def-types common :test #'equivalent-types-p)))
-               (unless (= (length def-types)
-                          (length bdd-types))
-                 (format t "n=~D bdd=~D  def=~D~%" (length type-specs) (length bdd-types) (length def-types))
-                 (format t " given  :~A~%" type-specs)
-                 (format t " common :~A~%" common)
-                 (format t "    bdd :~A~%" bdd-left-over)
-                 (format t "    def :~A~%" def-left-over)
-                 (dolist (com common)
-                   (dolist (types (list bdd-left-over def-left-over))
-                     (dolist (spec types)
-                       (when (subtypep spec com)
-                         (format t " ~A <: ~A~%" spec com))
-                       (when (subtypep com spec)
-                         (format t " ~A <: ~A~%" com spec)))))
-                 (format t "checking calculated bdd types~%")
-                 (lisp-types::check-decomposition type-specs bdd-types)
-                 (format t "checking calculated def types~%")
-                 (lisp-types::check-decomposition type-specs def-types)
-                 (return-from find-decomposition-discrepancy nil)
-                 ))))
-    (recure type-specs)))
-
-
-(defun count-pairs (data predicate)
-  (let ((c 0))
-    (loop :for tail :on data
-          :do (loop :for d2 :in tail
-                    :with d1 = (car tail)
-                    :do (when (funcall predicate d1 d2)
-                          (incf c))))
-    c))
-
-(defun print-latex (stream &key (include-decompose *decomposition-functions*) (time-out 15))
-  (etypecase stream
-    ((or stream
-         (eql t)
-         (eql nil))
-     (format stream "given calculated sum product touching disjoint disjoint*given touching*given new time decompose~%")
-     (let ((domain (remove-duplicates *perf-results*
-                                      :test #'equal
-                                      :key #'(lambda (plist)
-                                               (list (getf plist :decompose)
-                                                     (getf plist :types))))))
-       (dolist (plist domain)
-         (destructuring-bind (&key given calculated decompose value types time time-out &allow-other-keys) plist
-           (when time-out
-             (setf time time-out))
-           (unless calculated
-             (let ((hit (find-if (lambda (plist)
-                                   (equal given (getf plist :given)))
-                                 domain)))
-               (setf calculated (getf hit :calculated))))
-           
-           (cond
-             ((or (not given) (not calculated)))
-             ((< time 0.0011))
-             ((= 0 time))
-             ((member decompose include-decompose)
-              (let ((*print-case* :downcase)
-                    (num-disjoint (count-pairs types #'disjoint-types-p))
-                    (num-touching (count-pairs types #'(lambda (x y)
-                                                         (not (disjoint-types-p x y))))))
-                (format stream "~D ~D ~D ~D ~D ~D ~D ~D ~D ~S ~S~%"
-                        given calculated
-                        (+ given calculated) ;; sum
-                        (* given calculated) ;; product
-                        num-touching         ;; touching
-                        num-disjoint         ;; disjoint
-                        (* num-disjoint given) ;; disjoint * given
-                        (* num-touching given) ;; touching * given
-                        (length (set-difference value types :test #'equivalent-types-p)) ;; new
-                        time decompose))))))))
-    ((or pathname string)
-     (with-open-file (str stream :direction :output :if-exists :supersede)
-       (print-latex str :time-out time-out :include-decompose include-decompose)))))
-
-
-(defun test-report (&key types file-name (limit 15) tag (time-out 15))
+(define-test disjoint-cmp-j
   (setf *perf-results* nil)
-  (dotimes (sample 2)
-    (let ((type-specifiers (shuffle-list types)))
-      (format t "=== Sample ~A ===~%" (incf sample))
-      (types/cmp-perfs :types type-specifiers
-                       :limit limit
-                       :tag tag
-                       :sample sample
-                       :file-name (format nil "/Users/jnewton/newton.16.edtchs/src/~A.dat" file-name)
-                       :time-out time-out
-                       :decompose  *decomposition-functions*)))
-  )
+  (types/cmp-perf :types '((MEMBER 0 1 2 4 5 6 8 9 10) (MEMBER 1 2 4 6 8)
+                           (MEMBER 1 2 3 5 6 7 8 10) (MEMBER 1 5 6 7 9 10) (MEMBER 0 1 6 7 8 10)
+                           (MEMBER 0 1 2 3 5 6 10) (MEMBER 0 1 3 4 5 6 8 9 10)
+                           (MEMBER 0 3 5 6 8) (MEMBER 0 1 2 3 6 7 9) (MEMBER 0 2 4 8 10)
+                           (MEMBER 0 1 5 9) (MEMBER 0 1 2 4 8) (MEMBER 1 3 5 6 8 9 10)
+                           (MEMBER 3 5 7 9) (MEMBER 5 6 7 8 9 10) (MEMBER 0 4 6 7 8 9)
+                           (MEMBER 1 4 7 9) (MEMBER 0 3 4 7 8 10) (MEMBER 0 1 4 5 7 8)
+                           (MEMBER 0 2 4 5 7 9 10) (MEMBER 0 9 10))))
+
+(define-test disjoint-cmp-k
+  (let ((type-specifiers
+          '((and arithmetic-error reader-error structure-class (not style-warning))
+            (and arithmetic-error reader-error (not structure-class) (not style-warning))
+            (and arithmetic-error (not reader-error) (not structure-class) style-warning)
+            (and arithmetic-error (not reader-error) structure-class style-warning)
+            (and (not arithmetic-error) condition (not reader-error) structure-class (not style-warning))
+            (and (not arithmetic-error) reader-error structure-class (not style-warning))
+            (and arithmetic-error (not reader-error) structure-class (not style-warning))
+            (and (not arithmetic-error) (not reader-error) structure-class style-warning)
+            (or (and condition (not reader-error)) (and reader-error (not style-warning)))
+            (and (not condition) structure-class (not style-warning))
+            (and arithmetic-error (not reader-error) (not structure-class) (not style-warning))
+            (or (and (not reader-error) warning) (and reader-error (not style-warning) warning))
+            (or (and (not reader-error) stream-error) (and reader-error (not style-warning)))
+            (and (not arithmetic-error) reader-error (not structure-class) (not style-warning))
+            (and (not arithmetic-error) (not reader-error) (not structure-class) style-warning))))
+    (%decompose-types-bdd-graph type-specifiers 
+                                :sort-nodes #'(lambda (graph)
+                                                (declare (notinline sort))
+                                                (sort graph #'< :key #'count-parents-per-node))
+                                :sort-strategy "TOP-TO-BOTTOM"
+                                :inner-loop :operation
+                                :do-break-sub :strict
+                                :do-break-loop t)))
 
 
 
-(defun random-subset-of-range (min max)
-  (loop for i from min to max
-        when (zerop (random 2))
-          collect i))
+(define-test disjoint-cmp-l
+  (let ((type-specifiers
+          '(CONDITION RESTART RATIONAL CONS RATIO READER-ERROR STRUCTURE-CLASS
+            SYNONYM-STREAM ARITHMETIC-ERROR CHAR-CODE WARNING FLOAT-RADIX
+            SIMPLE-BIT-VECTOR STREAM-ERROR ARRAY STYLE-WARNING)))
+    (%decompose-types-bdd-graph type-specifiers 
+                                :sort-nodes #'(lambda (graph)
+                                                (declare (notinline sort))
+                                                (sort graph #'< :key #'count-parents-per-node))
+                                :sort-strategy "TOP-TO-BOTTOM"
+                                :inner-loop :operation
+                                :do-break-sub :strict
+                                :do-break-loop t)))
+                                
 
-(defvar *member-types* (remove-duplicates
-                        (loop for i from 1 to 25
-                              collect (let ((s (random-subset-of-range 0 10)))
-                                        (cond ((cdr s)
-                                               (cons 'member s))
-                                              (s
-                                               (cons 'eql s))
-                                              (t
-                                               'null))))
-                        :test #'equal))
 
 
-(defun big-test-report (&aux (time-out 25))  t
-  (test-report :limit 22 :tag "member" :time-out time-out
-               :types *member-types*
-               :file-name "member")
-  (test-report :limit 25 :tag "cl-types" :time-out 30
-               :types (subseq (shuffle-list *cl-type-combos*) 13850) :file-name "cl-combos")
-  (test-report :limit 12 :tag "conditions" :time-out time-out
-               :types (valid-subtypes 'condition) :file-name "subtypes-of-condition")
 
-  (test-report :limit 23 :tag "numbers" :time-out time-out
-               :types (valid-subtypes 'number) :file-name "subtypes-of-number")
 
-  (test-report :limit 13 :tag "numbers and conditions" :time-out time-out
-               :types (union (valid-subtypes 'number) (valid-subtypes 'condition))
-               :file-name "subtypes-of-number-or-condition")
 
-  (test-report :limit 18 :tag "cl-types" :time-out time-out
-               :types *cl-types* :file-name "cl-types")
 
-  (test-report :limit 20 :tag "subtypes of t" :time-out time-out
-               :types (valid-subtypes t) :file-name "subtypes-of-t")
 
-  (test-report :limit 18 :tag "SB-PCL types" :time-out time-out
-               :types (loop :for name being the external-symbols in "SB-PCL"
-                                      :when (find-class name nil)
-                                        :collect name)
-               :file-name "pcl-types"))
+
+
+
+
+
+
+
+
+
+
+
+;; (lisp-types.test::sort-results "/Users/jnewton/newton.16.edtchs/src/member.sexp" nil)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+(defun perf-test-1 (&key (size 11))
+  (bdd-with-new-hash
+   (lambda (&aux (type-specifiers (lisp-types::choose-randomly (loop :for name being the external-symbols in "SB-PCL"
+                                                                     :when (find-class name nil)
+                                                                       :collect name) size)))
+     (%decompose-types-bdd-graph type-specifiers
+                                 :sort-nodes (lambda (graph)
+                                               (declare (notinline sort))
+                                               (sort graph #'< :key
+                                                     #'count-connections-per-node))
+                                 :sort-strategy  "INCREASING-CONNECTIONS"
+                                 :inner-loop :node
+                                 :do-break-sub :relaxed
+                                 :do-break-loop nil))))
+
+(defun read-trace (stream)
+  (let (pending)
+    (labels ((next-token ()
+               (if pending
+                   (pop pending)
+                   (let (chars)
+                     (do ((c (read-char stream) (read-char stream nil 'the-end)))
+                         ((char= #\: c) chars)
+                       (when (digit-char-p c)
+                         (push c chars))))))
+             (un-read (token)
+               (push token pending))
+             (next-expr ()
+               (read stream nil nil))
+             (read-suffix (prefix)
+               (list :prefix prefix
+                     :fname (next-expr)
+                     :returned (next-expr)
+                     :output (next-expr)))
+             (read-one-node ()
+               (let* ((prefix (next-token))
+                      (call (next-expr))
+                      (token (next-token))
+                      sub-nodes)
+                 (while (not (equal token prefix))
+                   (un-read token)
+                   (push (read-one-node) sub-nodes)
+                   (setf token (next-token)))
+                 
+                 `(:sub-nodes ,(reverse sub-nodes)
+                   :input ,(cadr call)
+                   ,@(read-suffix prefix)))))
+      (read-one-node))))
+
+(defun filter-trace (filename)
+  "read the printed output traced functions, throw away function calls and returns
+if the function returned the same as it was passed as input (according to EQUAL)"
+  (labels ((print-trace (node)
+             (when node
+               (destructuring-bind (&key prefix input fname returned output sub-nodes) node
+                 (cond
+                   ((equal output input)
+                    (mapc #'print-trace sub-nodes))
+                   (t
+                    (format t "~A ~A~%" prefix (list fname input))
+                    (mapc #'print-trace sub-nodes)
+                    (format t "~A ~A ~A ~A~%"
+                            prefix fname returned output)))))))
+    (print-trace (with-open-file (str filename :direction :input)
+                   (read-trace str)))))
+    
