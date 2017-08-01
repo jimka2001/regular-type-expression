@@ -65,7 +65,8 @@
 (define-test type/bdd-sample-a
   (let ((types '((member 1 2) (member 2 3) (member 1 2 3 4))))
     (assert-false (set-exclusive-or (bdd-decompose-types types)
-                                    (decompose-types types))))
+                                    (decompose-types types)
+                                       :test #'equivalent-types-p)))
   (assert-false (set-exclusive-or (bdd-decompose-types '(UNSIGNED-BYTE FIXNUM RATIONAL))
                                   (decompose-types     '(UNSIGNED-BYTE FIXNUM RATIONAL))
                                   :test #'equivalent-types-p))

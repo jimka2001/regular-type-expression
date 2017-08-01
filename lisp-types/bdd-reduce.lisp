@@ -496,46 +496,45 @@ convert it to DNF (disjunctive-normal-form)"
                             #'bdd-and-not
                             #'(lambda (a b) (bdd-and-not b a))))
 
+
 (defun %bdd-decompose-types (type-specifiers)
   (bdd-with-new-hash
-   (lambda ()
-     (labels ((option-bdd (bdd)
-                (if (bdd-empty-type bdd)
-                    nil
-                    (list bdd)))
-              (slice-set (bdd-a bdd-b)
-                ;; given two types expressed as bdds, return a list of at most three
-                ;; bdds. a&b a&!b b&!a.  If any of the three corresponds to the nil
-                ;; type, it is omitted from the returned list.
-                (mapcan (lambda (f)
-                          (option-bdd (funcall f bdd-b bdd-a)))
-                        *bdd-slicers*))
-              (slice (bdds bdd1)
-                (declare (notinline sort))
-                (let ((sliced (mapcan (lambda (bdd2)
-                                        (slice-set bdd1 bdd2))
-                                      bdds)))
-                  ;; We remove the more complicated type.
-                  ;;  e.g., we could count the atomic types and remove the bdd with more.
-                  ;;  e.g., prefer to keep INTEGER and discard (AND RATIONAL (NOT RATIO))
-                  ;; this works because remove-duplicates removes the element closer to the
-                  ;; beginning of the list when choosing which of two elements to remove.
-                  (remove-duplicates (sort sliced #'>
-                                           :key #'(lambda (bdd)
-                                                    (length (bdd-collect-atomic-types bdd))))
-                                     :test #'bdd-type-equal)))
-              (remove-supers (bdds)
-                (remove-if (lambda (bdd1)
-                             (exists bdd2 bdds
-                               (and (not (eq bdd1 bdd2))
-                                    (bdd-subtypep bdd2 bdd1)))) bdds)))
-       (let ((bdds (mapcan (lambda (type-specifier)
-                             (option-bdd (bdd type-specifier)))
-                           type-specifiers)))
-         (when bdds
-           (remove-supers
-              (reduce #'slice (cdr bdds)
-                      :initial-value (list (car bdds))))))))))
+   (lambda (&aux (bdds (remove-if #'bdd-empty-type (mapcar #'bdd type-specifiers))))
+     (labels ((try (bdds disjoint-bdds)
+                (cond
+                  ((null bdds)
+                   disjoint-bdds)
+                  (t
+                   (let ((bdd-a (car bdds)))
+                     (destructuring-bind (all-disjoint? bdd-set)
+                         (reduce (lambda (acc bdd-b &aux (bdd-ab (bdd-and bdd-a bdd-b)))
+                                   (destructuring-bind (all-disjoint? bdd-set) acc
+                                     (cond
+                                       ((bdd-empty-type bdd-ab)
+                                        ;; If the intersection of A and B is the empty type,
+                                        ;; then we don't need to calculate A\B and B\A because
+                                        ;; we know that A\B = A and B\A = B.
+                                        ;; Thus we simply add B to the bdd-set being accumulated.
+                                        (list all-disjoint? (adjoin bdd-b bdd-set)))
+                                       (t
+                                        ;; If the interesction of A and B is non empty,
+                                        ;; then we augment bdd-set with at most 3 types.  Looking at
+                                        ;; {AB, A\B, B\A} \ {{}}, some of which might be equal, so we
+                                        ;; remove duplicates, and accumulate also all-disjoint?=nil because
+                                        ;; we've found something A is not disjoint with.
+                                        (list nil (union (remove-duplicates
+                                                          (remove-if #'bdd-empty-type
+                                                                     (list bdd-ab
+                                                                           (bdd-and-not bdd-a bdd-ab)
+                                                                           (bdd-and-not bdd-b bdd-ab))))
+                                                         bdd-set))))))
+                                 (cdr bdds)
+                                 :initial-value '(t nil))
+                       (try bdd-set
+                            (if all-disjoint?
+                                (pushnew bdd-a disjoint-bdds)
+                                disjoint-bdds))))))))
+       (try bdds nil)))))
 
 (defun bdd-collect-terms (bdd)
   (declare (type bdd bdd))
