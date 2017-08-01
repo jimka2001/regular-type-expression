@@ -19,11 +19,7 @@
 ;; OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 ;; WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-(defpackage :bdd-17
-  (:use :cl :lisp-types)
-  (:export))
-
-(in-package :bdd-17)
+(in-package :lisp-types)
 
 (defgeneric label (node))
 (defgeneric (setf label) (new-type node))
