@@ -206,7 +206,8 @@
        (dolist (alpha (union (supersets x) (supersets y) :test #'eq))
          (add-blue-arrow g z alpha))
        (dolist (alpha (intersection (touches x) (touches y) :test #'eq))
-         (add-green-line g z alpha)))
+         (add-green-line g z alpha))
+       (maybe-disjoint-node g z))
      (delete-green-line g x y)))
   g)
        
@@ -237,10 +238,10 @@
   ((label :type (or list symbol))))
 
 (defmethod node-and-not ((x sexp-node) (y sexp-node))
-  `(and ,(label x) (not ,(label y))))
+  (reduce-lisp-type `(and ,(label x) (not ,(label y)))))
   
 (defmethod node-and  ((x sexp-node) (y sexp-node))
-  `(and ,(label x) ,(label y)))
+  (reduce-lisp-type `(and ,(label x) ,(label y))))
 
 (defmethod node-empty-type ((node sexp-node))
   (null (label node)))

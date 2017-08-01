@@ -459,11 +459,8 @@
 (defun count-parents-per-node (node)
   (length (getf node :super-types)))
 
-
-
 (defun decompose-types-bdd-graph (type-specifiers)
-  (bdd-with-new-hash (lambda ()
-                       (%decompose-types-bdd-graph type-specifiers))))
+  (decompose-by-graph-1 type-specifiers :graph-class 'bdd-graph))
 
 
 (defun decompose-types-bdd-graph-recursive-increasing-connections (type-specifiers)
