@@ -252,7 +252,6 @@
 (defclass D-247 () ())
 (defclass E-247 () ())
 (defclass :F-247 () ())
-
 (define-test type/reduce-lisp-type2
 
   (assert-false (sb-mop:class-direct-subclasses (find-class 'C-247)))
@@ -268,7 +267,7 @@
                                                             (and A1-247 B1-247 C-247 D-247)
                                                             E-247 ,un-interned))
                                      `(or ,un-interned E-247 (and B1-247 A1-247)))))
-  (assert-true (equivalent-types-p (reduce-lisp-type '(or (and A1-247 B1-247) (and A1-247 B1-247 C D) E :F))
+  (assert-true (equivalent-types-p (reduce-lisp-type '(or (and A1-247 B1-247) (and A1-247 B1-247 C-247 D-247) E-247 :F-247))
                                    '(or :f-247 E-247 (and B1-247 A1-247))))
   (assert-true (equivalent-types-p (reduce-lisp-type '(or A1-247 (and (not A1-247) B1-247)))
                                    '(or B1-247 A1-247)))
