@@ -239,15 +239,6 @@
                (node-id (node)
                  (getf node :id))
                (print-graph (comment)
-                 (cl-user::print-vals type-specifiers
-                                      options
-                                      sort-nodes
-                                      sort-strategy
-                                      inner-loop
-                                      do-disjoint
-                                      do-break-sub
-                                      do-break-touch
-                                      do-break-loop)
                  (dot comment)
                  (format t "the graph  ~D nodes~%" (length graph))
                  (format t "graph nodes: ~A~%"
