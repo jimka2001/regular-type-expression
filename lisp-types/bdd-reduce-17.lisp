@@ -270,19 +270,19 @@
   ((label :type bdd)))
 
 (defmethod node-and-not ((x node-of-bdd) (y node-of-bdd))
-  (lisp-types::bdd-and-not (label x) (label y)))
+  (bdd-and-not (label x) (label y)))
 
 (defmethod node-and ((x node-of-bdd) (y node-of-bdd))
-  (lisp-types::bdd-and (label x) (label y)))
+  (bdd-and (label x) (label y)))
 
 (defmethod node-empty-type ((node node-of-bdd))
-  (eq lisp-types::*bdd-false* (label node)))
+  (eq *bdd-false* (label node)))
 
 (defmethod node-subtypep ((x node-of-bdd) (y node-of-bdd))
-  (lisp-types::bdd-subtypep (label x) (label y)))
+  (bdd-subtypep (label x) (label y)))
 
 (defmethod node-disjoint-types-p ((x node-of-bdd) (y node-of-bdd))
-  (values (lisp-types::bdd-disjoint-types-p (label x) (label y))
+  (values (bdd-disjoint-types-p (label x) (label y))
           t))
 
 (defclass bdd-graph (graph)
@@ -295,14 +295,14 @@
     z))
 
 (defmethod extract-disjoint ((g bdd-graph))
-  (mapcar #'lisp-types::bdd-to-dnf (mapcar #'label (disjoint g))))
+  (mapcar #'bdd-to-dnf (mapcar #'label (disjoint g))))
 
 (defmethod decompose-graph-1 ((g bdd-graph))
-  (lisp-types::bdd-with-new-hash
+  (bdd-with-new-hash
    (lambda ()
      (call-next-method))))
 
 (defmethod decompose-graph-2 ((g bdd-graph))
-  (lisp-types::bdd-with-new-hash
+  (bdd-with-new-hash
    (lambda ()
      (call-next-method))))
