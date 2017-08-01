@@ -42,7 +42,7 @@ SUBSTITUTIONS is an alist (car/cadr) to used with :test #'equal."
 (defun expand-reduced-typecase (obj clauses &aux reductions)
   "Returns a TYPECASE form given its first argument, OBJ, and list of CLAUSES.
 The clauses appear in the same order, but the tests of each may have been
-(non-destructively) modified to remove redundant logic.  This function
+ (non-destructively) modified to remove redundant logic.  This function
 is the work-horse for REDUCED-TYPECASE."
   (labels ((not? (type)
 	     (and (consp type)

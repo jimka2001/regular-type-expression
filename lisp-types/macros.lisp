@@ -34,6 +34,7 @@
    "EQUIVALENT-TYPES-P"
    "AMBIGUOUS-SUBTYPE"
    "AUTO-PERMUTE-TYPECASE"
+   "BDD"
    ))
 
 (in-package   :lisp-types)

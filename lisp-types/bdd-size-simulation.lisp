@@ -253,7 +253,6 @@
 
       (with-open-file (stream (format nil "~A/bdd-distribution.ltxdat" prefix)
                               :direction :output :if-does-not-exist :create :if-exists :supersede)
-
         (size-plots stream))
       (with-open-file (stream (format nil "~A/bdd-distribution-expected.ltxdat" prefix)
                               :direction :output :if-does-not-exist :create :if-exists :supersede)

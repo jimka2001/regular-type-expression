@@ -37,4 +37,5 @@
      (:file "bdd-dot" :depends-on ("bdd" "bdd-reduce"))
      (:file "bdd-worst-case" :depends-on ("bdd"))
      (:file "bdd-size-simulation" :depends-on ("bdd"))
+     (:file "bdd-reduce-17" :depends-on ("bdd"))
      ))))

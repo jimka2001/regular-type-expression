@@ -239,15 +239,6 @@
                (node-id (node)
                  (getf node :id))
                (print-graph (comment)
-                 (cl-user::print-vals type-specifiers
-                                      options
-                                      sort-nodes
-                                      sort-strategy
-                                      inner-loop
-                                      do-disjoint
-                                      do-break-sub
-                                      do-break-touch
-                                      do-break-loop)
                  (dot comment)
                  (format t "the graph  ~D nodes~%" (length graph))
                  (format t "graph nodes: ~A~%"
@@ -468,11 +459,8 @@
 (defun count-parents-per-node (node)
   (length (getf node :super-types)))
 
-
-
 (defun decompose-types-bdd-graph (type-specifiers)
-  (bdd-with-new-hash (lambda ()
-                       (%decompose-types-bdd-graph type-specifiers))))
+  (decompose-by-graph-1 type-specifiers :graph-class 'bdd-graph))
 
 
 (defun decompose-types-bdd-graph-recursive-increasing-connections (type-specifiers)

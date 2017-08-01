@@ -61,7 +61,16 @@
   (assert-true (bdd '(or (and integer (not string)) (and string (not integer)))))
   (assert-false (bdd-to-dnf (bdd-and-not (bdd 'integer) (bdd 'number)))))
 
+
 (define-test type/bdd-sample-a
+  (let ((types '((member 1 2) (member 2 3) (member 1 2 3 4))))
+    (assert-false (set-exclusive-or (bdd-decompose-types types)
+                                    (decompose-types types)
+                                       :test #'equivalent-types-p)))
+  (assert-false (set-exclusive-or (bdd-decompose-types '(UNSIGNED-BYTE FIXNUM RATIONAL))
+                                  (decompose-types     '(UNSIGNED-BYTE FIXNUM RATIONAL))
+                                  :test #'equivalent-types-p))
+
   (assert-false (set-exclusive-or (bdd-decompose-types '(unsigned-byte bit fixnum rational number float))
                                   (decompose-types     '(unsigned-byte bit fixnum rational number float))
                                   :test #'equivalent-types-p)))
@@ -147,18 +156,14 @@
                  :do (progn (test1 testing-types)
                             (push (pop all-types) testing-types)))))))))
 
-(defclass A () ())
-(defclass B () ())
-(defclass C () ())
-(defclass D () ())
-(defclass E () ())
-(defclass F () ())
-(defclass G () ())
-;; (defclass ABCDE (A B C D E) ())
+(defclass A-150 () ())
+(defclass B-151 () ())
 
 (define-test type/reduce-c
-  (assert-true (equal (reduce-lisp-type '(OR (NOT A) B))
-                      '(not a))))
+  (assert-false (sb-mop:class-direct-subclasses (find-class 'a-150)))
+  (assert-false (sb-mop:class-direct-subclasses (find-class 'b-151)))
+  (assert-true (equal (reduce-lisp-type '(OR (NOT A-150) B-151))
+                      '(not a-150))))
 
 (deftype non-number () `(not number))
 (deftype non-integer () `(not integer))
@@ -307,5 +312,5 @@
 
 (define-test test/bdd-sizes
   (ensure-directories-exist "/tmp/jnewton/graph/bdd-distribution.ltxdat")
-  (test-with-z1-z6 "/tmp/jnewton/graph/bdd-distribution.ltxdat" 10 ;; 4000
+  (test-with-z1-z6 "/tmp/jnewton/graph" 10 ;; 4000
                    ))
