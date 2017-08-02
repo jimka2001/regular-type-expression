@@ -113,7 +113,7 @@
         :sort-nodes))
 
 
-(defun %decompose-types-bdd-graph (type-specifiers &rest options
+(defun %decompose-types-bdd-graph (type-specifiers
                                    &key
                                      (sort-strategy "DECREASING-CONNECTIONS") ;; "BOTTOM-TO-TOP" or "DECREASING-CONNECTIONS"
                                      (recursive t)
