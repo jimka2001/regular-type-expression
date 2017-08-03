@@ -103,16 +103,16 @@
                             (MEMBER 0 2 4))))
 
 (define-test disjoint-cmp-9
-  (bdd-with-new-hash
+  (bdd-call-with-new-hash
    (lambda ()
      (assert-test (= 3 (length (bdd-decompose-types '((MEMBER 0 2)
                                                       (MEMBER 0 1 2)
                                                       (MEMBER 0 2 4)))))))))
 
 (define-test disjoint-cmp-a
-  (bdd-with-new-hash
+  (bdd-call-with-new-hash
    (lambda ()
-     (bdd-with-new-hash
+     (bdd-call-with-new-hash
       (lambda ()
         (let* ((t1 (bdd '(member 0 2)))
                (t2 (bdd '(member 0 1 2)))
@@ -302,7 +302,7 @@
 
 
 (defun perf-test-1 (&key (size 11))
-  (bdd-with-new-hash
+  (bdd-call-with-new-hash
    (lambda (&aux (type-specifiers (lisp-types::choose-randomly (loop :for name being the external-symbols in "SB-PCL"
                                                                      :when (find-class name nil)
                                                                        :collect name) size)))

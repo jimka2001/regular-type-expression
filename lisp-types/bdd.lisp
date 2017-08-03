@@ -81,7 +81,10 @@
 (defvar *bdd-hash* (bdd-new-hash))
 (defvar *bdd-verbose* nil)
 
-(defun bdd-with-new-hash (thunk &key (verbose *bdd-verbose*))
+(defmacro bdd-with-new-hash (vars &body body)
+  `(bdd-call-with-new-hash (lambda ,vars ,@body)))
+
+(defun bdd-call-with-new-hash (thunk &key (verbose *bdd-verbose*))
   (let ((*bdd-verbose* verbose)
         (*bdd-hash* (bdd-new-hash))
         (*disjoint-hash* (new-disjoint-hash))

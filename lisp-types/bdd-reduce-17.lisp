@@ -298,11 +298,11 @@
   (mapcar #'bdd-to-dnf (mapcar #'label (disjoint g))))
 
 (defmethod decompose-graph-1 ((g bdd-graph))
-  (bdd-with-new-hash
+  (bdd-call-with-new-hash
    (lambda ()
      (call-next-method))))
 
 (defmethod decompose-graph-2 ((g bdd-graph))
-  (bdd-with-new-hash
+  (bdd-call-with-new-hash
    (lambda ()
      (call-next-method))))

@@ -105,7 +105,7 @@
     (format t "BDDs of possible ~D with ~D variables ~A~%"  (1+ ffff) (length vars) vars)
     (flet ((measure (try randomp)
              (sb-ext::gc :full t)
-             (bdd-with-new-hash (lambda (&aux (boolean-combo (if randomp
+             (bdd-call-with-new-hash (lambda (&aux (boolean-combo (if randomp
                                                                  (random-boolean-combination vars)
                                                                  (int-to-boolean-expression try vars)))
                                            (bdd (bdd boolean-combo))
@@ -269,7 +269,7 @@
            (type string prefix)
            (type list vars)
           )
-  (let ((bdd-data (bdd-with-new-hash (lambda ()
+  (let ((bdd-data (bdd-call-with-new-hash (lambda ()
                          (loop for try from 0 below (expt 2 (expt 2 num-vars))
                                collect (let* ((expr (int-to-boolean-expression try vars))
                                          (bdd (bdd expr)))

@@ -137,7 +137,7 @@
     (setf all-types (set-difference all-types '(compiled-function control-error division-by-zero error
                                                 char-code base-char)))
     (setf all-types (sort all-types #'string<))
-    (bdd-with-new-hash
+    (bdd-call-with-new-hash
      (lambda ()
        
        (let ((n 1)
@@ -168,7 +168,7 @@
 (deftype non-number () `(not number))
 (deftype non-integer () `(not integer))
 (define-test type/bdd-reduce
-  (bdd-with-new-hash
+  (bdd-call-with-new-hash
    (lambda ()
 
   ;; there are six cases to test
@@ -219,14 +219,14 @@
                       '(non-integer nil t))))))
 
 (define-test test/bdd-numbers
-  (bdd-with-new-hash
+  (bdd-call-with-new-hash
    (lambda ()
 
   (assert-true (types/cmp-perfs :limit 15 :decompose 'lisp-types::bdd-decompose-types :types (valid-subtypes 'number))))))
 
 
 (define-test test/bdd-cmp
-  (bdd-with-new-hash
+  (bdd-call-with-new-hash
    (lambda ()
 
   ;; =
@@ -264,7 +264,7 @@
   )  ))
                    
 (define-test test/bdd-type-p
-  (bdd-with-new-hash
+  (bdd-call-with-new-hash
    (lambda ()
      (assert-false (bdd-type-p  t (bdd '(or (and sequence (not array))
                                          number
@@ -275,7 +275,7 @@
 
 
 (define-test test/bdd-dnf
-  (bdd-with-new-hash
+  (bdd-call-with-new-hash
    (lambda ()
      (assert-true (member 'number (bdd-to-dnf (bdd '(or (and sequence (not array))
                                                      number

@@ -448,7 +448,7 @@ returns a plist, one of the following:
   ;;  in different types being calculated
   (labels ((equiv-type-sets (set1 set2)
              (and (= (length set1) (length set2))
-                  (bdd-with-new-hash
+                  (bdd-call-with-new-hash
                    (lambda () (or (null (set-exclusive-or set1 set2 :test #'%equal))
                                   (let ((bdd-set1 (bdd `(or ,@set1)))
                                         (bdd-set2 (bdd `(or ,@set2))))
@@ -543,7 +543,7 @@ returns a plist, one of the following:
                             (bdd-to-dnf (bdd-and-not bdd-given bdd-calc)))))))))
     (when good-results
       (let ((res1 (car good-results)))
-        (bdd-with-new-hash
+        (bdd-call-with-new-hash
          (lambda ()
            (check-1 (getf res1 :types) (getf res1 :value) (getf res1 :decompose)))))
       

@@ -456,7 +456,7 @@ in the topological ordering (i.e., the first value)."
 (define-compiler-macro bdd-typep (obj type-specifier)
   (typecase type-specifier
     ((cons (eql quote))
-     (bdd-with-new-hash
+     (bdd-call-with-new-hash
       (lambda (&aux (bdd (bdd (cadr type-specifier))))
         `(funcall ,(bdd-to-if-then-else-3 bdd (gensym)) ,obj))))
     (t
@@ -494,7 +494,7 @@ convert it to DNF (disjunctive-normal-form)"
 
 (defun %bdd-decompose-types (type-specifiers)
   (declare (optimize (debug 0) (safety 0) (speed 3))) ;; optimize tail call 
-  (bdd-with-new-hash
+  (bdd-call-with-new-hash
    (lambda (&aux (bdds (remove-if #'bdd-empty-type (mapcar #'bdd type-specifiers))))
      (declare (type list bdds))
      (labels ((try (bdds disjoint-bdds &aux (bdd-a (car bdds)))
@@ -598,7 +598,7 @@ in the given list have the same dnf form."
 (defun check-decomposition (given calculated)
   "debugging function to assure that a given list of types GIVEN corresponds correctly
 to a set of types returned from %bdd-decompose-types."
-  (bdd-with-new-hash
+  (bdd-call-with-new-hash
    (lambda ()
      (let ((bdd-given (bdd `(or ,@given)))
            (bdd-calculated (bdd `(or ,@calculated))))

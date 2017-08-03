@@ -464,7 +464,7 @@
 
 
 (defun decompose-types-bdd-graph-recursive-increasing-connections (type-specifiers)
-  (bdd-with-new-hash (lambda ()
+  (bdd-call-with-new-hash (lambda ()
                        (%decompose-types-bdd-graph type-specifiers
                                                    :sort-strategy "INCREASING-CONNECTIONS"
                                                    :inner-loop :recursive))))
@@ -507,7 +507,7 @@
 
                 (push `(setf (get ',fun-name 'decompose-properties) ',props) prop-defs)
                 (push `(defun ,fun-name (type-specifiers)
-                         (bdd-with-new-hash (lambda ()
+                         (bdd-call-with-new-hash (lambda ()
                                               (%decompose-types-bdd-graph type-specifiers ,@props))))
                       fun-defs)))))))
     (setf fun-names (mapcar #'cadr fun-defs))
