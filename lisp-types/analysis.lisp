@@ -584,7 +584,7 @@ returns a plist, one of the following:
   (let ((content (with-open-file (stream sorted-file :direction :input)
                    (format t "reading    ~A~%" sorted-file)
                    (read stream nil nil))))
-    (with-open-file (stream gnuplot-file :direction :output :if-exists :overwrite)
+    (with-open-file (stream gnuplot-file :direction :output :if-exists :supersede :if-does-not-exist :create)
       (format t "writing to ~A~%" gnuplot-file)
       (destructuring-bind (&key summary sorted &allow-other-keys &aux min-curve min-curve-line-style) content
         (assert (typep sorted 'cons))
@@ -700,7 +700,7 @@ returns a plist, one of the following:
     (sb-ext:run-program "gnuplot" (list gnuplot-file)
                         :search t
                         :output png-filename
-                        :if-output-exists :overwrite)))
+                        :if-output-exists :supersede)))
 
 (defun integral (xys)
   "given a list of xy pairs (car cadr) calculate the area under the curve formed by the trapizoids.
@@ -796,7 +796,7 @@ the list of xys need not be already ordered."
      (with-open-file (stream in :direction :input)
        (apply #'sort-results stream out options)))
     ((typep out '(or pathname string))
-     (with-open-file (stream out :direction :output :if-exists :overwrite)
+     (with-open-file (stream out :direction :output :if-exists :supersede :if-does-not-exist :create)
        (format t "writing to ~A~%" out)
        (apply #'sort-results in stream options)))
     ((eq out :return)
@@ -923,7 +923,7 @@ the list of xys need not be already ordered."
   (let ((content (with-open-file (stream sorted-name :direction :input :if-does-not-exist :error)
                    (read stream))))
     (destructuring-bind (&key sorted &allow-other-keys) content
-      (with-open-file (stream ltxdat-name :direction :output :if-exists :overwrite)
+      (with-open-file (stream ltxdat-name :direction :output :if-exists :supersede)
         (format t "writing to ~A~%" ltxdat-name)
         (format stream "\\begin{tikzpicture}~%")
         (format stream "\\begin{axis}[xlabel=Size,ylabel=Time,xmode=log,ymode=log,legend style={at={(0.5,-0.2)},anchor=north}, xmajorgrids, xminorgrids, ymajorgrids, legend style={font=\\tiny}, xticklabel style={font=\\tiny}, yticklabel style={font=\\tiny}, label style={font=\\tiny}]~%")
@@ -968,7 +968,7 @@ the list of xys need not be already ordered."
         (format stream "\\end{tikzpicture}~%")))))
             
 (defun print-dat (dat-name include-decompose)
-  (with-open-file (stream dat-name :direction :output :if-exists :overwrite)
+  (with-open-file (stream dat-name :direction :output :if-exists :supersede :if-does-not-exist :create)
     (format stream "given calculated sum product touching disjoint disjoint*given touching*given new time decompose~%")    
     (let ((domain (remove-duplicates *perf-results*
                                      :test #'equal
@@ -1008,7 +1008,7 @@ the list of xys need not be already ordered."
 (defun print-report (&key (re-run t) limit (summary nil) normalize (dat-name "/dev/null") (ltxdat-name "/dev/null") (sorted-name "/dev/null") (sexp-name "/dev/null") (png-name "/dev/null") (png-normalized-name "/dev/null") (gnuplot-name "/dev/null") (gnuplot-normalized-name "/dev/null") (include-decompose *decomposition-functions*) &allow-other-keys)
   (format t "report ~A~%" summary)
   (when re-run
-    (with-open-file (stream sexp-name :direction :output :if-exists :overwrite)
+    (with-open-file (stream sexp-name :direction :output :if-exists :supersede :if-does-not-exist :create)
       (format t "writing to ~A~%" sexp-name)
       (print-sexp stream summary limit)))
   (sort-results sexp-name sorted-name)
