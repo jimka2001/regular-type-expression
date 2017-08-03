@@ -244,7 +244,7 @@
 
 
 (defun call-with-timeout (time-out thunk)
-  "TIME-OUT, integer, the wall-time allowed to cal the function THUNK.
+  "TIME-OUT, integer, the wall-time allowed to call the function THUNK.
 THUNK is a 0-ary function returning some type X.
 Call the function THUNK, in one thread, and start a 2nd observer thread.  The 2nd thread
 is responsible for monitoring the wall time and killing the 1st thread if the TIME-OUT has
@@ -926,7 +926,7 @@ the list of xys need not be already ordered."
       (with-open-file (stream ltxdat-name :direction :output :if-exists :supersede)
         (format t "writing to ~A~%" ltxdat-name)
         (format stream "\\begin{tikzpicture}~%")
-        (format stream "\\begin{axis}[xlabel=Size,ylabel=Time,xmode=log,ymode=log,legend style={at={(0.5,-0.2)},anchor=north}, xmajorgrids, xminorgrids, ymajorgrids, legend style={font=\\tiny}, xticklabel style={font=\\tiny}, yticklabel style={font=\\tiny}, label style={font=\\tiny}]~%")
+        (format stream "\\begin{axis}[~% xlabel=Size,~% ylabel=Time,~% xmode=log,~% ymode=log,~% legend style={at={(0.5,-0.2)},anchor=north},~% xmajorgrids,~% xminorgrids,~% ymajorgrids,~% legend style={font=\\tiny},~% xticklabel style={font=\\tiny},~% yticklabel style={font=\\tiny},~% label style={font=\\tiny}~%]~%")
         (let ((*print-case* :downcase)
               (min-curve (reduce (lambda (curve1 curve2)
                                   (if (< (getf curve1 :integral)
