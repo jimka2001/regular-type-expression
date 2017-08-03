@@ -493,15 +493,23 @@ convert it to DNF (disjunctive-normal-form)"
   (bdd-to-dnf (bdd type)))
 
 (defun %bdd-decompose-types (type-specifiers)
+  (declare (optimize (debug 0) (safety 0) (speed 3))) ;; optimize tail call 
   (bdd-with-new-hash
    (lambda (&aux (bdds (remove-if #'bdd-empty-type (mapcar #'bdd type-specifiers))))
+     (declare (type list bdds))
      (labels ((try (bdds disjoint-bdds &aux (bdd-a (car bdds)))
+                (declare (type bdd bdd-a))
                 (cond
                   ((null bdds)
                    disjoint-bdds)
                   (t
                    (flet ((reduction (acc bdd-b &aux (bdd-ab (bdd-and bdd-a bdd-b)))
+                            (declare (type bdd bdd-b bdd-ab)
+                                     (type (cons (member t nil) (cons list (eql nil))) acc))
                             (destructuring-bind (all-disjoint? bdd-set) acc
+                              (declare (type (member t nil) all-disjoint?)
+                                       (type list bdd-set)
+                                       (notinline union))
                               (cond
                                 ((bdd-empty-type bdd-ab)
                                  ;; If the intersection of A and B is the empty type,
