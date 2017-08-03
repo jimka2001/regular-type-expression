@@ -140,6 +140,18 @@
                   (cons 'local-minimum *decompose-fun-names*)))
 
 
+(defun encode-time ()
+  "Create a string similar to the UNIX date command: e.g., \"Thu Aug  3 10:39:18 2017\""
+  (destructuring-bind (second minute hour date month year day-of-week ;; (0 = Monday)
+                       daylight-savings-times ;; T (daylight savings times) or NIL (standard time)
+                       timezone) (multiple-value-list (get-decoded-time))
+    (declare (ignore timezone daylight-savings-times))
+    (let ((day-of-week (aref #("Mon" "Tue" "Wed" "Thu" "Fri" "Sat" "Sun") day-of-week))
+          (month (aref #("no-month" "Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug" "Sep" "Oct" "Nov" "Dec") month)))
+      (with-output-to-string (str)
+        (format str "~A ~A" day-of-week month)
+        (format str " ~2D ~2D:~2,'0D:~2,'0D ~S" date hour minute second year)))))
+
 (defun types/cmp-perfs (&key
                           (re-run t)
                           (verify nil)
@@ -192,7 +204,7 @@
                  (when (> (get-universal-time) time-out-time)
                    (log-data)
                    (return-from types/cmp-perfs 'timed-out))
-                 (format t "    date:  ~A~%" (multiple-value-list (get-decoded-time)))
+                 (format t "    date:  ~A~%" (encode-time))
                  (format t "function:  ~A~%" f)
                  (format t "   tag:    ~A~%" tag)
                  (format t "   length:  ~D~%" len)
