@@ -23,6 +23,7 @@
 (in-package   :lisp-types)
 
 (defun %decompose-types (type-specifiers)
+  (declare (optimize (speed 3) (compilation-speed 0) (debug 0)))
   (let (decomposition) ;; the list of disjoint type-specifiers
     (labels ((remove-disjoint ()
 	       (dolist (T1 type-specifiers)
