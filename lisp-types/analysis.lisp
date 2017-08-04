@@ -1231,11 +1231,12 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
 
 (defun best-2-report (&key (re-run t) (multiplier 1.8))
   (big-test-report :re-run re-run
-                   :prefix "best-2-"
+                   :prefix "best-2-" ;; should change to best-3-
                    :multiplier multiplier
                    :normalize nil
                    :time-out 20
                    :decomposition-functions '(decompose-types-bdd-graph
+                                              bdd-decompose-types
                                               decompose-types-graph)))
 
 
