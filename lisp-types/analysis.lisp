@@ -128,7 +128,7 @@
 (defvar *decomposition-function-descriptors*
   `((:names (decompose-types) :max-num-types 15 :color "blue" :legend t)
     (:names (decompose-types-sat) :color "dark-cyan"  :legend t)
-    (:names (decompose-types-graph) :color "lavender" :legend t)
+    (:names (decompose-types-graph) :gnu-color "pink" :color "lavender" :legend t)
     (:names (bdd-decompose-types) :color "orange" :legend t)
     (:names ,*decompose-fun-names* :color "light-blue" :legend nil)
     (:names (decompose-types-bdd-graph) :color "red" :linewidth 2  :legend t)
@@ -643,7 +643,8 @@ returns a plist, one of the following:
                                     (format stream "set style line ~D linewidth ~D linecolor rgb ~S~%"
                                             line-style
                                             (or (getf descr :linewidth) 1)
-                                            (getf descr :color))
+                                            (or (getf descr :gnu-color)
+                                                (getf descr :color)))
                                     ;; collect
                                     `(:line-style ,line-style ,@descr))
                                   *decomposition-function-descriptors*))
@@ -686,7 +687,8 @@ returns a plist, one of the following:
                      (plot-curve (curve)
                        (destructuring-bind (&key decompose
                                             &allow-other-keys
-                                            &aux (color (getf (find-decomposition-function-descriptor decompose) :color)))
+                                            &aux (color (or (getf (find-decomposition-function-descriptor decompose) :gnu-color)
+                                                            (getf (find-decomposition-function-descriptor decompose) :color))))
                            curve
                          (format stream "# ~A ~A~%" color decompose)
                          (dolist (pair (xys curve))
