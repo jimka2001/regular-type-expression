@@ -139,18 +139,20 @@
                             (copy-list (getf plist :names))) *decomposition-function-descriptors*)
                   (cons 'local-minimum *decompose-fun-names*)))
 
-
-(defun encode-time ()
+(defun encode-time (time &aux (decoded-time (multiple-value-list (decode-universal-time time))))
   "Create a string similar to the UNIX date command: e.g., \"Thu Aug  3 10:39:18 2017\""
   (destructuring-bind (second minute hour date month year day-of-week ;; (0 = Monday)
                        daylight-savings-times ;; T (daylight savings times) or NIL (standard time)
-                       timezone) (multiple-value-list (get-decoded-time))
+                       timezone) decoded-time
     (declare (ignore timezone daylight-savings-times))
     (let ((day-of-week (aref #("Mon" "Tue" "Wed" "Thu" "Fri" "Sat" "Sun") day-of-week))
           (month (aref #("no-month" "Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug" "Sep" "Oct" "Nov" "Dec") month)))
       (with-output-to-string (str)
         (format str "~A ~A" day-of-week month)
         (format str " ~2D ~2D:~2,'0D:~2,'0D ~S" date hour minute second year)))))
+
+
+
 
 (defun types/cmp-perfs (&key
                           (re-run t)
@@ -159,6 +161,7 @@
                           (randomize nil)
                           (summary nil)
                           (limit 15)
+                          sample
                           (types (choose-randomly (valid-subtypes 'number) limit))
                           (time-out nil)
                           tag
@@ -174,6 +177,8 @@
                           (dat-name "/dev/null"))
   (declare (type (or list (and symbol (satisfies symbol-function))) decompose))
   (let ((*package* (find-package "KEYWORD"))
+        (start-time (get-universal-time))
+        (fraction-completion 0)
         (time-out-time (+ (get-universal-time) suite-time-out))
         delayed)
     (labels ((handle (descr len thunk)
@@ -204,7 +209,14 @@
                  (when (> (get-universal-time) time-out-time)
                    (log-data)
                    (return-from types/cmp-perfs 'timed-out))
-                 (format t "    date:  ~A~%" (encode-time))
+                 (let ((now (get-universal-time)))
+                   (format t "    date:  ~A" (encode-time now))
+                   (when (plusp fraction-completion)
+                     (format t "  estim finish:  ~A" (encode-time
+                                                  (truncate (+ start-time
+                                                               (/ (- now start-time)
+                                                                  fraction-completion))))))
+                   (terpri t))
                  (format t "function:  ~A~%" f)
                  (format t "   tag:    ~A~%" tag)
                  (format t "   length:  ~D~%" len)
@@ -235,7 +247,11 @@
                  (len c))
             (setf delayed (shuffle-list delayed))
             (while delayed
+              (format t "sample: ~A~%" sample)
               (format t "countdown ~D/~D  ~D/~D~%" (decf c) len (- time-out-time (get-universal-time)) suite-time-out)
+              (setf fraction-completion (- 1
+                                           (min (/ c len)
+                                                (/ (- time-out-time (get-universal-time)) suite-time-out))))
               (funcall (pop delayed))))))
       (sb-ext:gc :full t)
       (log-data)))
@@ -1019,7 +1035,7 @@ the list of xys need not be already ordered."
     (print-ltxdat ltxdat-name sorted-name include-decompose))
   (print-dat dat-name include-decompose))
 
-(defun test-report (&key (prefix "") (re-run t) (suite-time-out (* 60 60 4))  (time-out (* 3 60)) normalize (destination-dir "/Users/jnewton/newton.16.edtchs/src")
+(defun test-report (&key sample (prefix "") (re-run t) (suite-time-out (* 60 60 4))  (time-out (* 3 60)) normalize (destination-dir "/Users/jnewton/newton.16.edtchs/src")
                       types file-name (limit 15) tag
                     &allow-other-keys)
   "TIME-OUT is the number of seconds to allow for one call to a single decompose function.
@@ -1037,6 +1053,7 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
                              :time-out time-out
                              :decompose  *decomposition-functions*
                              :normalize normalize
+                             :sample sample
                              (when file-name
                                (list
                                 :ltxdat-name (format nil "~A/~A~A.ltxdat" destination-dir prefix file-name)
@@ -1118,7 +1135,26 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
 
 (defun big-test-report (&rest options &key (multiplier 1) (prefix "") (re-run t) (suite-time-out (* 60 60 4)) (time-out 100) normalize (decomposition-functions *decomposition-functions*) (destination-dir "/Users/jnewton/newton.16.edtchs/src"))
   (declare (ignore prefix re-run suite-time-out time-out normalize destination-dir))
-  (let ((*decomposition-functions*  decomposition-functions))
+  (let ((sample 0)
+        (*decomposition-functions*  decomposition-functions))
+
+
+    (apply #'test-report :limit (* multiplier 21)
+                         :tag "SB-PCL types"
+                         :types (loop :for name being the external-symbols in "SB-PCL"
+                                      :when (find-class name nil)
+                                        :collect name)
+                         :file-name "pcl-types"
+                         :sample (incf sample 1/8)
+                         options)
+
+
+    (apply #'test-report :limit (* multiplier 30)
+                         :tag "cl-types"
+                         :types *cl-types*
+                         :file-name "cl-types"
+                         :sample (incf sample 1/8)
+                         options)
 
     (apply #'test-report :limit (* multiplier 18)
                          :tag "numbers and conditions"
@@ -1128,6 +1164,7 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
                                                                   nconc (list t1 `(or ,t1 ,t2) `(and ,t1 (not ,t2)))) :test #'equal)
                                   (null (subtypep e nil)))
                          :file-name "subtypes-of-number-or-condition"
+                         :sample (incf sample 1/8)
                          options)
 
 
@@ -1135,12 +1172,14 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
                          :tag "numbers"
                          :types *number-combos*
                          :file-name "subtypes-of-number"
+                         :sample (incf sample 1/8)
                          options)
 
     (apply #'test-report :limit (* multiplier 33)
                          :tag "cl-combos"
                          :types (choose-randomly  *cl-type-combos* 13850)
                          :file-name "cl-combos"
+                         :sample (incf sample 1/8)
                          options)
     
 
@@ -1152,30 +1191,20 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
 
 
 
-    (apply #'test-report :limit (* multiplier 21)
-                         :tag "SB-PCL types"
-                         :types (loop :for name being the external-symbols in "SB-PCL"
-                                      :when (find-class name nil)
-                                        :collect name)
-                         :file-name "pcl-types"
-                         options)
-    (apply #'test-report :limit (* multiplier 30)
-                         :tag "cl-types"
-                         :types *cl-types*
-                         :file-name "cl-types"
-                         options)
 
-    
+
     (apply #'test-report :limit (* multiplier 30)
                          :tag "member"
                          :types *member-types*
                          :file-name "member"
+                         :sample (incf sample 1/8)
                          options)
     
     (apply #'test-report :limit (* multiplier 18)
                          :tag "conditions"
                          :types (valid-subtypes 'condition)
                          :file-name "subtypes-of-condition"
+                         :sample (incf sample 1/8)
                          options)
 
 
@@ -1185,7 +1214,9 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
                          :tag "subtypes of t"
                          :types (valid-subtypes t)
                          :file-name "subtypes-of-t"
+                         :sample (incf sample 1/8)
                          options)
+
 
     ))
 
