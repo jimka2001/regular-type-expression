@@ -123,9 +123,12 @@ If a type is found in this list that it treated as a declaration of to things:
 Applications are free to push entries onto this list to notify REDUCE-LISP-TYPE of how
 to reduce a type defined by DEFTYPE.")
 
-(defun reduce-lisp-type-once (type &aux it)
+(defun reduce-lisp-type-once (type &key (full t) &aux it)
   "Given a lisp type designator, make one pass at reducing it, removing redundant information such as
-repeated or contradictory type designators."
+repeated or contradictory type designators. 
+
+If :full nil is given, then an incomplete but fast reduction is done.  No step is made which requires
+a call to subtypep or friends."
   (declare (optimize (speed 3) (compilation-speed 0))
 	   (inline sub-super reduce-absorption reduce-redundancy remove-supers remove-subs))
   (labels ((build (op zero args)
@@ -212,7 +215,7 @@ repeated or contradictory type designators."
 			     ((eq '* arg)
 			      '*)
 			     ((eq :type param)
-			      (reduce-lisp-type-once arg))
+			      (reduce-lisp-type-once arg :full full))
 			     (t
 			      arg)))
 		       type
@@ -251,16 +254,16 @@ repeated or contradictory type designators."
 						     rest-tail
 						     key-tail))))
 		    (dolist (spec required-subseq)
-		      (tconc type-conc (reduce-lisp-type-once spec)))
+		      (tconc type-conc (reduce-lisp-type-once spec :full full)))
 		    (when optional-subseq
 		      (tconc type-conc (pop optional-subseq))
 		      (dolist (spec optional-subseq)
-			(tconc type-conc (reduce-lisp-type-once spec))))
+			(tconc type-conc (reduce-lisp-type-once spec :full full))))
 		    (when rest-subseq
 		      (assert (= 2 (length rest-subseq)) ()
 			      "Invalid &rest portion of ~A" arg-typespec)
 		      (tconc type-conc (car rest-subseq))
-		      (tconc type-conc (reduce-lisp-type-once (cadr rest-subseq))))
+		      (tconc type-conc (reduce-lisp-type-once (cadr rest-subseq) :full full)))
 		    (when key-tail
 		      (tconc type-conc (car key-tail))
 		      (dolist (keyword-spec (cdr key-tail))
@@ -269,7 +272,7 @@ repeated or contradictory type designators."
 				"Invalid &key ~S portion of ~S" keyword-spec arg-typespec)
 			(destructuring-bind (keyword spec) keyword-spec
 			  (tconc type-conc (list keyword
-						 (reduce-lisp-type-once spec))))))
+						 (reduce-lisp-type-once spec :full full))))))
 		    (car type-conc))))
 
 	   (declare (notinline length))
@@ -282,7 +285,7 @@ repeated or contradictory type designators."
 	     ((3)	      ; (function arg-typespec value-typespec)
 	      (list 'function
 		    (reduce-spec (cadr type))
-		    (reduce-lisp-type-once (caddr type)))))))
+		    (reduce-lisp-type-once (caddr type) :full full))))))
       ((values? type)
        ;; value-typespec::= typespec* [&optional typespec*] [&rest typespec] [&allow-other-keys] 
        (let* ((type-conc (list nil))
@@ -308,16 +311,16 @@ repeated or contradictory type designators."
 
 	 (tconc type-conc (car type)) ; values
 	 (dolist (spec required-subseq)
-	   (tconc type-conc (reduce-lisp-type-once spec)))
+	   (tconc type-conc (reduce-lisp-type-once spec :full full)))
 	 (when optional-subseq
 	   (tconc type-conc (pop optional-subseq))
 	   (dolist (spec optional-subseq)
-	     (tconc type-conc (reduce-lisp-type-once spec))))
+	     (tconc type-conc (reduce-lisp-type-once spec :full full))))
 	 (when rest-subseq
 	   (assert (= 2 (length rest-subseq)) ()
 		   "Invalid &rest portion of ~A" type)
 	   (tconc type-conc (car rest-subseq))
-	   (tconc type-conc (reduce-lisp-type-once (cadr rest-subseq))))
+	   (tconc type-conc (reduce-lisp-type-once (cadr rest-subseq) :full full)))
 	 (when allow-other-keys-tail
 	   (tconc type-conc '&allow-other-keys))
 	 (car type-conc)))
@@ -329,7 +332,7 @@ repeated or contradictory type designators."
        (setf type (cons (car type)
 			(remove-duplicates (cdr type) :test #'equal)))
        (setf type (cons (car type)
-			(mapcar #'reduce-lisp-type-once (cdr type))))
+			(mapcar (lambda (ty) (reduce-lisp-type-once ty :full full)) (cdr type))))
        ;; we might now how duplicates, in particular we might have (and nil nil), if
        ;;  so then removing supers would result in (and) which would make t.  That woudl
        ;;  be very bad.  So let's remove duplicates again.
@@ -412,19 +415,21 @@ repeated or contradictory type designators."
 				       `(not (eql ,@new-elements))))
 		     (t
 		      (make-and others))))))
-	      ((subtypep (make-and operands) nil)		; (and float string) --> nil
+	      ((and full (subtypep (make-and operands) nil))		; (and float string) --> nil
 	       nil)
-              ((exists t1 operands
-                 (exists t2 operands
-                   (and (not (eq t1 t2))
-                        (disjoint-types-p t1 t2))))
+              ((and full
+                    (exists t1 operands
+                      (exists t2 operands
+                        (and (not (eq t1 t2))
+                             (disjoint-types-p t1 t2)))))
                nil)
               ;; (AND ARITHMETIC-ERROR (NOT CELL-ERROR))) --> ARITHMETIC-ERROR
-              ((exists t1 operands
-                 (exists t2 operands
-                   (and (setq remove-me t2)
-                        (not (eq t1 t2))
-                        (smarter-subtypep t1 t2))))
+              ((and full
+                    (exists t1 operands
+                      (exists t2 operands
+                        (and (setq remove-me t2)
+                             (not (eq t1 t2))
+                             (smarter-subtypep t1 t2)))))
                ;; we have already removed duplicates (EQUAL) so removing supertypes is safe
                (make-and (remove remove-me operands :test #'equal)))
 	      (t
@@ -522,14 +527,14 @@ repeated or contradictory type designators."
 						 (cadr op)
 						 `(not ,op)))
 					   operands)))
-		 (reduce-lisp-type-once `(not (and ,@new-operands)))))
-	      ((subtypep t (make-or operands))	        ; (or number (not number)) --> t
+		 (reduce-lisp-type-once `(not (and ,@new-operands)) :full full)))
+	      ((and full (subtypep t (make-or operands)))	        ; (or number (not number)) --> t
 	       t)
-              ((exists t1 operands
+              ((and full (exists t1 operands
                  (exists t2 operands
                    (and (setq remove-me t1)
                         (not (eq t1 t2))
-                        (smarter-subtypep t1 t2))))
+                        (smarter-subtypep t1 t2)))))
                ;; we have already removed duplicates (EQUAL) so removing subtypes is safe
                (make-or (remove remove-me operands :test #'equal)))
 	      (t
@@ -557,7 +562,7 @@ repeated or contradictory type designators."
 		  (t
 		   type)))))))))
 
-(defun reduce-lisp-type (type)
+(defun reduce-lisp-type (type &key (full t))
     "Given a common lisp type designator such as (AND A (or (not B) C)), apply some
 algebraic manipulations to reduce the expression to a cannonical form.  The general
 cannonical form is an OR of ANDs such as (OR A (not B) (AND C (not D))), but may
@@ -565,10 +570,19 @@ be even simpler in cases such as (OR A B), or (AND A B).  A few restrictions app
 1) OR never appears with an AND block
 2) neither AND nor OR appear inside a NOT block
 3) OR never has fewer than 2 operands
-4) AND never has fewer than 2 operands"
+4) AND never has fewer than 2 operands.
+
+If :full nil is given, then a fast but incomplete reduction is done, i.e., a 
+reduction which does not involve calls to subtypep."
   (alphabetize-type
-   (fixed-point #'reduce-lisp-type-once
+   (fixed-point (lambda (ty) (reduce-lisp-type-once ty :full full))
 		type :test #'equal)))
+
+(defun reduce-lisp-type-full (type)
+  (reduce-lisp-type type :full t))
+
+(defun reduce-lisp-type-simple (type)
+  (reduce-lisp-type type :full nil))
 
 (defun derive-constraints (types)
   (loop for tail on types

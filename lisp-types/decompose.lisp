@@ -22,7 +22,7 @@
 
 (in-package   :lisp-types)
 
-(defun %decompose-types (type-specifiers)
+(defun %decompose-types-old (type-specifiers)
   (declare (optimize (speed 3) (compilation-speed 0) (debug 0))
            (notinline union))
   (let ((known-intersecting (make-hash-table :test #'equal)) decomposition) ;; the list of disjoint type-specifiers
@@ -62,6 +62,39 @@
             (remember `(and ,T1 (not ,T2)))
             (remember `(and (not ,T1) ,T2)))))
       decomposition)))
+
+(defun %decompose-types (type-specifiers)
+  (declare (optimize (speed 3) (compilation-speed 0) (debug 0))
+           (notinline union))
+  (let ((type-specifiers (mapcar #'reduce-lisp-type-simple type-specifiers))
+        (known-intersecting (make-hash-table :test #'equal)) decomposition) ;; the list of disjoint type-specifiers
+    (labels ((disjoint? (T1 T2 &aux (key (list T1 T2)))
+               (multiple-value-bind (hit found?) (gethash key known-intersecting)
+                 (cond
+                   (found? hit)
+                   (t
+                    (setf (gethash key known-intersecting) (disjoint-types-p T1 T2))))))
+	     (forget (type)
+	       (setf type-specifiers (remove type type-specifiers :test #'eq)))
+	     (remember (type)
+	       (pushnew type type-specifiers :test #'equivalent-types-p)))
+      (while type-specifiers
+        (let* ((A (car type-specifiers))
+               (intersecting (setof B (cdr type-specifiers)
+                               (not (disjoint? A B)))))
+          (cond
+            ((null intersecting)
+             (forget A)
+             (unless (subtypep A nil)
+                 (pushnew A decomposition :test #'equivalent-types-p)))
+            (t
+             (forget A)
+             (dolist (B intersecting)
+               (forget B)
+               (remember (reduce-lisp-type-simple `(and ,A ,B)))
+               (remember (reduce-lisp-type-simple `(and ,A (not ,B))))
+               (remember (reduce-lisp-type-simple `(and (not ,A) ,B))))))))
+      (mapcar 'reduce-lisp-type-full decomposition))))
 
 (defun decompose-types (type-specifiers)
   (declare (type list type-specifiers))
