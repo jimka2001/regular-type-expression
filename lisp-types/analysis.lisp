@@ -126,7 +126,7 @@
 
 
 (defvar *decomposition-function-descriptors*
-  `((:names (decompose-types) :max-num-types 15 :color "blue" :legend t)
+  `((:names (decompose-types) :max-num-types nil :color "blue" :legend t)
     (:names (decompose-types-sat) :color "dark-cyan"  :legend t)
     (:names (decompose-types-graph) :gnu-color "pink" :color "lavender" :legend t)
     (:names (bdd-decompose-types) :color "orange" :legend t)
