@@ -174,7 +174,7 @@
   (ensure-directories-exist prefix)
   ;; prefix = "/Users/jnewton/newton.16.edtchs/src"
   (let (legend
-        (colors '("red" "goldenrod" "blue" "lavender" "greeny" "dark-cyan" "color-7" "color-8"))
+        (colors '("red" "goldenrod" "olive" "blue" "lavender" "greeny" "dark-cyan" "color-7" "color-8"))
         (data (sort (measure-bdd-sizes vars num-samples min max) #'< :key (getter :num-vars))))
 
     (flet ((individual-plot (stream num-vars &aux (plist (find num-vars data :key (getter :num-vars))))

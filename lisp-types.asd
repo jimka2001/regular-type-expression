@@ -38,4 +38,5 @@
      (:file "bdd-worst-case" :depends-on ("bdd"))
      (:file "bdd-size-simulation" :depends-on ("bdd"))
      (:file "bdd-reduce-17" :depends-on ("bdd"))
+     (:file "decompose-rtev2" :depends-on ("bdd"))
      ))))

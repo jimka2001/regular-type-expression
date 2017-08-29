@@ -126,7 +126,8 @@
 
 
 (defvar *decomposition-function-descriptors*
-  `((:names (decompose-types) :max-num-types nil :color "blue" :legend t)
+  `((:names (decompose-types) :max-num-types 15 :color "blue" :legend t)
+    (:names (decompose-types-rtev2) :max-num-types nil :color "olive" :legend t)
     (:names (decompose-types-sat) :color "dark-cyan"  :legend t)
     (:names (decompose-types-graph) :gnu-color "pink" :color "lavender" :legend t)
     (:names (bdd-decompose-types) :color "orange" :legend t)
@@ -1233,12 +1234,13 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
 
 (defun best-2-report (&key (re-run t) (multiplier 1.8))
   (big-test-report :re-run re-run
-                   :prefix "best-2-" ;; should change to best-3-
+                   :prefix "best-2-" ;; should change to best-4-
                    :multiplier multiplier
                    :normalize nil
                    :time-out 20
                    :decomposition-functions '(decompose-types-bdd-graph
                                               bdd-decompose-types
+                                              decompose-types-rtev2
                                               decompose-types-graph)))
 
 
