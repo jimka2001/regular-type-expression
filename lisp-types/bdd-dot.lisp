@@ -122,7 +122,7 @@
   (let ((dot-path (format nil "~A.dot" basename))
         (png-path (format nil "~A.png" basename)))
     (ensure-directories-exist dot-path)
-    (with-open-file (stream dot-path :direction :output :if-exists :supersede)
+    (with-open-file (stream dot-path :direction :output :if-exists :supersede :if-does-not-exist :create)
       (bdd-to-dot bdd stream :reduced reduced))
     (format t "~A~%" png-path)
     (sb-ext:run-program "dot"

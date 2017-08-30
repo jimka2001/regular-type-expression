@@ -179,7 +179,7 @@
 
     (flet ((individual-plot (stream num-vars &aux (plist (find num-vars data :key (getter :num-vars))))
              (format stream "\\begin{tikzpicture}~%")
-             (format stream "\\begin{axis}[xlabel=ROBDD node count for ~D variables,ymajorgrids,yminorgrids,xmajorgrids,xminorgrids,ylabel=Number of Boolean functions,legend style={font=\tiny}]~%" num-vars)
+             (format stream "\\begin{axis}[~% xlabel=ROBDD node count for ~D variables,~% ymajorgrids,~% yminorgrids,~% xmajorgrids,~% xminorgrids,~% ylabel=Number of Boolean functions,~% legend style={font=\tiny}~%]~%" num-vars)
              (format stream "\\addplot[color=blue] coordinates {~%")
              (dolist (item (getf plist :counts))
                (format stream "(~D,~D)~%" (car item) (coerce (nth 3 item) 'double-float)))
@@ -190,7 +190,7 @@
              (format stream "\\end{tikzpicture}~%"))
            (average-plot (stream)
              (format stream "\\begin{tikzpicture}~%")
-             (format stream "\\begin{axis}[ymajorgrids,yminorgrids,xmajorgrids,xlabel=Number of variables,ylabel=ROBDD size,legend style={anchor=west,font=\tiny},")
+             (format stream "\\begin{axis}[~% ymajorgrids,~% yminorgrids,~% xmajorgrids,~% xlabel=Number of variables,~% ylabel=ROBDD size,~% legend style={anchor=west,font=\tiny},")
              (format stream "xtick={1")
              (loop for xtick from 2
                      to (reduce (lambda (max item)
@@ -198,7 +198,7 @@
                                 (cdr data)
                                 :initial-value (getf (car data) :num-vars))
                    do (format stream ",~D" xtick))
-             (format stream "}]~%")
+             (format stream "}~%]~%")
              ;; worst case size
              (format stream "\\addplot[color=red] coordinates {~%")
              (dolist (plist data)
@@ -227,7 +227,7 @@
              (format stream "\\end{tikzpicture}~%"))
            (size-plots (stream)
              (format stream "\\begin{tikzpicture}~%")
-             (format stream "\\begin{axis}[xlabel=BDD Size, ymajorgrids,yminorgrids,xmajorgrids, xminorgrids, ylabel=Probability, legend style={font=\\tiny}, label style={font=\\tiny}]~%")
+             (format stream "\\begin{axis}[~% xlabel=BDD Size,~% ymajorgrids,~% yminorgrids,~% xmajorgrids,~% xminorgrids,~% ylabel=Probability,~%legend style={font=\\tiny},~% label style={font=\\tiny}~%]~%")
                 
              (dolist (datum data)
                (destructuring-bind (&key num-vars counts &allow-other-keys) datum
@@ -291,7 +291,7 @@
 
 (defun all-possible-bdds-latex (prefix vars)
   (with-open-file (latex (format nil "~A/all-robdds-~A.ltx" prefix (length vars))
-                         :direction :output :if-exists :supersede)
+                         :direction :output :if-exists :supersede :if-does-not-exist :create)
     (format latex "\\begin{table}~%")
     (format latex "\\begin{center}~%")
     (format latex "\\begin{tabular}{c|c|l}~%")

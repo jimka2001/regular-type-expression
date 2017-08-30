@@ -79,7 +79,7 @@
   (graph-to-dot graph (pathname filename)))
 
 (defmethod graph-to-dot (graph (pathname pathname))
-  (with-open-file (stream pathname :direction :output :if-exists :supersede)
+  (with-open-file (stream pathname :direction :output :if-exists :supersede :if-does-not-exist :create)
     (graph-to-dot graph stream)))
 
 (defmethod graph-to-dot (graph (stream (eql nil)))

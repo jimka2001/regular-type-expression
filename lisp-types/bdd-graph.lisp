@@ -31,7 +31,7 @@
     (string
      (let ((pathname (pathname out)))
        (cond ((string= "dot" (pathname-type pathname))
-              (with-open-file (stream out :direction :output :if-exists :supersede)
+              (with-open-file (stream out :direction :output :if-exists :supersede :if-does-not-exist :create)
                 (bdd-graph-to-dot graph stream)))
              ((string= "png" (pathname-type pathname))
               (let ((dot-path (merge-pathnames (make-pathname :type "dot") pathname)))

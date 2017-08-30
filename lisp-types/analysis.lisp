@@ -170,6 +170,7 @@
                           normalize
                           (sorted-name "/dev/null")
                           (ltxdat-name "/dev/null")
+                          (ltxdat-no-legend-name "/dev/null")
                           (sexp-name "/dev/null")
                           (gnuplot-name "/dev/null")
                           (gnuplot-normalized-name "/dev/null")
@@ -195,6 +196,7 @@
                (print-report :re-run re-run
                              :dat-name dat-name
                              :ltxdat-name ltxdat-name
+                             :ltxdat-no-legend-name ltxdat-no-legend-name
                              :sexp-name sexp-name
                              :gnuplot-name gnuplot-name
                              :gnuplot-normalized-name gnuplot-normalized-name
@@ -938,14 +940,17 @@ the list of xys need not be already ordered."
     (format stream "))~%"))
   nil)
 
-(defun print-ltxdat (ltxdat-name sorted-name include-decompose)
+(defun print-ltxdat (ltxdat-name sorted-name include-decompose legendp tag)
   (let ((content (with-open-file (stream sorted-name :direction :input :if-does-not-exist :error)
                    (read stream))))
     (destructuring-bind (&key sorted &allow-other-keys) content
-      (with-open-file (stream ltxdat-name :direction :output :if-exists :supersede)
+      (with-open-file (stream ltxdat-name :direction :output :if-exists :supersede :if-does-not-exist :create)
         (format t "writing to ~A~%" ltxdat-name)
         (format stream "\\begin{tikzpicture}~%")
-        (format stream "\\begin{axis}[~% xlabel=Size,~% ylabel=Time,~% xmode=log,~% ymode=log,~% legend style={at={(0.5,-0.2)},anchor=north},~% xmajorgrids,~% xminorgrids,~% ymajorgrids,~% legend style={font=\\tiny},~% xticklabel style={font=\\tiny},~% yticklabel style={font=\\tiny},~% label style={font=\\tiny}~%]~%")
+        (format stream "\\begin{axis}[~% ")
+        (when tag
+          (format stream "title=~A,~% " tag))
+        (format stream "xlabel=Size,~% ylabel=Time,~% xmode=log,~% ymode=log,~% legend style={at={(0.5,-0.2)},anchor=north},~% xmajorgrids,~% xminorgrids,~% ymajorgrids,~% legend style={font=\\tiny},~% xticklabel style={font=\\tiny},~% yticklabel style={font=\\tiny},~% label style={font=\\tiny}~%]~%")
         (let ((*print-case* :downcase)
               (min-curve (reduce (lambda (curve1 curve2)
                                   (if (< (getf curve1 :integral)
@@ -982,7 +987,8 @@ the list of xys need not be already ordered."
                 (plot (getf min-curve :xys)
                       (getf min-curve :decompose)
                       descr))))
-          (format stream "\\legend{~A};~%" (build-string ", " (reverse legend))))
+          (format stream "~A\\legend{~A};~%" (if legendp "" "%% ") (build-string ", " (reverse legend)))
+          (format stream "~A\\legend{};~%" (if legendp "%% " "")))
         (format stream "\\end{axis}~%")
         (format stream "\\end{tikzpicture}~%")))))
             
@@ -1024,7 +1030,7 @@ the list of xys need not be already ordered."
                        (length (set-difference value types :test #'equivalent-types-p)) ;; new
                        time decompose)))))))))
 
-(defun print-report (&key (re-run t) limit (summary nil) normalize (dat-name "/dev/null") (ltxdat-name "/dev/null") (sorted-name "/dev/null") (sexp-name "/dev/null") (png-name "/dev/null") (png-normalized-name "/dev/null") (gnuplot-name "/dev/null") (gnuplot-normalized-name "/dev/null") (include-decompose *decomposition-functions*) &allow-other-keys)
+(defun print-report (&key (re-run t) limit (summary nil) normalize (dat-name "/dev/null") (ltxdat-name "/dev/null") (ltxdat-no-legend-name "/dev/null") (sorted-name "/dev/null") (sexp-name "/dev/null") (png-name "/dev/null") (png-normalized-name "/dev/null") (gnuplot-name "/dev/null") (gnuplot-normalized-name "/dev/null") (include-decompose *decomposition-functions*) (tag "NO TITLE") &allow-other-keys)
   (format t "report ~A~%" summary)
   (when re-run
     (with-open-file (stream sexp-name :direction :output :if-exists :supersede :if-does-not-exist :create)
@@ -1035,7 +1041,8 @@ the list of xys need not be already ordered."
     (create-gnuplot sorted-name gnuplot-name png-name nil)
     (when normalize
       (create-gnuplot sorted-name gnuplot-normalized-name png-normalized-name normalize))
-    (print-ltxdat ltxdat-name sorted-name include-decompose))
+    (print-ltxdat ltxdat-name           sorted-name include-decompose t nil)
+    (print-ltxdat ltxdat-no-legend-name sorted-name include-decompose nil tag))
   (print-dat dat-name include-decompose))
 
 (defun test-report (&key sample (prefix "") (re-run t) (suite-time-out (* 60 60 4))  (time-out (* 3 60)) normalize (destination-dir "/Users/jnewton/newton.16.edtchs/src")
@@ -1060,6 +1067,7 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
                              (when file-name
                                (list
                                 :ltxdat-name (format nil "~A/~A~A.ltxdat" destination-dir prefix file-name)
+                                :ltxdat-no-legend-name (format nil "~A/no-legend/~A~A.ltxdat" destination-dir prefix file-name)
                                 :dat-name (format nil "~A/~A~A.dat" destination-dir prefix file-name)
                                 :png-name (format nil "~A/~A~A.png" destination-dir prefix file-name)
                                 :png-normalized-name (format nil "~A/~A~A-normalized.png" destination-dir prefix file-name)
@@ -1153,14 +1161,14 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
 
 
     (apply #'test-report :limit (* multiplier 30)
-                         :tag "cl-types"
+                         :tag "CL types"
                          :types *cl-types*
                          :file-name "cl-types"
                          :sample (incf sample 1/8)
                          options)
 
     (apply #'test-report :limit (* multiplier 18)
-                         :tag "numbers and conditions"
+                         :tag "Subtypes of NUMBER or CONDITION"
                          ;; :types (union (valid-subtypes 'number) (valid-subtypes 'condition))
                          :types (setof e (remove-duplicates (loop for t1 in (shuffle-list (union (valid-subtypes 'number) (valid-subtypes 'condition)))
                                                                   for t2 in (shuffle-list (union (valid-subtypes 'number) (valid-subtypes 'condition)))
@@ -1172,14 +1180,14 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
 
 
     (apply #'test-report :limit (* multiplier 25)
-                         :tag "numbers"
+                         :tag "Subtypes of NUMBER"
                          :types *number-combos*
                          :file-name "subtypes-of-number"
                          :sample (incf sample 1/8)
                          options)
 
     (apply #'test-report :limit (* multiplier 33)
-                         :tag "cl-combos"
+                         :tag "CL combinations"
                          :types (choose-randomly  *cl-type-combos* 13850)
                          :file-name "cl-combos"
                          :sample (incf sample 1/8)
@@ -1193,28 +1201,8 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
     ;;                      options)
 
 
-
-
-
-    (apply #'test-report :limit (* multiplier 30)
-                         :tag "member"
-                         :types *member-types*
-                         :file-name "member"
-                         :sample (incf sample 1/8)
-                         options)
-    
-    (apply #'test-report :limit (* multiplier 18)
-                         :tag "conditions"
-                         :types (valid-subtypes 'condition)
-                         :file-name "subtypes-of-condition"
-                         :sample (incf sample 1/8)
-                         options)
-
-
-
-
     (apply #'test-report :limit (* multiplier 22)
-                         :tag "subtypes of t"
+                         :tag "Subtypes of T"
                          :types (valid-subtypes t)
                          :file-name "subtypes-of-t"
                          :sample (incf sample 1/8)
