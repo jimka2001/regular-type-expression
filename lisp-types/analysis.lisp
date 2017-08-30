@@ -158,6 +158,7 @@
 (defun types/cmp-perfs (&key
                           (re-run t)
                           (verify nil)
+                          (num-tries 2)
                           (suite-time-out (* 60 10))
                           (randomize nil)
                           (summary nil)
@@ -191,7 +192,7 @@
                  (randomize
                   (push thunk delayed))
                  (t
-                   (funcall thunk))))
+                  (funcall thunk))))
              (log-data ()
                (print-report :re-run re-run
                              :dat-name dat-name
@@ -206,7 +207,8 @@
                              :summary summary
                              :normalize normalize
                              :time-out time-out
-                             :limit limit))
+                             :limit limit
+                             :tag tag))
              (run1 (f len types)
                (lambda (&aux results)
                  (when (> (get-universal-time) time-out-time)
@@ -216,14 +218,15 @@
                    (format t "    date:  ~A" (encode-time now))
                    (when (plusp fraction-completion)
                      (format t "  estim finish:  ~A" (encode-time
-                                                  (truncate (+ start-time
-                                                               (/ (- now start-time)
-                                                                  fraction-completion))))))
+                                                      (truncate (+ start-time
+                                                                   (/ (- now start-time)
+                                                                      fraction-completion))))))
                    (terpri t))
                  (format t "function:  ~A~%" f)
                  (format t "   tag:    ~A~%" tag)
                  (format t "   length:  ~D~%" len)
-                 (let ((result (types/cmp-perf :types (choose-randomly types len)
+                 (let ((result (types/cmp-perf :num-tries num-tries
+                                               :types (choose-randomly types len)
                                                :decompose f
                                                :time-out time-out)))
                    (format t " run-time:  ~A~%" (getf result :run-time))
@@ -262,15 +265,15 @@
 
 
 
-(defun call-with-timeout (time-out thunk)
+(defun call-with-timeout (time-out thunk num-tries)
   "TIME-OUT, integer, the wall-time allowed to call the function THUNK.
-THUNK is a 0-ary function returning some type X.
-Call the function THUNK, in one thread, and start a 2nd observer thread.  The 2nd thread
-is responsible for monitoring the wall time and killing the 1st thread if the TIME-OUT has
-passed.
-returns a plist, one of the following:
-(:wall-time rational :run-time rational :time-out integer) or
-(:wall-time rational :run-time rational :value X)"
+ THUNK is a 0-ary function returning some type X.
+ Call the function THUNK, in one thread, and start a 2nd observer thread.  The 2nd thread
+ is responsible for monitoring the wall time and killing the 1st thread if the TIME-OUT has
+ passed.
+ returns a plist, one of the following:
+ (:wall-time rational :run-time rational :time-out integer) or
+ (:wall-time rational :run-time rational :value X)"
   (let (th-worker th-observer th-worker-join-failed th-observer-join-failed th-worker-destroyed-observer time-it-error result1 result2
                   (start-run-time (get-internal-run-time))
                   (start-real-time (get-internal-real-time)))
@@ -285,16 +288,28 @@ returns a plist, one of the following:
                                      (when th-observer
                                        (warn "killing thread ~A because of error ~A" th-observer e)
                                        (ignore-errors (bordeaux-threads:destroy-thread th-observer))))))
-               (let* ((run-time-t1 (get-internal-run-time))
-                      (s2 (funcall thunk))
-                      (run-time-t2 (get-internal-run-time)))
-                 (setf result1
-                       (list :wall-time (/ (- (get-internal-real-time) start-real-time) internal-time-units-per-second)
-                             :run-time (/ (- run-time-t2 run-time-t1) internal-time-units-per-second)
-                             :value s2))
-                 (when th-observer
-                   (setf th-worker-destroyed-observer
-                         (bordeaux-threads:destroy-thread th-observer)))))))
+               (dotimes (try num-tries)
+                 (let* ((run-time-t1 (get-internal-run-time))
+                        (s2 (funcall thunk))
+                        (run-time-t2 (get-internal-run-time))
+                        (wall-time (/ (- (get-internal-real-time) start-real-time) internal-time-units-per-second))
+                        (run-time (/ (- run-time-t2 run-time-t1) internal-time-units-per-second)))
+                   (setf result1
+                         (cond
+                           ((not result1)
+                            (list :wall-time (the real wall-time)
+                                  :run-time run-time
+                                  :value s2))
+                           ((< wall-time (the real (getf result1 :wall-time)))
+                            (format t "found faster ~A < ~A~%" wall-time (getf result1 :wall-time))
+                            (list :wall-time wall-time
+                                  :run-time run-time
+                                  :value s2))
+                           (t
+                            result1)))))
+               (when th-observer
+                 (setf th-worker-destroyed-observer
+                       (bordeaux-threads:destroy-thread th-observer))))))
       (cond
         (time-out
          (setf th-observer
@@ -330,7 +345,7 @@ returns a plist, one of the following:
     (the cons (or result1 result2))))
 
 (defvar *perf-results* nil)
-(defun types/cmp-perf (&key types (decompose 'bdd-decompose-types) (time-out 15) &aux (f (symbol-function decompose)))
+(defun types/cmp-perf (&key types (decompose 'bdd-decompose-types) (time-out 15) (num-tries 2) &aux (f (symbol-function decompose)))
   (declare (type list types)
            (type symbol decompose)
            (type function f))
@@ -347,7 +362,8 @@ returns a plist, one of the following:
      (sb-ext:gc :full t)
      (let ((result (call-with-timeout time-out
                                       (lambda ()
-                                        (funcall f types))))
+                                        (funcall f types))
+                                      num-tries))
            (num-unknown 0)
            (num-known 0))
        (declare (type (and unsigned-byte fixnum) num-known num-unknown))
@@ -1046,7 +1062,7 @@ the list of xys need not be already ordered."
   (print-dat dat-name include-decompose))
 
 (defun test-report (&key sample (prefix "") (re-run t) (suite-time-out (* 60 60 4))  (time-out (* 3 60)) normalize (destination-dir "/Users/jnewton/newton.16.edtchs/src")
-                      types file-name (limit 15) tag
+                      types file-name (limit 15) tag (num-tries 2)
                     &allow-other-keys)
   "TIME-OUT is the number of seconds to allow for one call to a single decompose function.
 SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
@@ -1064,6 +1080,7 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
                              :decompose  *decomposition-functions*
                              :normalize normalize
                              :sample sample
+                             :num-tries num-tries
                              (when file-name
                                (list
                                 :ltxdat-name (format nil "~A/~A~A.ltxdat" destination-dir prefix file-name)
@@ -1144,11 +1161,27 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
 
 
 
-(defun big-test-report (&rest options &key (multiplier 1) (prefix "") (re-run t) (suite-time-out (* 60 60 4)) (time-out 100) normalize (decomposition-functions *decomposition-functions*) (destination-dir "/Users/jnewton/newton.16.edtchs/src"))
-  (declare (ignore prefix re-run suite-time-out time-out normalize destination-dir))
+(defun big-test-report (&rest options &key (num-tries 2) (multiplier 1) (prefix "") (re-run t) (suite-time-out (* 60 60 4)) (time-out 100) normalize (decomposition-functions *decomposition-functions*) (destination-dir "/Users/jnewton/newton.16.edtchs/src"))
+  (declare (ignore prefix re-run suite-time-out time-out normalize destination-dir num-tries))
   (let ((sample 0)
         (*decomposition-functions*  decomposition-functions))
 
+
+    (apply #'test-report :limit (* multiplier 18)
+                         :tag "Subtypes of CONDITION"
+                         :types (valid-subtypes 'condition)
+                         :file-name "subtypes-of-condition"
+                         :sample (incf sample 1/8)
+                         options)
+
+    
+
+    (apply #'test-report :limit (* multiplier 30)
+                         :tag "MEMBER types"
+                         :types *member-types*
+                         :file-name "member"
+                         :sample (incf sample 1/8)
+                         options)
 
     (apply #'test-report :limit (* multiplier 21)
                          :tag "SB-PCL types"
@@ -1226,6 +1259,7 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
                    :multiplier multiplier
                    :normalize nil
                    :time-out 20
+                   :num-tries 4
                    :decomposition-functions '(decompose-types-bdd-graph
                                               bdd-decompose-types
                                               decompose-types-rtev2
