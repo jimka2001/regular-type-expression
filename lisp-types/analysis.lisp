@@ -290,6 +290,7 @@
                                        (ignore-errors (bordeaux-threads:destroy-thread th-observer))))))
                (dotimes (try num-tries)
                  (let* ((run-time-t1 (get-internal-run-time))
+                        (start-real-time (get-internal-real-time))
                         (s2 (funcall thunk))
                         (run-time-t2 (get-internal-run-time))
                         (wall-time (/ (- (get-internal-real-time) start-real-time) internal-time-units-per-second))
@@ -300,8 +301,8 @@
                             (list :wall-time (the real wall-time)
                                   :run-time run-time
                                   :value s2))
-                           ((< wall-time (the real (getf result1 :wall-time)))
-                            (format t "found faster ~A < ~A~%" wall-time (getf result1 :wall-time))
+                           ((< run-time (the real (getf result1 :run-time)))
+                            (format t "[try ~D] found faster ~A < ~A~%" try run-time (getf result1 :run-time))
                             (list :wall-time wall-time
                                   :run-time run-time
                                   :value s2))
