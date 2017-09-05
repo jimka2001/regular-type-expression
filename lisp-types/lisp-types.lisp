@@ -289,11 +289,34 @@ i.e., is a subtype of nil."
                     ;;(format t "cached: ~A -> ~A~%" t12 (gethash t12 *disjoint-hash*))
                     ))))))
 
-(defun equivalent-types-p (T1 T2)
+(defvar *equiv-hash* nil)
+(defun new-equiv-hash ()
+  (make-hash-table :test #'equal))
+
+(defun with-equiv-hash (thunk)
+  (let ((*equiv-hash* (new-equiv-hash)))
+    (prog1 (funcall thunk)
+      (format t "finished with *equiv-hash*=~A~%" *equiv-hash*))))
+
+(defun equivalent-types-p (T1 T2 &aux (key (list T1 T2)))
   "Two types are considered equivalent if each is a subtype of the other."
-  (multiple-value-bind (T1<=T2 okT1T2) (smarter-subtypep T1 T2)
-    (multiple-value-bind (T2<=T1 okT2T2) (smarter-subtypep T2 T1)
-      (values (and T1<=T2 T2<=T1) (and okT1T2 okT2T2)))))
+  (flet ((equiv? ()
+           (multiple-value-bind (T1<=T2 okT1T2) (smarter-subtypep T1 T2)
+             (multiple-value-bind (T2<=T1 okT2T2) (smarter-subtypep T2 T1)
+               (values (and T1<=T2 T2<=T1) (and okT1T2 okT2T2))))))       
+    (cond
+      ;; ((null *equiv-hash*)
+      ;;  (equiv?))
+      (t
+       (multiple-value-bind (answer foundp) (gethash key *equiv-hash*)
+         (cond
+           (foundp
+            (apply #'values answer))
+           (t
+            (let ((answer (multiple-value-list (equiv?))))
+              (setf (gethash key *equiv-hash*)
+                    answer)
+              (apply #'values answer)))))))))
 
 (defun set-equalp (set-a set-b &key (test #'equal))
   (declare (notinline set-exclusive-or))
