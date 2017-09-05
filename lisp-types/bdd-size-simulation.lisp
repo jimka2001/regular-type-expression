@@ -104,7 +104,7 @@
     (when randomp (format t "randomly chosen "))
     (format t "BDDs of possible ~D with ~D variables ~A~%"  (1+ ffff) (length vars) vars)
     (flet ((measure (try randomp)
-             (sb-ext::gc :full t)
+             (gc)
              (bdd-call-with-new-hash (lambda (&aux (boolean-combo (if randomp
                                                                  (random-boolean-combination vars)
                                                                  (int-to-boolean-expression try vars)))

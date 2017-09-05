@@ -160,8 +160,8 @@
 (defclass B-151 () ())
 
 (define-test type/reduce-c
-  (assert-false (sb-mop:class-direct-subclasses (find-class 'a-150)))
-  (assert-false (sb-mop:class-direct-subclasses (find-class 'b-151)))
+  (assert-false (class-direct-subclasses (find-class 'a-150)))
+  (assert-false (class-direct-subclasses (find-class 'b-151)))
   (assert-true (equal (reduce-lisp-type '(OR (NOT A-150) B-151))
                       '(not a-150))))
 
@@ -300,11 +300,11 @@
  ;;    (latex-measure-bdd-sizes "/Users/jnewton/newton.16.edtchs/src" '(Z1 Z2 Z3 Z4 Z5 Z6) 4000)
 
 (defun test-with-z1-z6 (prefix num-samples)
-  (sb-ext::gc :full t)
+  (gc)
   (latex-measure-bdd-sizes prefix '(Z1 Z2 Z3 Z4 Z5 Z6) num-samples :min 1 :max 6))
 
 (defun test-with-z7-z8 (prefix num-samples)
-  (sb-ext::gc :full t)
+  (gc)
   (latex-measure-bdd-sizes prefix '(Z1 Z2 Z3 Z4 Z5 Z6 Z7 Z8) num-samples :min 7 :max 8))
 
 ;; (test-with-z1-z6 "/Users/jnewton/newton.16.edtchs/src/bdd-distribution.ltxdat" 1000)

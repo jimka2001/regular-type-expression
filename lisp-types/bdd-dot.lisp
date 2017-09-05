@@ -125,13 +125,13 @@
     (with-open-file (stream dot-path :direction :output :if-exists :supersede :if-does-not-exist :create)
       (bdd-to-dot bdd stream :reduced reduced))
     (format t "~A~%" png-path)
-    (sb-ext:run-program "dot"
-                        (list "-Tpng" dot-path
-                              "-o" png-path)
-                        :search t)
+    (run-program "dot"
+                 (list "-Tpng" dot-path
+                       "-o" png-path)
+                 :search t)
     png-path))
   
 (defun bdd-view (bdd &key (reduced t) (basename (format nil "/tmp/jnewton/graph/~A" (bdd-ident bdd))))
-  (sb-ext:run-program "open" (list (bdd-to-png bdd :reduced reduced
-                                               :basename basename))
-                      :search t))
+  (run-program "open" (list (bdd-to-png bdd :reduced reduced
+                                            :basename basename))
+               :search t))

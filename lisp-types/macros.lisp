@@ -35,6 +35,8 @@
    "AMBIGUOUS-SUBTYPE"
    "AUTO-PERMUTE-TYPECASE"
    "BDD"
+   "RUN-PROGRAM"
+   "GC"
    ))
 
 (in-package   :lisp-types)

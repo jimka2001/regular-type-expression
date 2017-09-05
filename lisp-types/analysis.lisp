@@ -25,6 +25,8 @@
 
 |#
 
+
+
 (let ((lisp-types-test (find-package  :lisp-types.test))
       (lisp-types (find-package  :lisp-types)))
   (do-symbols (name :lisp-types)
@@ -37,7 +39,15 @@
 ;;(do-symbols (name :lisp-types)
 ;;  (shadowing-import name :lisp-types.test))
 
-
+(defun locate-symbol (name)
+  "Return a list of symbols which is a collection of symbols from all packages which have the given symbol-name"
+  (let (symbols)
+    (dolist (p (list-all-packages))
+      (do-symbols (s p)
+        (when (and (symbol-name s)
+                   (string= name (symbol-name s)))
+          (pushnew s symbols))))
+    symbols))
 
 (defun valid-subtypes (super)
   (let (all-types)
@@ -259,7 +269,7 @@
                                            (min (/ c len)
                                                 (/ (- time-out-time (get-universal-time)) suite-time-out))))
               (funcall (pop delayed))))))
-      (sb-ext:gc :full t)
+      (gc)
       (log-data)))
   t)
 
@@ -330,13 +340,13 @@
                   (format t "killing thread ~A~%" th-worker)
                   (bordeaux-threads:destroy-thread th-worker))
                 :name "th-observer stop-watch"))
-         (setf th-worker (bordeaux-threads:make-thread #'time-it :name "th-worker handle thunk"))
+         (setf th-worker (bordeaux-threads:make-thread #'time-it :name "th-handle thunk"))
          (handler-case (bordeaux-threads:join-thread th-worker)
-           (SB-THREAD:JOIN-THREAD-ERROR (e)
+           #+sbcl(SB-THREAD:JOIN-THREAD-ERROR (e)
              (setf th-worker-join-failed e)
              nil))
          (handler-case (bordeaux-threads:join-thread th-observer)
-           (SB-THREAD:JOIN-THREAD-ERROR (e)
+           #+sbcl(SB-THREAD:JOIN-THREAD-ERROR (e)
              (setf th-observer-join-failed e)
              nil)))
       (t
@@ -360,7 +370,7 @@
      (format t "skipping duplicate ~A ~A~%" decompose types)
      nil)
     (t
-     (sb-ext:gc :full t)
+     (gc)
      (let ((result (call-with-timeout time-out
                                       (lambda ()
                                         (funcall f types))
@@ -735,10 +745,10 @@
               (mapc #'plot-curve sorted)
               (plot-curve min-curve))))))
 
-    (sb-ext:run-program "gnuplot" (list gnuplot-file)
-                        :search t
-                        :output png-filename
-                        :if-output-exists :supersede)))
+    (run-program "gnuplot" (list gnuplot-file)
+                 :search t
+                 :output png-filename
+                 :if-output-exists :supersede)))
 
 (defun integral (xys)
   "given a list of xy pairs (car cadr) calculate the area under the curve formed by the trapizoids.
@@ -1185,8 +1195,8 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
                          options)
 
     (apply #'test-report :limit (* multiplier 21)
-                         :tag "SB-PCL types"
-                         :types (loop :for name being the external-symbols in "SB-PCL"
+                         :tag "OBJECT SYSTEM types"
+                         :types (loop :for name being the external-symbols in #+sbcl "SB-PCL" #+allegro "ACLMOP"
                                       :when (find-class name nil)
                                         :collect name)
                          :file-name "pcl-types"

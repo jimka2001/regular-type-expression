@@ -1,4 +1,4 @@
-;; Copyright (c) 2016 EPITA Research and Development Laboratory
+;; Copyright (c) 2017 EPITA Research and Development Laboratory
 ;;
 ;; Permission is hereby granted, free of charge, to any person obtaining
 ;; a copy of this software and associated documentation
@@ -20,19 +20,19 @@
 ;; WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
-(asdf:defsystem :lisp-types-test
-  :depends-on (:lisp-types
-               :bordeaux-threads
-               :closer-mop
-	       (:version :lisp-unit "0.9.0"))
-  :components
-  ((:module "lisp-types"
-    :components
-    ((:file "test-lisp-types")
-     (:file "test-perf" :depends-on ("analysis"))
-     (:file "test-typecase" :depends-on ("test-lisp-types"))
-     (:file "test-sat" :depends-on ("test-lisp-types" "test-perf"))
-     (:file "test-graph" :depends-on ("test-lisp-types" "test-perf"))
-     (:file "analysis" :depends-on ("test-lisp-types")) ;; valid-subtypes
-     (:file "test-bdd" :depends-on ("analysis" "test-lisp-types" "test-perf"))
-     ))))
+(in-package :lisp-types)
+
+(defun run-program (program args &rest options)
+  #+sbcl (apply #'sb-ext:run-program program args :search t options)
+  #+allegro (apply #'excl:run-shell-command
+                   (apply #'vector (cons program args))
+                   :wait t
+                   options
+                   )
+  )
+
+
+(defun gc ()
+  #+sbcl (sb-ext::gc :full t)
+  #+allegro (excl:gc t)
+)

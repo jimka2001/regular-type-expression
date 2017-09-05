@@ -35,14 +35,14 @@
 ;;  (shadowing-import name :lisp-types.test))
 
 
-(define-test disjoint-cmp-1
+#+sbcl(define-test disjoint-cmp-1
   (setf *perf-results* nil)
   (types/cmp-perfs :types '(sb-pcl::SYSTEM-CLASS
                             sb-pcl::SLOT-DEFINITION
                             sb-pcl::EQL-SPECIALIZER) :time-out nil))
 
 
-(define-test disjoint-cmp-2
+#+sbcl(define-test disjoint-cmp-2
   (setf *perf-results* nil)
   (types/cmp-perfs :types '(sb-pcl::SYSTEM-CLASS
                             sb-pcl::STANDARD-SLOT-DEFINITION
@@ -54,14 +54,14 @@
                             sb-pcl::SLOT-DEFINITION)
                    :time-out 5))
 
-(define-test disjoint-cmp-3
+#+sbcl(define-test disjoint-cmp-3
   (setf *perf-results* nil)
   (types/cmp-perfs :types '(SB-PCL:SYSTEM-CLASS
                             SB-MOP:STANDARD-WRITER-METHOD
                             SB-MOP:DIRECT-SLOT-DEFINITION)))
 
 
-(define-test disjoint-cmp-4
+#+sbcl(define-test disjoint-cmp-4
   (setf *perf-results* nil)
   (types/cmp-perfs :types '(SB-PCL:SYSTEM-CLASS
                             SB-MOP:DIRECT-SLOT-DEFINITION
@@ -74,7 +74,7 @@
                             SB-MOP:FUNCALLABLE-STANDARD-OBJECT)
                    :time-out 8))
 
-(define-test disjoint-cmp-5
+#+sbcl(define-test disjoint-cmp-5
   (setf *perf-results* nil)
   ;; decompose-types-bdd-graph
   (types/cmp-perfs :types '(SB-PCL:SYSTEM-CLASS
