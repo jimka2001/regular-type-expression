@@ -36,3 +36,45 @@
   #+sbcl (sb-ext::gc :full t)
   #+allegro (excl:gc t)
 )
+
+(defun caching-call (thunk key hash)
+  "Helper function used by the expansion of DEF-CACHE-FUN.  This function
+ manages the caching and cache search of the function defined by DEF-CACHE-FUN."
+  (declare (type (function () t) thunk)
+           (type list key)
+           (type (or null hash-table) hash))
+  (cond
+    ((null hash)
+     (funcall thunk))
+    (t
+     (apply #'values
+            (multiple-value-bind (value foundp) (gethash key hash)
+              (cond
+                (foundp value)
+                (t
+                 (setf (gethash key hash) (multiple-value-list (funcall thunk))))))))))
+
+(defmacro def-cache-fun (fun-name with-name lam-list doc-string &body body)
+  "Define two functions named by FUN-NAME and WITH-NAME.  The lambda list of the 
+ first function is given by LAM-LIST.  The semantics of the first function will be
+ to normally simply return the value of BODY.  However, if the call site to the
+ first function is within the dymamic extent of the second function, the
+ the return value will be cached, and the arguments are found in the cache
+ BODY is not evaluated but simply the cached value of the return value will be
+ returned."
+  (declare (type string doc-string))
+  (let ((hash (gensym "hash")))
+    `(progn
+       (defvar ,hash nil)
+
+       (defun ,with-name (thunk)
+         (declare (type (function () t) thunk))
+         (let ((,hash (make-hash-table :test #'equal)))
+           (declare (ignorable ,hash))
+           (prog1 (funcall thunk)
+             (format t "finished with ~A=~A~%" ',fun-name ,hash))))
+       
+       (defun ,fun-name (&rest arg)
+         ,doc-string
+         (destructuring-bind ,lam-list arg
+           (caching-call (lambda () ,@body) arg ,hash))))))

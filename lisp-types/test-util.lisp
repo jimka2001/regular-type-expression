@@ -1,4 +1,4 @@
-;; Copyright (c) 2016 EPITA Research and Development Laboratory
+;; Copyright (c) 2017 EPITA Research and Development Laboratory
 ;;
 ;; Permission is hereby granted, free of charge, to any person obtaining
 ;; a copy of this software and associated documentation
@@ -20,20 +20,33 @@
 ;; WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
-(asdf:defsystem :lisp-types-test
-  :depends-on (:lisp-types
-               :bordeaux-threads
-               :closer-mop
-	       (:version :lisp-unit "0.9.0"))
-  :components
-  ((:module "lisp-types"
-    :components
-    ((:file "test-lisp-types")
-     (:file "test-util")
-     (:file "test-perf" :depends-on ("analysis"))
-     (:file "test-typecase" :depends-on ("test-lisp-types"))
-     (:file "test-sat" :depends-on ("test-lisp-types" "test-perf"))
-     (:file "test-graph" :depends-on ("test-lisp-types" "test-perf"))
-     (:file "analysis" :depends-on ("test-lisp-types")) ;; valid-subtypes
-     (:file "test-bdd" :depends-on ("analysis" "test-lisp-types" "test-perf"))
-     ))))
+
+(in-package :lisp-types.test)
+
+(def-cache-fun cache-it call-with-cache (a b)
+    "testing function"
+  (+ a b))
+
+(define-test test-util/test1
+  (assert-true
+   (equal
+    (loop :for a :from 0 :below 2
+          :for b :from 0 :below 3
+          :collect (list a b (cache-it a b) (cache-it b a)))
+    (call-with-cache
+     (lambda ()
+       (loop :for a :from 0 :below 2
+             :for b :from 0 :below 3
+             :collect (list a b (cache-it a b) (cache-it b a))))))))
+
+(define-test test-util/test2
+  (assert-true
+   (equal
+    (loop :for a :from 0 :below 5
+          :for b :from 0 :below 7
+          :collect (list a b (cache-it a b) (cache-it b a)))
+    (call-with-cache
+     (lambda ()
+       (loop :for a :from 0 :below 5
+             :for b :from 0 :below 7
+             :collect (list a b (cache-it a b) (cache-it b a))))))))
