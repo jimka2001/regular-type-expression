@@ -52,6 +52,7 @@
 	     (forget (type)
 	       (setf type-specifiers (remove type type-specifiers :test #'eq)))
 	     (remember (type)
+               ;;(format t "length=~D type=~A type-specifiers=~A~%" (length type-specifiers) type type-specifiers)
 	       (pushnew type type-specifiers :test #'equivalent-types-p)))
       (while type-specifiers
         (remove-disjoint)
