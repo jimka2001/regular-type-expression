@@ -264,6 +264,25 @@
 (defmethod extract-disjoint ((g sexp-graph))
   (mapcar #'label (disjoint g)))
 
+(defmethod decompose-graph-1 ((g sexp-graph))
+  (call-with-equiv-hash
+   (lambda ()
+     (call-with-disjoint-hash
+      (lambda ()
+        (call-with-subtype-hash
+         (lambda ()
+           (call-next-method))))))))
+
+(defmethod decompose-graph-2 ((g sexp-graph))
+  (call-with-equiv-hash
+   (lambda (x)
+     (call-with-disjoint-hash
+      (lambda ()
+        (call-with-subtype-hash
+         (lambda ()
+           (call-next-method))))))))
+
+
 ;; implemention of bdd based types
 
 (defclass node-of-bdd (node)

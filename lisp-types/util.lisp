@@ -78,3 +78,8 @@
          ,doc-string
          (destructuring-bind ,lam-list arg
            (caching-call (lambda () ,@body) arg ,hash))))))
+
+(def-cache-fun cached-subtypep call-with-subtypep-cache (sub super)
+    "Wrapper around CL:SUBTYPEP.  Manages the caching of return values of SUBTYPEP within the
+dynamic extend of WITH-SUBTYPEP-CACHE"
+  (subtypep sub super))

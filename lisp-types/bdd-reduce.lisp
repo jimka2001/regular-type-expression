@@ -561,9 +561,9 @@ of min-terms, this function returns a list of the min-terms."
 
 (defun bdd-decompose-types (type-specifiers)
   (when type-specifiers
-    (with-disjoint-hash
+    (call-with-disjoint-hash
         (lambda ()
-          (with-subtype-hash
+          (call-with-subtype-hash
               (lambda ()
                 (mapcar #'bdd-to-dnf
                         (%bdd-decompose-types type-specifiers))))))))

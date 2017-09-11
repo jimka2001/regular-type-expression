@@ -113,7 +113,7 @@
         :sort-nodes))
 
 
-(defun %decompose-types-bdd-graph (type-specifiers
+(defun slow-decompose-types-bdd-graph (type-specifiers
                                    &key
                                      (sort-strategy "DECREASING-CONNECTIONS") ;; "BOTTOM-TO-TOP" or "DECREASING-CONNECTIONS"
                                      (recursive t)
@@ -129,8 +129,8 @@
            (type (member :strict :relaxed) do-break-sub)
            (type (function (list) list) sort-nodes)
            (type list type-specifiers)
-           ;;(optimize (speed 3) (compilation-speed 0) (debug 0) (space 0))
-           (optimize (speed 0) (compilation-speed 0) (debug 3) )
+           (optimize (speed 3) (compilation-speed 0) (debug 0) (space 0))
+           ;;(optimize (speed 0) (compilation-speed 0) (debug 3) )
            )
 
   (when (eq :strict do-break-sub)
@@ -160,6 +160,7 @@
           (c 1000)
           (html-file "/tmp/jnewton/graph.html")
           disjoint-bdds)
+      (declare (type (and unsigned-byte fixnum) changed))
       (labels ((while-changed (thunk)
                  (while (plusp changed)
                    (setf changed 0)
@@ -186,7 +187,10 @@
                                                                  :initial-value *bdd-false*))))
                    (with-open-file (html html-file :direction :output
                                                    :if-exists :append
-                                                   :if-does-not-exist :create)
+                                                   :if-does-not-exist :create )
+                     (unless html
+                       (format t "cannot write graph to ~A~%" html-file)
+                       (return-from dot))
                      (format t "writing graph to ~A~%" html-file)
                      (format html "<hr><br>~A<br>~%" comment)
                      (format html "<ul>~%")
@@ -465,7 +469,7 @@
 
 (defun decompose-types-bdd-graph-recursive-increasing-connections (type-specifiers)
   (bdd-call-with-new-hash (lambda ()
-                       (%decompose-types-bdd-graph type-specifiers
+                       (slow-decompose-types-bdd-graph type-specifiers
                                                    :sort-strategy "INCREASING-CONNECTIONS"
                                                    :inner-loop :recursive))))
 
@@ -508,7 +512,7 @@
                 (push `(setf (get ',fun-name 'decompose-properties) ',props) prop-defs)
                 (push `(defun ,fun-name (type-specifiers)
                          (bdd-call-with-new-hash (lambda ()
-                                              (%decompose-types-bdd-graph type-specifiers ,@props))))
+                                              (slow-decompose-types-bdd-graph type-specifiers ,@props))))
                       fun-defs)))))))
     (setf fun-names (mapcar #'cadr fun-defs))
     `(progn

@@ -360,6 +360,7 @@ a call to subtypep or friends."
 					; (and A t B) --> (and A B)
 	      (setf operands (remove t operands)))
 
+
 	    (rule-case type
 	      ((null operands)		; (and) --> t
 	       t)
@@ -381,7 +382,7 @@ a call to subtypep or friends."
 					       (declare (notinline typep))
 					       (typep e type)) (cdr (find-if #'eql-or-member? operands)))))
 		 (make-member objects)))		     
-	      ((< 1 (count-if #'not-eql-or-member? operands))
+	      ((< 1 (count-if #'not-eql-or-member? operands)) ;; if multiple not-eql-or-member?
 	       ;; (and A B (not (member 1 2 a)) (not (member 2 3 4 b)))
 	       ;;   --> (and A B (not (member 1 2 3 4 a b)))
 	       (multiple-value-bind (not-matches others) (partition-by-predicate #'not-eql-or-member? operands)
@@ -407,13 +408,11 @@ a call to subtypep or friends."
 							       (typep e o))
 							     others))
 						    old-elements)))
+
 		   (cond
-		     ((cdr new-elements)
-		      (substitute-tail type `(not (member ,@old-elements))
-				       `(not (member ,@new-elements))))
-		     (new-elements
-		      (substitute-tail type `(not (member ,@old-elements))
-				       `(not (eql ,@new-elements))))
+                     (new-elements
+                      (substitute-tail type `(not ,(make-member old-elements))
+                                       `(not ,(make-member new-elements))))
 		     (t
 		      (make-and others))))))
 	      ((and full (subtypep (make-and operands) nil))		; (and float string) --> nil

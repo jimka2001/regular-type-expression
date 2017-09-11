@@ -94,10 +94,6 @@
                      floating-point-overflow           simple-base-string                             
                      floating-point-underflow          simple-bit-vector    ))
 
-
-
-
-
 (defmacro print-conditions (&body body)
   (let ((conditions (gensym "conditions")))
     `(let (,conditions)
@@ -280,8 +276,11 @@
  THUNK is a 0-ary function returning some type X.
  Call the function THUNK, in one thread, and start a 2nd observer thread.  The 2nd thread
  is responsible for monitoring the wall time and killing the 1st thread if the TIME-OUT has
- passed.
- returns a plist, one of the following:
+ passed.  The function will be called num-tries times, and the minimum time is the
+ value reported in the returned plist.
+ If TIME-OUT is nil, then the function is not run in a separate thread, but rather 
+ is run directly.
+ Returns a plist, one of the following:
  (:wall-time rational :run-time rational :time-out integer) or
  (:wall-time rational :run-time rational :value X)"
   (let (th-worker th-observer th-worker-join-failed th-observer-join-failed th-worker-destroyed-observer time-it-error result1 result2

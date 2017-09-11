@@ -240,7 +240,7 @@
             (or (and (not reader-error) stream-error) (and reader-error (not style-warning)))
             (and (not arithmetic-error) reader-error (not structure-class) (not style-warning))
             (and (not arithmetic-error) (not reader-error) (not structure-class) style-warning))))
-    (%decompose-types-bdd-graph type-specifiers 
+    (slow-decompose-types-bdd-graph type-specifiers 
                                 :sort-nodes #'(lambda (graph)
                                                 (declare (notinline sort))
                                                 (sort graph #'< :key #'count-parents-per-node))
@@ -256,7 +256,7 @@
           '(CONDITION RESTART RATIONAL CONS RATIO READER-ERROR STRUCTURE-CLASS
             SYNONYM-STREAM ARITHMETIC-ERROR CHAR-CODE WARNING FLOAT-RADIX
             SIMPLE-BIT-VECTOR STREAM-ERROR ARRAY STYLE-WARNING)))
-    (%decompose-types-bdd-graph type-specifiers 
+    (slow-decompose-types-bdd-graph type-specifiers 
                                 :sort-nodes #'(lambda (graph)
                                                 (declare (notinline sort))
                                                 (sort graph #'< :key #'count-parents-per-node))
@@ -306,7 +306,7 @@
    (lambda (&aux (type-specifiers (lisp-types::choose-randomly (loop :for name being the external-symbols in "SB-PCL"
                                                                      :when (find-class name nil)
                                                                        :collect name) size)))
-     (%decompose-types-bdd-graph type-specifiers
+     (slow-decompose-types-bdd-graph type-specifiers
                                  :sort-nodes (lambda (graph)
                                                (declare (notinline sort))
                                                (sort graph #'< :key

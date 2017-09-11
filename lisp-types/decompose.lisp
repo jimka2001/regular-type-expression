@@ -22,9 +22,10 @@
 
 (in-package   :lisp-types)
 
-(defun %decompose-types (type-specifiers)
+(defun slow-decompose-types (type-specifiers)
   (declare (optimize (speed 3) (compilation-speed 0) (debug 0))
            (notinline union))
+  ;;  (declare (optimize (debug 3))  (notinline union))
   (let ((known-intersecting (make-hash-table :test #'equal)) decomposition) ;; the list of disjoint type-specifiers
     (labels ((disjoint? (T1 T2 &aux (key (list T1 T2)))
                (multiple-value-bind (hit found?) (gethash key known-intersecting)
@@ -68,9 +69,11 @@
   "Given a list TYPE-SPECIFIERS of lisp type names, return a list of disjoint, 
 non-nil type-specifiers comprising the same union, with each of the resulting
 type-specifiers being a sub-type of one of the given type-specifiers."
-  (with-disjoint-hash
+  (call-with-equiv-hash
       (lambda ()
-        (with-subtype-hash
+        (call-with-disjoint-hash
             (lambda ()
-              (%decompose-types type-specifiers))))))
+              (call-with-subtype-hash
+                  (lambda ()
+                    (slow-decompose-types type-specifiers))))))))
 

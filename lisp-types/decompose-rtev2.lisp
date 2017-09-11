@@ -21,7 +21,7 @@
 
 (in-package   :lisp-types)
 
-(defun %decompose-types-rtev2 (type-specifiers)
+(defun slow-decompose-types-rtev2 (type-specifiers)
   (declare (optimize (speed 3) (compilation-speed 0) (debug 0))
            (notinline union))
   (let ((type-specifiers (mapcar #'reduce-lisp-type-simple type-specifiers))
@@ -60,8 +60,8 @@
   "Given a list TYPE-SPECIFIERS of lisp type names, return a list of disjoint, 
 non-nil type-specifiers comprising the same union, with each of the resulting
 type-specifiers being a sub-type of one of the given type-specifiers."
-  (with-disjoint-hash
+  (call-with-disjoint-hash
       (lambda ()
-        (with-subtype-hash
+        (call-with-subtype-hash
             (lambda ()
-              (%decompose-types-rtev2 type-specifiers))))))
+              (slow-decompose-types-rtev2 type-specifiers))))))

@@ -466,6 +466,8 @@
 
 ;; disjoint-types-p
 (define-test type/disjoint-types-p
+  (assert-false (disjoint-types-p 'fixnum '(member 1 2)))
+  (assert-false (disjoint-types-p 'fixnum '(not (member 1 2))))
   (assert-false (disjoint-types-p 'keyword '(member :a :b)))
   (assert-false (disjoint-types-p 'keyword '(eql :a)))
   (assert-false (disjoint-types-p '(AND KEYWORD (NOT (MEMBER :A :B))) T))
