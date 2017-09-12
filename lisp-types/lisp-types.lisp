@@ -158,7 +158,7 @@ If N > (length of data) then a permutation of DATA is returned"
 ;; with the same arguments.
 ;;
 ;; TODO need to update some calls to subtypep to use smarter-subtypep instead.
-(def-cache-fun smarter-subtypep call-with-subtype-hash (t1 t2)
+(def-cache-fun (smarter-subtypep call-with-subtype-hash) (t1 t2)
   "The sbcl subtypep function does not know that (eql :x) is a subtype of keyword,
 this function SMARTER-SUBTYPEP understands this."
   (declare (optimize (speed 3) (compilation-speed 0)))
@@ -251,7 +251,7 @@ i.e., is a subtype of nil."
       (t
        '(nil nil)))))
 
-(def-cache-fun equivalent-types-p call-with-equiv-hash (T1 T2)
+(def-cache-fun (equivalent-types-p call-with-equiv-hash) (T1 T2)
   "Two types are considered equivalent if each is a subtype of the other."
   (multiple-value-bind (T1<=T2 okT1T2) (smarter-subtypep T1 T2)
     (multiple-value-bind (T2<=T1 okT2T2) (smarter-subtypep T2 T1)

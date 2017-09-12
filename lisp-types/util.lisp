@@ -54,7 +54,7 @@
                 (t
                  (setf (gethash key hash) (multiple-value-list (funcall thunk))))))))))
 
-(defmacro def-cache-fun (fun-name with-name lam-list doc-string &body body)
+(defmacro def-cache-fun ((fun-name with-name &key (hash (gensym "hash"))) lam-list doc-string  &body body)
   "Define two functions named by FUN-NAME and WITH-NAME.  The lambda list of the 
  first function is given by LAM-LIST.  The semantics of the first function will be
  to normally simply return the value of BODY.  However, if the call site to the
@@ -63,23 +63,22 @@
  BODY is not evaluated but simply the cached value of the return value will be
  returned."
   (declare (type string doc-string))
-  (let ((hash (gensym "hash")))
-    `(progn
-       (defvar ,hash nil)
+  `(progn
+     (defvar ,hash nil)
 
-       (defun ,with-name (thunk)
-         (declare (type (function () t) thunk))
-         (let ((,hash (make-hash-table :test #'equal)))
-           (declare (ignorable ,hash))
-           (prog1 (funcall thunk)
-             (format t "finished with ~A=~A~%" ',fun-name ,hash))))
+     (defun ,with-name (thunk)
+       (declare (type (function () t) thunk))
+       (let ((,hash (make-hash-table :test #'equal)))
+         (declare (ignorable ,hash))
+         (prog1 (funcall thunk)
+           (format t "finished with ~A=~A~%" ',fun-name ,hash))))
        
-       (defun ,fun-name (&rest arg)
-         ,doc-string
-         (destructuring-bind ,lam-list arg
-           (caching-call (lambda () ,@body) arg ,hash))))))
+     (defun ,fun-name (&rest arg)
+       ,doc-string
+       (destructuring-bind ,lam-list arg
+         (caching-call (lambda () ,@body) arg ,hash)))))
 
-(def-cache-fun cached-subtypep call-with-subtypep-cache (sub super)
-    "Wrapper around CL:SUBTYPEP.  Manages the caching of return values of SUBTYPEP within the
+(def-cache-fun (cached-subtypep call-with-subtypep-cache :hash *subtypep-hash*) (sub super)
+               "Wrapper around CL:SUBTYPEP.  Manages the caching of return values of SUBTYPEP within the
 dynamic extend of WITH-SUBTYPEP-CACHE"
   (subtypep sub super))

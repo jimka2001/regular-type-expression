@@ -23,7 +23,7 @@
 
 (in-package :lisp-types.test)
 
-(def-cache-fun cache-it call-with-cache (a b)
+(def-cache-fun (cache-it call-with-cache) (a b)
     "testing function"
   (+ a b))
 
