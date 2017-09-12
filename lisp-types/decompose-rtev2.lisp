@@ -44,7 +44,7 @@
           (forget A)
           (cond
             ((null intersecting)
-             (unless (subtypep A nil)
+             (unless (cached-subtypep A nil)
                (pushnew A decomposition :test #'equivalent-types-p)))
             (t
              (dolist (B intersecting)

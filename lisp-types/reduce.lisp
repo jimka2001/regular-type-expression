@@ -415,7 +415,7 @@ a call to subtypep or friends."
                                        `(not ,(make-member new-elements))))
 		     (t
 		      (make-and others))))))
-	      ((and full (subtypep (make-and operands) nil))		; (and float string) --> nil
+	      ((and full (cached-subtypep (make-and operands) nil))		; (and float string) --> nil
 	       nil)
               ((and full
                     (exists t1 operands
@@ -528,7 +528,7 @@ a call to subtypep or friends."
 						 `(not ,op)))
 					   operands)))
 		 (reduce-lisp-type-once `(not (and ,@new-operands)) :full full)))
-	      ((and full (subtypep t (make-or operands)))	        ; (or number (not number)) --> t
+	      ((and full (cached-subtypep t (make-or operands)))	        ; (or number (not number)) --> t
 	       t)
               ((and full (exists t1 operands
                  (exists t2 operands
@@ -588,18 +588,18 @@ reduction which does not involve calls to subtypep."
   (loop for tail on types
         nconc (loop for t2 in (cdr tail)
                  with t1 = (car tail)
-                 when (subtypep t1 t2)
+                 when (cached-subtypep t1 t2)
                    collect (list :subtype t1 t2)
-                 when (subtypep t2 t1)
+                 when (cached-subtypep t2 t1)
                    collect (list :subtype t2 t1)
-                 when (and (subtypep t1 t2)
-                           (subtypep t2 t1))
+                 when (and (cached-subtypep t1 t2)
+                           (cached-subtypep t2 t1))
                    collect (list :equal t1 t2)
-                 when (null (nth-value 1 (subtypep t1 t2)))
+                 when (null (nth-value 1 (cached-subtypep t1 t2)))
                    collect (list :unknown-subtype t1 t2)
-                 when (null (nth-value 1 (subtypep t2 t1)))
+                 when (null (nth-value 1 (cached-subtypep t2 t1)))
                    collect (list :unknown-subtype t2 t1)
-                 when (subtypep `(and ,t1 t2) nil)
+                 when (cached-subtypep `(and ,t1 t2) nil)
                    collect (list :disjoint t1 t2)
-                 when (null (nth-value 1 (subtypep `(and ,t1 t2) nil)))
+                 when (null (nth-value 1 (cached-subtypep `(and ,t1 t2) nil)))
                    collect (list :unknown-disjoint t1 t2))))

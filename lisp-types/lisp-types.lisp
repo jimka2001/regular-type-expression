@@ -174,12 +174,12 @@ this function SMARTER-SUBTYPEP understands this."
       (and (not a) b)))
 
 (defun void-type-p (type)
-  (subtypep type nil))
+  (cached-subtypep type nil))
 
 (defun universal-type-p (type)
-  (subtypep t type))
+  (cached-subtypep t type))
 
-(def-cache-fun disjoint-types-p call-with-disjoint-hash (T1 T2)
+(def-cache-fun (disjoint-types-p call-with-disjoint-hash) (T1 T2)
   "Two types are considered disjoint, if their interseciton is empty,
 i.e., is a subtype of nil."
   (apply #'values (slow-disjoint-types-p T1 T2)))
@@ -188,7 +188,7 @@ i.e., is a subtype of nil."
   "SLOW-DISJOINT-TYPES-P returns a list of two booleans, whereas DISJOINT-TYPES-P returns
  the two corresponding VALUES."
   (declare (notinline subsetp))
-  (multiple-value-bind (disjointp OK) (subtypep (cons 'and t12) nil)
+  (multiple-value-bind (disjointp OK) (cached-subtypep (cons 'and t12) nil)
     (cond
       (OK
        (cons disjointp '(t)))
@@ -401,9 +401,9 @@ E.g.  (rule-case 12 ;; OBJECT
 	      (loop :for t1 :in (cdr tail)
 		    :with t2 = (car tail)
 		    :do
-		       (cond ((subtypep t1 t2)
+		       (cond ((cached-subtypep t1 t2)
 			      (return-from sub-super (values t t1 t2)))
-			     ((subtypep t2 t1)
+			     ((cached-subtypep t2 t1)
 			      (return-from sub-super (values t t2 t1)))))))
   (values nil))
 

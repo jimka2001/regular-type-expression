@@ -247,7 +247,7 @@
   (null (label node)))
 
 (defmethod node-subtypep ((x sexp-node) (y sexp-node))
-  (subtypep (label x) (label y)))
+  (cached-subtypep (label x) (label y)))
 
 (defmethod node-disjoint-types-p ((x sexp-node) (y sexp-node))
   (disjoint-types-p (label x) (label y)))

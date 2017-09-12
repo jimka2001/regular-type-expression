@@ -180,11 +180,11 @@ according to the LABEL which is now the label of some parent in its lineage."
      (let ((new (reduce (lambda (t1 specs)
                           (cond
                             ((exists t2 specs
-                               (subtypep t2 t1))
+                               (cached-subtypep t2 t1))
                              specs)
                             (t
                              (cons t1 (setof t2 specs
-                                        (not (subtypep t1 t2)))))))
+                                        (not (cached-subtypep t1 t2)))))))
                         type-specs :initial-value nil :from-end t)))
        ;; if there were no supers to remove, then return the original list
        ;; allowing the newly allocated one to be GC-ed.
