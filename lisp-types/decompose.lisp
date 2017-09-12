@@ -64,6 +64,15 @@
             (remember `(and (not ,T1) ,T2)))))
       decomposition)))
 
+;; (compile 'slow-decompose-types)
+;; (trace ((labels slow-decompose-types find-intersecting)))
+;; (trace ((labels slow-decompose-types forget)))
+;; (trace ((labels slow-decompose-types remember)))
+;; (trace ((labels slow-decompose-types remove-disjoint)))
+;; (load "/Users/jnewton/sw/regular-type-expression/lisp-types/decompose.lisp")
+;; (load "/Users/jnewton/sw/regular-type-expression/lisp-types/lisp-types.lisp")
+
+
 (defun decompose-types (type-specifiers)
   (declare (type list type-specifiers))
   "Given a list TYPE-SPECIFIERS of lisp type names, return a list of disjoint, 
