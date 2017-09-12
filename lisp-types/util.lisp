@@ -82,3 +82,59 @@
                "Wrapper around CL:SUBTYPEP.  Manages the caching of return values of SUBTYPEP within the
 dynamic extend of WITH-SUBTYPEP-CACHE"
   (subtypep sub super))
+
+;;; the following are functions used to re-produce the allegro bug/issue spr43795.
+
+(defun count-cells (data)
+  (if (listp data)
+      (+ (length data)
+         (reduce (lambda (sum item)
+                   (+ sum (count-cells item)))
+                 data
+                 :initial-value 0))
+      0))
+
+
+(defun reduce-repetitions (data)
+  (let ((hash (make-hash-table :test #'equal)))
+    (labels ((rec (data)
+               (mapl (lambda (list &aux (head (car list)) (tail (cdr list)))
+                       (when (and head (listp head))
+                         (multiple-value-bind (value foundp) (gethash head hash)
+                           (cond
+                             (foundp
+                              (setf (car list) value))
+                             (t
+                              (rec head)
+                              (setf (gethash head hash) head)))))
+                       (multiple-value-bind (value foundp) (gethash tail hash)
+                         (cond
+                           (foundp
+                            (setf (cdr list) value))
+                           (t
+                            (rec tail)
+                            (setf (gethash tail hash) tail)))))
+                     data)))
+      (rec data)
+      data)))
+
+(defun read-subtypep-data ()
+  (with-open-file (stream "/Users/jnewton/subtypep.lisp"
+                          :direction :input)
+    (let ((EOF '(EOF))
+          (items 3000)
+          data)
+      (loop :while (and (plusp items)
+                        (not (eq EOF (setf data (read stream nil EOF)))))
+            :do (decf items)
+            :collect (reduce-repetitions data)))))
+
+(defun time-subtypep ()
+  (let ((pairs (read-subtypep-data)))
+    (format t "starting timing~%")
+    (let ((start-time (get-internal-real-time)))
+      (dolist (pair pairs)
+        (apply #'subtypep pair))
+      (let ((stop-time (get-internal-real-time)))
+        (float (/ (- stop-time start-time)
+                  internal-time-units-per-second))))))
