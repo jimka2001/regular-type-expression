@@ -158,9 +158,6 @@
         (format str "~A ~A" day-of-week month)
         (format str " ~2D ~2D:~2,'0D:~2,'0D ~S" date hour minute second year)))))
 
-
-
-
 (defun types/cmp-perfs (&key
                           (re-run t)
                           (verify nil)
