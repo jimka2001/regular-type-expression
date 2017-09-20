@@ -104,8 +104,8 @@
     (when randomp (format t "randomly chosen "))
     (format t "BDDs of possible ~D with ~D variables ~A~%"  (1+ ffff) (length vars) vars)
     (flet ((measure (try randomp)
-             (sb-ext::gc :full t)
-             (bdd-with-new-hash (lambda (&aux (boolean-combo (if randomp
+             (gc)
+             (bdd-call-with-new-hash (lambda (&aux (boolean-combo (if randomp
                                                                  (random-boolean-combination vars)
                                                                  (int-to-boolean-expression try vars)))
                                            (bdd (bdd boolean-combo))
@@ -174,12 +174,12 @@
   (ensure-directories-exist prefix)
   ;; prefix = "/Users/jnewton/newton.16.edtchs/src"
   (let (legend
-        (colors '("red" "goldenrod" "blue" "lavender" "greeny" "dark-cyan" "color-7" "color-8"))
+        (colors '("red" "goldenrod" "olive" "blue" "lavender" "greeny" "dark-cyan" "color-7" "color-8"))
         (data (sort (measure-bdd-sizes vars num-samples min max) #'< :key (getter :num-vars))))
 
     (flet ((individual-plot (stream num-vars &aux (plist (find num-vars data :key (getter :num-vars))))
              (format stream "\\begin{tikzpicture}~%")
-             (format stream "\\begin{axis}[xlabel=ROBDD node count for ~D variables,ymajorgrids,yminorgrids,xmajorgrids,xminorgrids,ylabel=Number of Boolean functions,legend style={font=\tiny}]~%" num-vars)
+             (format stream "\\begin{axis}[~% xlabel=ROBDD node count for ~D variables,~% ymajorgrids,~% yminorgrids,~% xmajorgrids,~% xminorgrids,~% ylabel=Number of Boolean functions,~% legend style={font=\tiny}~%]~%" num-vars)
              (format stream "\\addplot[color=blue] coordinates {~%")
              (dolist (item (getf plist :counts))
                (format stream "(~D,~D)~%" (car item) (coerce (nth 3 item) 'double-float)))
@@ -190,7 +190,7 @@
              (format stream "\\end{tikzpicture}~%"))
            (average-plot (stream)
              (format stream "\\begin{tikzpicture}~%")
-             (format stream "\\begin{axis}[ymajorgrids,yminorgrids,xmajorgrids,xlabel=Number of variables,ylabel=ROBDD size,legend style={anchor=west,font=\tiny},")
+             (format stream "\\begin{axis}[~% ymajorgrids,~% yminorgrids,~% xmajorgrids,~% xlabel=Number of variables,~% ylabel=ROBDD size,~% legend style={anchor=west,font=\tiny},")
              (format stream "xtick={1")
              (loop for xtick from 2
                      to (reduce (lambda (max item)
@@ -198,7 +198,7 @@
                                 (cdr data)
                                 :initial-value (getf (car data) :num-vars))
                    do (format stream ",~D" xtick))
-             (format stream "}]~%")
+             (format stream "}~%]~%")
              ;; worst case size
              (format stream "\\addplot[color=red] coordinates {~%")
              (dolist (plist data)
@@ -227,7 +227,7 @@
              (format stream "\\end{tikzpicture}~%"))
            (size-plots (stream)
              (format stream "\\begin{tikzpicture}~%")
-             (format stream "\\begin{axis}[xlabel=BDD Size, ymajorgrids,yminorgrids,xmajorgrids, xminorgrids, ylabel=Probability, legend style={font=\\tiny}, label style={font=\\tiny}]~%")
+             (format stream "\\begin{axis}[~% xlabel=BDD Size,~% ymajorgrids,~% yminorgrids,~% xmajorgrids,~% xminorgrids,~% ylabel=Probability,~%legend style={font=\\tiny},~% label style={font=\\tiny}~%]~%")
                 
              (dolist (datum data)
                (destructuring-bind (&key num-vars counts &allow-other-keys) datum
@@ -269,7 +269,7 @@
            (type string prefix)
            (type list vars)
           )
-  (let ((bdd-data (bdd-with-new-hash (lambda ()
+  (let ((bdd-data (bdd-call-with-new-hash (lambda ()
                          (loop for try from 0 below (expt 2 (expt 2 num-vars))
                                collect (let* ((expr (int-to-boolean-expression try vars))
                                          (bdd (bdd expr)))
@@ -291,7 +291,7 @@
 
 (defun all-possible-bdds-latex (prefix vars)
   (with-open-file (latex (format nil "~A/all-robdds-~A.ltx" prefix (length vars))
-                         :direction :output :if-exists :supersede)
+                         :direction :output :if-exists :supersede :if-does-not-exist :create)
     (format latex "\\begin{table}~%")
     (format latex "\\begin{center}~%")
     (format latex "\\begin{tabular}{c|c|l}~%")

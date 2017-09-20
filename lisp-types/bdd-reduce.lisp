@@ -180,11 +180,11 @@ according to the LABEL which is now the label of some parent in its lineage."
      (let ((new (reduce (lambda (t1 specs)
                           (cond
                             ((exists t2 specs
-                               (subtypep t2 t1))
+                               (cached-subtypep t2 t1))
                              specs)
                             (t
                              (cons t1 (setof t2 specs
-                                        (not (subtypep t1 t2)))))))
+                                        (not (cached-subtypep t1 t2)))))))
                         type-specs :initial-value nil :from-end t)))
        ;; if there were no supers to remove, then return the original list
        ;; allowing the newly allocated one to be GC-ed.
@@ -456,7 +456,7 @@ in the topological ordering (i.e., the first value)."
 (define-compiler-macro bdd-typep (obj type-specifier)
   (typecase type-specifier
     ((cons (eql quote))
-     (bdd-with-new-hash
+     (bdd-call-with-new-hash
       (lambda (&aux (bdd (bdd (cadr type-specifier))))
         `(funcall ,(bdd-to-if-then-else-3 bdd (gensym)) ,obj))))
     (t
@@ -493,15 +493,23 @@ convert it to DNF (disjunctive-normal-form)"
   (bdd-to-dnf (bdd type)))
 
 (defun %bdd-decompose-types (type-specifiers)
-  (bdd-with-new-hash
+  (declare (optimize (debug 0) (safety 0) (speed 3))) ;; optimize tail call 
+  (bdd-call-with-new-hash
    (lambda (&aux (bdds (remove-if #'bdd-empty-type (mapcar #'bdd type-specifiers))))
+     (declare (type list bdds))
      (labels ((try (bdds disjoint-bdds &aux (bdd-a (car bdds)))
+                (declare (type bdd bdd-a))
                 (cond
                   ((null bdds)
                    disjoint-bdds)
                   (t
                    (flet ((reduction (acc bdd-b &aux (bdd-ab (bdd-and bdd-a bdd-b)))
+                            (declare (type bdd bdd-b bdd-ab)
+                                     (type (cons (member t nil) (cons list (eql nil))) acc))
                             (destructuring-bind (all-disjoint? bdd-set) acc
+                              (declare (type (member t nil) all-disjoint?)
+                                       (type list bdd-set)
+                                       (notinline union))
                               (cond
                                 ((bdd-empty-type bdd-ab)
                                  ;; If the intersection of A and B is the empty type,
@@ -553,9 +561,9 @@ of min-terms, this function returns a list of the min-terms."
 
 (defun bdd-decompose-types (type-specifiers)
   (when type-specifiers
-    (with-disjoint-hash
+    (call-with-disjoint-hash
         (lambda ()
-          (with-subtype-hash
+          (call-with-subtype-hash
               (lambda ()
                 (mapcar #'bdd-to-dnf
                         (%bdd-decompose-types type-specifiers))))))))
@@ -590,7 +598,7 @@ in the given list have the same dnf form."
 (defun check-decomposition (given calculated)
   "debugging function to assure that a given list of types GIVEN corresponds correctly
 to a set of types returned from %bdd-decompose-types."
-  (bdd-with-new-hash
+  (bdd-call-with-new-hash
    (lambda ()
      (let ((bdd-given (bdd `(or ,@given)))
            (bdd-calculated (bdd `(or ,@calculated))))

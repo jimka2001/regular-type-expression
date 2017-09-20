@@ -81,11 +81,12 @@
 (defvar *bdd-hash* (bdd-new-hash))
 (defvar *bdd-verbose* nil)
 
-(defun bdd-with-new-hash (thunk &key (verbose *bdd-verbose*))
+(defmacro bdd-with-new-hash (vars &body body)
+  `(bdd-call-with-new-hash (lambda ,vars ,@body)))
+
+(defun bdd-call-with-new-hash (thunk &key (verbose *bdd-verbose*))
   (let ((*bdd-verbose* verbose)
-        (*bdd-hash* (bdd-new-hash))
-        (*disjoint-hash* (new-disjoint-hash))
-        (*subtype-hash* (new-subtype-hash)))
+        (*bdd-hash* (bdd-new-hash)))
     ;; (setf (gethash :type-system *bdd-hash*)
     ;;       (bdd '(not (or
     ;;                   (and (not integer) (not ratio) rational)
@@ -93,9 +94,11 @@
     ;;                   (and array sequence (not vector))
     ;;                   (and (not float) (not integer) (not ratio) real)
     ;;                   (and (not bignum) (not fixnum) unsigned-byte)))))
-    (prog1 (funcall thunk)
-      (when verbose
-        (format t "finished with ~A and ~A~%" *bdd-hash* *subtype-hash*)))))
+    (call-with-subtypep-cache
+     (lambda ()
+       (prog1 (funcall thunk)
+         (when verbose
+           (format t "finished with ~A~%" *bdd-hash*)))))))
   
 (defun bdd-make-key (label left right)
   (list left right label))
@@ -162,7 +165,7 @@
       (error "invalid type specifier: ~A" label)))
 
 (defmethod bdd ((expr list))
-  (declare (optimize (speed 3) (safety 0) (debug 3) (compilation-speed 0) (space 0)))
+  (declare (optimize (speed 3) (safety 0) (debug 0) (compilation-speed 0) (space 0)))
   (destructuring-bind (head &rest tail) expr
     (flet ((bdd-tail ()
              (mapcar #'bdd tail)))

@@ -247,7 +247,7 @@
   (null (label node)))
 
 (defmethod node-subtypep ((x sexp-node) (y sexp-node))
-  (subtypep (label x) (label y)))
+  (cached-subtypep (label x) (label y)))
 
 (defmethod node-disjoint-types-p ((x sexp-node) (y sexp-node))
   (disjoint-types-p (label x) (label y)))
@@ -263,6 +263,25 @@
 
 (defmethod extract-disjoint ((g sexp-graph))
   (mapcar #'label (disjoint g)))
+
+(defmethod decompose-graph-1 ((g sexp-graph))
+  (call-with-equiv-hash
+   (lambda ()
+     (call-with-disjoint-hash
+      (lambda ()
+        (call-with-subtype-hash
+         (lambda ()
+           (call-next-method))))))))
+
+(defmethod decompose-graph-2 ((g sexp-graph))
+  (call-with-equiv-hash
+   (lambda (x)
+     (call-with-disjoint-hash
+      (lambda ()
+        (call-with-subtype-hash
+         (lambda ()
+           (call-next-method))))))))
+
 
 ;; implemention of bdd based types
 
@@ -298,11 +317,11 @@
   (mapcar #'bdd-to-dnf (mapcar #'label (disjoint g))))
 
 (defmethod decompose-graph-1 ((g bdd-graph))
-  (bdd-with-new-hash
+  (bdd-call-with-new-hash
    (lambda ()
      (call-next-method))))
 
 (defmethod decompose-graph-2 ((g bdd-graph))
-  (bdd-with-new-hash
+  (bdd-call-with-new-hash
    (lambda ()
      (call-next-method))))

@@ -25,6 +25,8 @@
 
 |#
 
+
+
 (let ((lisp-types-test (find-package  :lisp-types.test))
       (lisp-types (find-package  :lisp-types)))
   (do-symbols (name :lisp-types)
@@ -37,7 +39,15 @@
 ;;(do-symbols (name :lisp-types)
 ;;  (shadowing-import name :lisp-types.test))
 
-
+(defun locate-symbol (name)
+  "Return a list of symbols which is a collection of symbols from all packages which have the given symbol-name"
+  (let (symbols)
+    (dolist (p (list-all-packages))
+      (do-symbols (s p)
+        (when (and (symbol-name s)
+                   (string= name (symbol-name s)))
+          (pushnew s symbols))))
+    symbols))
 
 (defun valid-subtypes (super)
   (let (all-types)
@@ -84,10 +94,6 @@
                      floating-point-overflow           simple-base-string                             
                      floating-point-underflow          simple-bit-vector    ))
 
-
-
-
-
 (defmacro print-conditions (&body body)
   (let ((conditions (gensym "conditions")))
     `(let (,conditions)
@@ -126,9 +132,10 @@
 
 
 (defvar *decomposition-function-descriptors*
-  `((:names (decompose-types) :max-num-types 11 :color "blue" :legend t)
+  `((:names (decompose-types) :max-num-types 15 :color "blue" :legend t)
+    (:names (decompose-types-rtev2) :max-num-types nil :color "olive" :legend t)
     (:names (decompose-types-sat) :color "dark-cyan"  :legend t)
-    (:names (decompose-types-graph) :color "lavender" :legend t)
+    (:names (decompose-types-graph) :gnu-color "pink" :color "lavender" :legend t)
     (:names (bdd-decompose-types) :color "orange" :legend t)
     (:names ,*decompose-fun-names* :color "light-blue" :legend nil)
     (:names (decompose-types-bdd-graph) :color "red" :linewidth 2  :legend t)
@@ -139,14 +146,27 @@
                             (copy-list (getf plist :names))) *decomposition-function-descriptors*)
                   (cons 'local-minimum *decompose-fun-names*)))
 
+(defun encode-time (time &aux (decoded-time (multiple-value-list (decode-universal-time time))))
+  "Create a string similar to the UNIX date command: e.g., \"Thu Aug  3 10:39:18 2017\""
+  (destructuring-bind (second minute hour date month year day-of-week ;; (0 = Monday)
+                       daylight-savings-times ;; T (daylight savings times) or NIL (standard time)
+                       timezone) decoded-time
+    (declare (ignore timezone daylight-savings-times))
+    (let ((day-of-week (aref #("Mon" "Tue" "Wed" "Thu" "Fri" "Sat" "Sun") day-of-week))
+          (month (aref #("no-month" "Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug" "Sep" "Oct" "Nov" "Dec") month)))
+      (with-output-to-string (str)
+        (format str "~A ~A" day-of-week month)
+        (format str " ~2D ~2D:~2,'0D:~2,'0D ~S" date hour minute second year)))))
 
 (defun types/cmp-perfs (&key
                           (re-run t)
                           (verify nil)
+                          (num-tries 2)
                           (suite-time-out (* 60 10))
                           (randomize nil)
                           (summary nil)
                           (limit 15)
+                          sample
                           (types (choose-randomly (valid-subtypes 'number) limit))
                           (time-out nil)
                           tag
@@ -154,6 +174,7 @@
                           normalize
                           (sorted-name "/dev/null")
                           (ltxdat-name "/dev/null")
+                          (ltxdat-no-legend-name "/dev/null")
                           (sexp-name "/dev/null")
                           (gnuplot-name "/dev/null")
                           (gnuplot-normalized-name "/dev/null")
@@ -162,6 +183,8 @@
                           (dat-name "/dev/null"))
   (declare (type (or list (and symbol (satisfies symbol-function))) decompose))
   (let ((*package* (find-package "KEYWORD"))
+        (start-time (get-universal-time))
+        (fraction-completion 0)
         (time-out-time (+ (get-universal-time) suite-time-out))
         delayed)
     (labels ((handle (descr len thunk)
@@ -172,11 +195,12 @@
                  (randomize
                   (push thunk delayed))
                  (t
-                   (funcall thunk))))
+                  (funcall thunk))))
              (log-data ()
                (print-report :re-run re-run
                              :dat-name dat-name
                              :ltxdat-name ltxdat-name
+                             :ltxdat-no-legend-name ltxdat-no-legend-name
                              :sexp-name sexp-name
                              :gnuplot-name gnuplot-name
                              :gnuplot-normalized-name gnuplot-normalized-name
@@ -186,17 +210,26 @@
                              :summary summary
                              :normalize normalize
                              :time-out time-out
-                             :limit limit))
+                             :limit limit
+                             :tag tag))
              (run1 (f len types)
                (lambda (&aux results)
                  (when (> (get-universal-time) time-out-time)
                    (log-data)
                    (return-from types/cmp-perfs 'timed-out))
-                 (format t "    date:  ~A~%" (multiple-value-list (get-decoded-time)))
+                 (let ((now (get-universal-time)))
+                   (format t "    date:  ~A" (encode-time now))
+                   (when (plusp fraction-completion)
+                     (format t "  estim finish:  ~A" (encode-time
+                                                      (truncate (+ start-time
+                                                                   (/ (- now start-time)
+                                                                      fraction-completion))))))
+                   (terpri t))
                  (format t "function:  ~A~%" f)
                  (format t "   tag:    ~A~%" tag)
                  (format t "   length:  ~D~%" len)
-                 (let ((result (types/cmp-perf :types (choose-randomly types len)
+                 (let ((result (types/cmp-perf :num-tries num-tries
+                                               :types (choose-randomly types len)
                                                :decompose f
                                                :time-out time-out)))
                    (format t " run-time:  ~A~%" (getf result :run-time))
@@ -223,23 +256,30 @@
                  (len c))
             (setf delayed (shuffle-list delayed))
             (while delayed
+              (format t "sample: ~A~%" sample)
               (format t "countdown ~D/~D  ~D/~D~%" (decf c) len (- time-out-time (get-universal-time)) suite-time-out)
+              (setf fraction-completion (- 1
+                                           (min (/ c len)
+                                                (/ (- time-out-time (get-universal-time)) suite-time-out))))
               (funcall (pop delayed))))))
-      (sb-ext:gc :full t)
+      (gc)
       (log-data)))
   t)
 
 
 
-(defun call-with-timeout (time-out thunk)
-  "TIME-OUT, integer, the wall-time allowed to cal the function THUNK.
-THUNK is a 0-ary function returning some type X.
-Call the function THUNK, in one thread, and start a 2nd observer thread.  The 2nd thread
-is responsible for monitoring the wall time and killing the 1st thread if the TIME-OUT has
-passed.
-returns a plist, one of the following:
-(:wall-time rational :run-time rational :time-out integer) or
-(:wall-time rational :run-time rational :value X)"
+(defun call-with-timeout (time-out thunk num-tries)
+  "TIME-OUT, integer, the wall-time allowed to call the function THUNK.
+ THUNK is a 0-ary function returning some type X.
+ Call the function THUNK, in one thread, and start a 2nd observer thread.  The 2nd thread
+ is responsible for monitoring the wall time and killing the 1st thread if the TIME-OUT has
+ passed.  The function will be called num-tries times, and the minimum time is the
+ value reported in the returned plist.
+ If TIME-OUT is nil, then the function is not run in a separate thread, but rather 
+ is run directly.
+ Returns a plist, one of the following:
+ (:wall-time rational :run-time rational :time-out integer) or
+ (:wall-time rational :run-time rational :value X)"
   (let (th-worker th-observer th-worker-join-failed th-observer-join-failed th-worker-destroyed-observer time-it-error result1 result2
                   (start-run-time (get-internal-run-time))
                   (start-real-time (get-internal-real-time)))
@@ -254,16 +294,29 @@ returns a plist, one of the following:
                                      (when th-observer
                                        (warn "killing thread ~A because of error ~A" th-observer e)
                                        (ignore-errors (bordeaux-threads:destroy-thread th-observer))))))
-               (let* ((run-time-t1 (get-internal-run-time))
-                      (s2 (funcall thunk))
-                      (run-time-t2 (get-internal-run-time)))
-                 (setf result1
-                       (list :wall-time (/ (- (get-internal-real-time) start-real-time) internal-time-units-per-second)
-                             :run-time (/ (- run-time-t2 run-time-t1) internal-time-units-per-second)
-                             :value s2))
-                 (when th-observer
-                   (setf th-worker-destroyed-observer
-                         (bordeaux-threads:destroy-thread th-observer)))))))
+               (dotimes (try num-tries)
+                 (let* ((run-time-t1 (get-internal-run-time))
+                        (start-real-time (get-internal-real-time))
+                        (s2 (funcall thunk))
+                        (run-time-t2 (get-internal-run-time))
+                        (wall-time (/ (- (get-internal-real-time) start-real-time) internal-time-units-per-second))
+                        (run-time (/ (- run-time-t2 run-time-t1) internal-time-units-per-second)))
+                   (setf result1
+                         (cond
+                           ((not result1)
+                            (list :wall-time (the real wall-time)
+                                  :run-time run-time
+                                  :value s2))
+                           ((< run-time (the real (getf result1 :run-time)))
+                            (format t "[try ~D] found faster ~A < ~A~%" try run-time (getf result1 :run-time))
+                            (list :wall-time wall-time
+                                  :run-time run-time
+                                  :value s2))
+                           (t
+                            result1)))))
+               (when th-observer
+                 (setf th-worker-destroyed-observer
+                       (bordeaux-threads:destroy-thread th-observer))))))
       (cond
         (time-out
          (setf th-observer
@@ -283,13 +336,13 @@ returns a plist, one of the following:
                   (format t "killing thread ~A~%" th-worker)
                   (bordeaux-threads:destroy-thread th-worker))
                 :name "th-observer stop-watch"))
-         (setf th-worker (bordeaux-threads:make-thread #'time-it :name "th-worker handle thunk"))
+         (setf th-worker (bordeaux-threads:make-thread #'time-it :name "th-handle thunk"))
          (handler-case (bordeaux-threads:join-thread th-worker)
-           (SB-THREAD:JOIN-THREAD-ERROR (e)
+           #+sbcl(SB-THREAD:JOIN-THREAD-ERROR (e)
              (setf th-worker-join-failed e)
              nil))
          (handler-case (bordeaux-threads:join-thread th-observer)
-           (SB-THREAD:JOIN-THREAD-ERROR (e)
+           #+sbcl(SB-THREAD:JOIN-THREAD-ERROR (e)
              (setf th-observer-join-failed e)
              nil)))
       (t
@@ -299,7 +352,7 @@ returns a plist, one of the following:
     (the cons (or result1 result2))))
 
 (defvar *perf-results* nil)
-(defun types/cmp-perf (&key types (decompose 'bdd-decompose-types) (time-out 15) &aux (f (symbol-function decompose)))
+(defun types/cmp-perf (&key types (decompose 'bdd-decompose-types) (time-out 15) (num-tries 2) &aux (f (symbol-function decompose)))
   (declare (type list types)
            (type symbol decompose)
            (type function f))
@@ -313,17 +366,18 @@ returns a plist, one of the following:
      (format t "skipping duplicate ~A ~A~%" decompose types)
      nil)
     (t
-     (sb-ext:gc :full t)
+     (gc)
      (let ((result (call-with-timeout time-out
                                       (lambda ()
-                                        (funcall f types))))
+                                        (funcall f types))
+                                      num-tries))
            (num-unknown 0)
            (num-known 0))
        (declare (type (and unsigned-byte fixnum) num-known num-unknown))
        (dolist (t1 types)
          (dolist (t2 types)
-           (dolist (t3 (list t1 `(not t1)))
-             (dolist (t4 (list t2 `(not t2)))
+           (dolist (t3 (list t1 `(not ,t1)))
+             (dolist (t4 (list t2 `(not ,t2)))
                (if (nth-value 1 (subtypep t3 t4))
                    (incf num-unknown)
                    (incf num-known))))))
@@ -436,7 +490,7 @@ returns a plist, one of the following:
   ;;  in different types being calculated
   (labels ((equiv-type-sets (set1 set2)
              (and (= (length set1) (length set2))
-                  (bdd-with-new-hash
+                  (bdd-call-with-new-hash
                    (lambda () (or (null (set-exclusive-or set1 set2 :test #'%equal))
                                   (let ((bdd-set1 (bdd `(or ,@set1)))
                                         (bdd-set2 (bdd `(or ,@set2))))
@@ -531,7 +585,7 @@ returns a plist, one of the following:
                             (bdd-to-dnf (bdd-and-not bdd-given bdd-calc)))))))))
     (when good-results
       (let ((res1 (car good-results)))
-        (bdd-with-new-hash
+        (bdd-call-with-new-hash
          (lambda ()
            (check-1 (getf res1 :types) (getf res1 :value) (getf res1 :decompose)))))
       
@@ -572,7 +626,7 @@ returns a plist, one of the following:
   (let ((content (with-open-file (stream sorted-file :direction :input)
                    (format t "reading    ~A~%" sorted-file)
                    (read stream nil nil))))
-    (with-open-file (stream gnuplot-file :direction :output :if-exists :overwrite)
+    (with-open-file (stream gnuplot-file :direction :output :if-exists :supersede :if-does-not-exist :create)
       (format t "writing to ~A~%" gnuplot-file)
       (destructuring-bind (&key summary sorted &allow-other-keys &aux min-curve min-curve-line-style) content
         (assert (typep sorted 'cons))
@@ -615,7 +669,8 @@ returns a plist, one of the following:
                                     (format stream "set style line ~D linewidth ~D linecolor rgb ~S~%"
                                             line-style
                                             (or (getf descr :linewidth) 1)
-                                            (getf descr :color))
+                                            (or (getf descr :gnu-color)
+                                                (getf descr :color)))
                                     ;; collect
                                     `(:line-style ,line-style ,@descr))
                                   *decomposition-function-descriptors*))
@@ -658,7 +713,8 @@ returns a plist, one of the following:
                      (plot-curve (curve)
                        (destructuring-bind (&key decompose
                                             &allow-other-keys
-                                            &aux (color (getf (find-decomposition-function-descriptor decompose) :color)))
+                                            &aux (color (or (getf (find-decomposition-function-descriptor decompose) :gnu-color)
+                                                            (getf (find-decomposition-function-descriptor decompose) :color))))
                            curve
                          (format stream "# ~A ~A~%" color decompose)
                          (dolist (pair (xys curve))
@@ -685,10 +741,10 @@ returns a plist, one of the following:
               (mapc #'plot-curve sorted)
               (plot-curve min-curve))))))
 
-    (sb-ext:run-program "gnuplot" (list gnuplot-file)
-                        :search t
-                        :output png-filename
-                        :if-output-exists :overwrite)))
+    (run-program "gnuplot" (list gnuplot-file)
+                 :search t
+                 :output png-filename
+                 :if-output-exists :supersede)))
 
 (defun integral (xys)
   "given a list of xy pairs (car cadr) calculate the area under the curve formed by the trapizoids.
@@ -784,7 +840,7 @@ the list of xys need not be already ordered."
      (with-open-file (stream in :direction :input)
        (apply #'sort-results stream out options)))
     ((typep out '(or pathname string))
-     (with-open-file (stream out :direction :output :if-exists :overwrite)
+     (with-open-file (stream out :direction :output :if-exists :supersede :if-does-not-exist :create)
        (format t "writing to ~A~%" out)
        (apply #'sort-results in stream options)))
     ((eq out :return)
@@ -907,14 +963,17 @@ the list of xys need not be already ordered."
     (format stream "))~%"))
   nil)
 
-(defun print-ltxdat (ltxdat-name sorted-name include-decompose)
+(defun print-ltxdat (ltxdat-name sorted-name include-decompose legendp tag)
   (let ((content (with-open-file (stream sorted-name :direction :input :if-does-not-exist :error)
                    (read stream))))
     (destructuring-bind (&key sorted &allow-other-keys) content
-      (with-open-file (stream ltxdat-name :direction :output :if-exists :overwrite)
+      (with-open-file (stream ltxdat-name :direction :output :if-exists :supersede :if-does-not-exist :create)
         (format t "writing to ~A~%" ltxdat-name)
         (format stream "\\begin{tikzpicture}~%")
-        (format stream "\\begin{axis}[xlabel=Size,ylabel=Time,xmode=log,ymode=log,legend style={at={(0.5,-0.2)},anchor=north}, xmajorgrids, xminorgrids, ymajorgrids, legend style={font=\\tiny}, xticklabel style={font=\\tiny}, yticklabel style={font=\\tiny}, label style={font=\\tiny}]~%")
+        (format stream "\\begin{axis}[~% ")
+        (when tag
+          (format stream "title=~A,~% " tag))
+        (format stream "xlabel=Size,~% ylabel=Time,~% xmode=log,~% ymode=log,~% legend style={at={(0.5,-0.2)},anchor=north},~% xmajorgrids,~% xminorgrids,~% ymajorgrids,~% legend style={font=\\tiny},~% xticklabel style={font=\\tiny},~% yticklabel style={font=\\tiny},~% label style={font=\\tiny}~%]~%")
         (let ((*print-case* :downcase)
               (min-curve (reduce (lambda (curve1 curve2)
                                   (if (< (getf curve1 :integral)
@@ -951,12 +1010,13 @@ the list of xys need not be already ordered."
                 (plot (getf min-curve :xys)
                       (getf min-curve :decompose)
                       descr))))
-          (format stream "\\legend{~A};~%" (build-string ", " (reverse legend))))
+          (format stream "~A\\legend{~A};~%" (if legendp "" "%% ") (build-string ", " (reverse legend)))
+          (format stream "~A\\legend{};~%" (if legendp "%% " "")))
         (format stream "\\end{axis}~%")
         (format stream "\\end{tikzpicture}~%")))))
             
 (defun print-dat (dat-name include-decompose)
-  (with-open-file (stream dat-name :direction :output :if-exists :overwrite)
+  (with-open-file (stream dat-name :direction :output :if-exists :supersede :if-does-not-exist :create)
     (format stream "given calculated sum product touching disjoint disjoint*given touching*given new time decompose~%")    
     (let ((domain (remove-duplicates *perf-results*
                                      :test #'equal
@@ -993,10 +1053,10 @@ the list of xys need not be already ordered."
                        (length (set-difference value types :test #'equivalent-types-p)) ;; new
                        time decompose)))))))))
 
-(defun print-report (&key (re-run t) limit (summary nil) normalize (dat-name "/dev/null") (ltxdat-name "/dev/null") (sorted-name "/dev/null") (sexp-name "/dev/null") (png-name "/dev/null") (png-normalized-name "/dev/null") (gnuplot-name "/dev/null") (gnuplot-normalized-name "/dev/null") (include-decompose *decomposition-functions*) &allow-other-keys)
+(defun print-report (&key (re-run t) limit (summary nil) normalize (dat-name "/dev/null") (ltxdat-name "/dev/null") (ltxdat-no-legend-name "/dev/null") (sorted-name "/dev/null") (sexp-name "/dev/null") (png-name "/dev/null") (png-normalized-name "/dev/null") (gnuplot-name "/dev/null") (gnuplot-normalized-name "/dev/null") (include-decompose *decomposition-functions*) (tag "NO TITLE") &allow-other-keys)
   (format t "report ~A~%" summary)
   (when re-run
-    (with-open-file (stream sexp-name :direction :output :if-exists :overwrite)
+    (with-open-file (stream sexp-name :direction :output :if-exists :supersede :if-does-not-exist :create)
       (format t "writing to ~A~%" sexp-name)
       (print-sexp stream summary limit)))
   (sort-results sexp-name sorted-name)
@@ -1004,11 +1064,12 @@ the list of xys need not be already ordered."
     (create-gnuplot sorted-name gnuplot-name png-name nil)
     (when normalize
       (create-gnuplot sorted-name gnuplot-normalized-name png-normalized-name normalize))
-    (print-ltxdat ltxdat-name sorted-name include-decompose))
+    (print-ltxdat ltxdat-name           sorted-name include-decompose t nil)
+    (print-ltxdat ltxdat-no-legend-name sorted-name include-decompose nil tag))
   (print-dat dat-name include-decompose))
 
-(defun test-report (&key (prefix "") (re-run t) (suite-time-out (* 60 60 4))  (time-out (* 3 60)) normalize (destination-dir "/Users/jnewton/newton.16.edtchs/src")
-                      types file-name (limit 15) tag
+(defun test-report (&key sample (prefix "") (re-run t) (suite-time-out (* 60 60 4))  (time-out (* 3 60)) normalize (destination-dir "/Users/jnewton/newton.16.edtchs/src")
+                      types file-name (limit 15) tag (num-tries 2)
                     &allow-other-keys)
   "TIME-OUT is the number of seconds to allow for one call to a single decompose function.
 SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
@@ -1025,9 +1086,12 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
                              :time-out time-out
                              :decompose  *decomposition-functions*
                              :normalize normalize
+                             :sample sample
+                             :num-tries num-tries
                              (when file-name
                                (list
                                 :ltxdat-name (format nil "~A/~A~A.ltxdat" destination-dir prefix file-name)
+                                :ltxdat-no-legend-name (format nil "~A/no-legend/~A~A.ltxdat" destination-dir prefix file-name)
                                 :dat-name (format nil "~A/~A~A.dat" destination-dir prefix file-name)
                                 :png-name (format nil "~A/~A~A.png" destination-dir prefix file-name)
                                 :png-normalized-name (format nil "~A/~A~A-normalized.png" destination-dir prefix file-name)
@@ -1104,31 +1168,69 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
 
 
 
-(defun big-test-report (&rest options &key (multiplier 1) (prefix "") (re-run t) (suite-time-out (* 60 60 4)) (time-out 100) normalize (decomposition-functions *decomposition-functions*) (destination-dir "/Users/jnewton/newton.16.edtchs/src"))
-  (declare (ignore prefix re-run suite-time-out time-out normalize destination-dir))
-  (let ((*decomposition-functions*  decomposition-functions))
+(defun big-test-report (&rest options &key (num-tries 2) (multiplier 1) (prefix "") (re-run t) (suite-time-out (* 60 60 4)) (time-out 100) normalize (decomposition-functions *decomposition-functions*) (destination-dir "/Users/jnewton/newton.16.edtchs/src"))
+  (declare (ignore prefix re-run suite-time-out time-out normalize destination-dir num-tries))
+  (let ((sample 0)
+        (*decomposition-functions*  decomposition-functions))
+
 
     (apply #'test-report :limit (* multiplier 18)
-                         :tag "numbers and conditions"
+                         :tag "Subtypes of CONDITION"
+                         :types (valid-subtypes 'condition)
+                         :file-name "subtypes-of-condition"
+                         :sample (incf sample 1/8)
+                         options)
+
+    
+
+    (apply #'test-report :limit (* multiplier 30)
+                         :tag "MEMBER types"
+                         :types *member-types*
+                         :file-name "member"
+                         :sample (incf sample 1/8)
+                         options)
+
+    (apply #'test-report :limit (* multiplier 21)
+                         :tag "OBJECT SYSTEM types"
+                         :types (loop :for name being the external-symbols in #+sbcl "SB-PCL" #+allegro "ACLMOP"
+                                      :when (find-class name nil)
+                                        :collect name)
+                         :file-name "pcl-types"
+                         :sample (incf sample 1/8)
+                         options)
+
+
+    (apply #'test-report :limit (* multiplier 30)
+                         :tag "CL types"
+                         :types *cl-types*
+                         :file-name "cl-types"
+                         :sample (incf sample 1/8)
+                         options)
+
+    (apply #'test-report :limit (* multiplier 18)
+                         :tag "Subtypes of NUMBER or CONDITION"
                          ;; :types (union (valid-subtypes 'number) (valid-subtypes 'condition))
                          :types (setof e (remove-duplicates (loop for t1 in (shuffle-list (union (valid-subtypes 'number) (valid-subtypes 'condition)))
                                                                   for t2 in (shuffle-list (union (valid-subtypes 'number) (valid-subtypes 'condition)))
                                                                   nconc (list t1 `(or ,t1 ,t2) `(and ,t1 (not ,t2)))) :test #'equal)
                                   (null (subtypep e nil)))
                          :file-name "subtypes-of-number-or-condition"
+                         :sample (incf sample 1/8)
                          options)
 
 
     (apply #'test-report :limit (* multiplier 25)
-                         :tag "numbers"
+                         :tag "Subtypes of NUMBER"
                          :types *number-combos*
                          :file-name "subtypes-of-number"
+                         :sample (incf sample 1/8)
                          options)
 
     (apply #'test-report :limit (* multiplier 33)
-                         :tag "cl-combos"
+                         :tag "CL combinations"
                          :types (choose-randomly  *cl-type-combos* 13850)
                          :file-name "cl-combos"
+                         :sample (incf sample 1/8)
                          options)
     
 
@@ -1139,41 +1241,13 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
     ;;                      options)
 
 
-
-    (apply #'test-report :limit (* multiplier 21)
-                         :tag "SB-PCL types"
-                         :types (loop :for name being the external-symbols in "SB-PCL"
-                                      :when (find-class name nil)
-                                        :collect name)
-                         :file-name "pcl-types"
-                         options)
-    (apply #'test-report :limit (* multiplier 30)
-                         :tag "cl-types"
-                         :types *cl-types*
-                         :file-name "cl-types"
-                         options)
-
-    
-    (apply #'test-report :limit (* multiplier 30)
-                         :tag "member"
-                         :types *member-types*
-                         :file-name "member"
-                         options)
-    
-    (apply #'test-report :limit (* multiplier 18)
-                         :tag "conditions"
-                         :types (valid-subtypes 'condition)
-                         :file-name "subtypes-of-condition"
-                         options)
-
-
-
-
     (apply #'test-report :limit (* multiplier 22)
-                         :tag "subtypes of t"
+                         :tag "Subtypes of T"
                          :types (valid-subtypes t)
                          :file-name "subtypes-of-t"
+                         :sample (incf sample 1/8)
                          options)
+
 
     ))
 
@@ -1188,11 +1262,14 @@ SUITE-TIME-OUT is the number of time per call to TYPES/CMP-PERFS."
 
 (defun best-2-report (&key (re-run t) (multiplier 1.8))
   (big-test-report :re-run re-run
-                   :prefix "best-2-"
+                   :prefix "best-2-" ;; should change to best-4-
                    :multiplier multiplier
                    :normalize nil
                    :time-out 20
+                   :num-tries 4
                    :decomposition-functions '(decompose-types-bdd-graph
+                                              bdd-decompose-types
+                                              decompose-types-rtev2
                                               decompose-types-graph)))
 
 

@@ -137,7 +137,7 @@
     (setf all-types (set-difference all-types '(compiled-function control-error division-by-zero error
                                                 char-code base-char)))
     (setf all-types (sort all-types #'string<))
-    (bdd-with-new-hash
+    (bdd-call-with-new-hash
      (lambda ()
        
        (let ((n 1)
@@ -160,15 +160,15 @@
 (defclass B-151 () ())
 
 (define-test type/reduce-c
-  (assert-false (sb-mop:class-direct-subclasses (find-class 'a-150)))
-  (assert-false (sb-mop:class-direct-subclasses (find-class 'b-151)))
+  (assert-false (class-direct-subclasses (find-class 'a-150)))
+  (assert-false (class-direct-subclasses (find-class 'b-151)))
   (assert-true (equal (reduce-lisp-type '(OR (NOT A-150) B-151))
                       '(not a-150))))
 
 (deftype non-number () `(not number))
 (deftype non-integer () `(not integer))
 (define-test type/bdd-reduce
-  (bdd-with-new-hash
+  (bdd-call-with-new-hash
    (lambda ()
 
   ;; there are six cases to test
@@ -219,14 +219,14 @@
                       '(non-integer nil t))))))
 
 (define-test test/bdd-numbers
-  (bdd-with-new-hash
+  (bdd-call-with-new-hash
    (lambda ()
 
   (assert-true (types/cmp-perfs :limit 15 :decompose 'lisp-types::bdd-decompose-types :types (valid-subtypes 'number))))))
 
 
 (define-test test/bdd-cmp
-  (bdd-with-new-hash
+  (bdd-call-with-new-hash
    (lambda ()
 
   ;; =
@@ -264,7 +264,7 @@
   )  ))
                    
 (define-test test/bdd-type-p
-  (bdd-with-new-hash
+  (bdd-call-with-new-hash
    (lambda ()
      (assert-false (bdd-type-p  t (bdd '(or (and sequence (not array))
                                          number
@@ -275,7 +275,7 @@
 
 
 (define-test test/bdd-dnf
-  (bdd-with-new-hash
+  (bdd-call-with-new-hash
    (lambda ()
      (assert-true (member 'number (bdd-to-dnf (bdd '(or (and sequence (not array))
                                                      number
@@ -300,11 +300,11 @@
  ;;    (latex-measure-bdd-sizes "/Users/jnewton/newton.16.edtchs/src" '(Z1 Z2 Z3 Z4 Z5 Z6) 4000)
 
 (defun test-with-z1-z6 (prefix num-samples)
-  (sb-ext::gc :full t)
+  (gc)
   (latex-measure-bdd-sizes prefix '(Z1 Z2 Z3 Z4 Z5 Z6) num-samples :min 1 :max 6))
 
 (defun test-with-z7-z8 (prefix num-samples)
-  (sb-ext::gc :full t)
+  (gc)
   (latex-measure-bdd-sizes prefix '(Z1 Z2 Z3 Z4 Z5 Z6 Z7 Z8) num-samples :min 7 :max 8))
 
 ;; (test-with-z1-z6 "/Users/jnewton/newton.16.edtchs/src/bdd-distribution.ltxdat" 1000)

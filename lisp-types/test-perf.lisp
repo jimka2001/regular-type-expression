@@ -35,14 +35,14 @@
 ;;  (shadowing-import name :lisp-types.test))
 
 
-(define-test disjoint-cmp-1
+#+sbcl(define-test disjoint-cmp-1
   (setf *perf-results* nil)
   (types/cmp-perfs :types '(sb-pcl::SYSTEM-CLASS
                             sb-pcl::SLOT-DEFINITION
                             sb-pcl::EQL-SPECIALIZER) :time-out nil))
 
 
-(define-test disjoint-cmp-2
+#+sbcl(define-test disjoint-cmp-2
   (setf *perf-results* nil)
   (types/cmp-perfs :types '(sb-pcl::SYSTEM-CLASS
                             sb-pcl::STANDARD-SLOT-DEFINITION
@@ -54,14 +54,14 @@
                             sb-pcl::SLOT-DEFINITION)
                    :time-out 5))
 
-(define-test disjoint-cmp-3
+#+sbcl(define-test disjoint-cmp-3
   (setf *perf-results* nil)
   (types/cmp-perfs :types '(SB-PCL:SYSTEM-CLASS
                             SB-MOP:STANDARD-WRITER-METHOD
                             SB-MOP:DIRECT-SLOT-DEFINITION)))
 
 
-(define-test disjoint-cmp-4
+#+sbcl(define-test disjoint-cmp-4
   (setf *perf-results* nil)
   (types/cmp-perfs :types '(SB-PCL:SYSTEM-CLASS
                             SB-MOP:DIRECT-SLOT-DEFINITION
@@ -74,7 +74,7 @@
                             SB-MOP:FUNCALLABLE-STANDARD-OBJECT)
                    :time-out 8))
 
-(define-test disjoint-cmp-5
+#+sbcl(define-test disjoint-cmp-5
   (setf *perf-results* nil)
   ;; decompose-types-bdd-graph
   (types/cmp-perfs :types '(SB-PCL:SYSTEM-CLASS
@@ -103,16 +103,16 @@
                             (MEMBER 0 2 4))))
 
 (define-test disjoint-cmp-9
-  (bdd-with-new-hash
+  (bdd-call-with-new-hash
    (lambda ()
      (assert-test (= 3 (length (bdd-decompose-types '((MEMBER 0 2)
                                                       (MEMBER 0 1 2)
                                                       (MEMBER 0 2 4)))))))))
 
 (define-test disjoint-cmp-a
-  (bdd-with-new-hash
+  (bdd-call-with-new-hash
    (lambda ()
-     (bdd-with-new-hash
+     (bdd-call-with-new-hash
       (lambda ()
         (let* ((t1 (bdd '(member 0 2)))
                (t2 (bdd '(member 0 1 2)))
@@ -240,7 +240,7 @@
             (or (and (not reader-error) stream-error) (and reader-error (not style-warning)))
             (and (not arithmetic-error) reader-error (not structure-class) (not style-warning))
             (and (not arithmetic-error) (not reader-error) (not structure-class) style-warning))))
-    (%decompose-types-bdd-graph type-specifiers 
+    (slow-decompose-types-bdd-graph type-specifiers 
                                 :sort-nodes #'(lambda (graph)
                                                 (declare (notinline sort))
                                                 (sort graph #'< :key #'count-parents-per-node))
@@ -256,7 +256,7 @@
           '(CONDITION RESTART RATIONAL CONS RATIO READER-ERROR STRUCTURE-CLASS
             SYNONYM-STREAM ARITHMETIC-ERROR CHAR-CODE WARNING FLOAT-RADIX
             SIMPLE-BIT-VECTOR STREAM-ERROR ARRAY STYLE-WARNING)))
-    (%decompose-types-bdd-graph type-specifiers 
+    (slow-decompose-types-bdd-graph type-specifiers 
                                 :sort-nodes #'(lambda (graph)
                                                 (declare (notinline sort))
                                                 (sort graph #'< :key #'count-parents-per-node))
@@ -302,11 +302,11 @@
 
 
 (defun perf-test-1 (&key (size 11))
-  (bdd-with-new-hash
+  (bdd-call-with-new-hash
    (lambda (&aux (type-specifiers (lisp-types::choose-randomly (loop :for name being the external-symbols in "SB-PCL"
                                                                      :when (find-class name nil)
                                                                        :collect name) size)))
-     (%decompose-types-bdd-graph type-specifiers
+     (slow-decompose-types-bdd-graph type-specifiers
                                  :sort-nodes (lambda (graph)
                                                (declare (notinline sort))
                                                (sort graph #'< :key

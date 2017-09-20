@@ -79,7 +79,7 @@
   (graph-to-dot graph (pathname filename)))
 
 (defmethod graph-to-dot (graph (pathname pathname))
-  (with-open-file (stream pathname :direction :output :if-exists :supersede)
+  (with-open-file (stream pathname :direction :output :if-exists :supersede :if-does-not-exist :create)
     (graph-to-dot graph stream)))
 
 (defmethod graph-to-dot (graph (stream (eql nil)))
@@ -281,19 +281,18 @@
       (write type :stream t :pretty nil)
       (terpri t))
     (graph-to-dot graph dot-file)
-    (sb-ext:run-program "dot" (list "-Tpng" dot-file
-                                    "-o" out)
-                        :search t)
-    (sb-ext:run-program "cp" (list "-f" "/tmp/jnewton/graph/graph.png" "/tmp/jnewton/graph/graph-previous.png")
-                        :search t)
-    (sb-ext:run-program "cp" (list "-f" out "/tmp/jnewton/graph/graph.png")
-                        :search t)
+    (run-program "dot" (list "-Tpng" dot-file
+                             "-o" out)
+                 :search t)
+    (run-program "cp" (list "-f" "/tmp/jnewton/graph/graph.png" "/tmp/jnewton/graph/graph-previous.png")
+                 :search t)
+    (run-program "cp" (list "-f" out "/tmp/jnewton/graph/graph.png")
+                 :search t)
     (format t "created ~A~%" out)
     (when (diff-files *previous-dot* dot-file)
       (y-or-n-p "continue nodes=~D, touches=~D, supers=~D?"
                 (length graph) (count-touches) (count-supers)))
     (setf *previous-dot* dot-file)))
-
 
 (defun decompose-types-graph (type-specifiers &key (reduce t))
   (decompose-by-graph-1 type-specifiers :graph-class 'sexp-graph))
